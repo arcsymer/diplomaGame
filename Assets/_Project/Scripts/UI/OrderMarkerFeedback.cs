@@ -19,9 +19,10 @@ namespace DiplomaGame.Runtime.UI
         private const int   PoolSize     = 4;
         private const float AnimDuration = 0.6f;
 
-        private GameObject[] _pool;
-        private Coroutine[]  _coroutines;   // активные корутины по индексу пула
-        private int          _nextIndex;
+        private GameObject[]      _pool;
+        private Coroutine[]       _coroutines;   // активные корутины по индексу пула
+        private int               _nextIndex;
+        private MaterialPropertyBlock _propertyBlock; // переиспользуется в PlayMarker
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -29,6 +30,7 @@ namespace DiplomaGame.Runtime.UI
 
         private void Awake()
         {
+            _propertyBlock = new MaterialPropertyBlock();
             BuildPool();
         }
 
@@ -122,9 +124,7 @@ namespace DiplomaGame.Runtime.UI
             var   startScale = new Vector3(1.5f, 0.05f, 1.5f);
             var   endScale   = new Vector3(0.5f, 0.05f, 0.5f);
 
-            // Берём начальный цвет материала (для fade через MaterialPropertyBlock без new-аллокаций)
-            var block = new MaterialPropertyBlock();
-
+            // Берём начальный цвет материала (для fade через переиспользуемый PropertyBlock)
             Color startColor = Color.white;
             if (mr != null && mr.sharedMaterial != null)
                 startColor = mr.sharedMaterial.color;
@@ -134,13 +134,13 @@ namespace DiplomaGame.Runtime.UI
                 float t = elapsed / AnimDuration;
                 marker.transform.localScale = Vector3.Lerp(startScale, endScale, t);
 
-                // Fade alpha через PropertyBlock
+                // Fade alpha через переиспользуемый PropertyBlock
                 if (mr != null)
                 {
                     var c = startColor;
                     c.a = Mathf.Lerp(1f, 0f, t);
-                    block.SetColor("_BaseColor", c);
-                    mr.SetPropertyBlock(block);
+                    _propertyBlock.SetColor("_BaseColor", c);
+                    mr.SetPropertyBlock(_propertyBlock);
                 }
 
                 elapsed += Time.deltaTime;

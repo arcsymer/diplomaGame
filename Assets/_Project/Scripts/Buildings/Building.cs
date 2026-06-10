@@ -26,6 +26,20 @@ namespace DiplomaGame.Runtime.Buildings
         public BuildingData Data    => _data;
         public Faction      Faction => _faction;
 
+        /// <summary>
+        /// Кэшированный Health-компонент (GetComponent в Awake). Используется UnitCombat
+        /// для работы с целями без аллокаций.
+        /// </summary>
+        public Health CachedHealth
+        {
+            // Ленивый кэш: в тестах Health может добавляться на GO после Building.Awake
+            get
+            {
+                if (_health == null) _health = GetComponent<Health>();
+                return _health;
+            }
+        }
+
         // ----------------------------------------------------------------
         // Кэшированные ссылки
         // ----------------------------------------------------------------

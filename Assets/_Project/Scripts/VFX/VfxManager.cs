@@ -45,6 +45,10 @@ namespace DiplomaGame.Runtime.VFX
         // Флаг: тестовый режим (пул уже инициализирован снаружи)
         private bool _testMode;
 
+        // Кэш WaitForSeconds по длительности (избегаем new на каждой корутине)
+        private readonly Dictionary<float, WaitForSeconds> _waitCache =
+            new Dictionary<float, WaitForSeconds>(8);
+
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
@@ -224,7 +228,14 @@ namespace DiplomaGame.Runtime.VFX
             var main = ps.main;
             float duration = main.duration + main.startLifetime.constantMax;
 
-            yield return new WaitForSeconds(duration);
+            // Переиспользуем WaitForSeconds с одинаковой длительностью — без аллокаций
+            if (!_waitCache.TryGetValue(duration, out WaitForSeconds wait))
+            {
+                wait = new WaitForSeconds(duration);
+                _waitCache[duration] = wait;
+            }
+
+            yield return wait;
 
             if (ps != null && ps.gameObject != null)
             {

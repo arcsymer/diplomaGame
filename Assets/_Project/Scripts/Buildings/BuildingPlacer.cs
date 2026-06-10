@@ -48,6 +48,18 @@ namespace DiplomaGame.Runtime.Buildings
         private GameObject   _currentPrefab;
         private GameObject   _ghostInstance;
 
+        // Кэш Camera.main (заполняется в Awake, обновляется null-safe если потеряна)
+        private Camera _cachedCamera;
+
+        // Кэш MeshRenderer[] призрака (обновляется при CreateGhost)
+        private MeshRenderer[] _ghostRenderers;
+
+        // Кэш Bounds префаба (обновляется при CreateGhost)
+        private Bounds _ghostPrefabBounds;
+
+        // Статический буфер для OverlapSphereNonAlloc
+        private static readonly Collider[] _overlapBuffer = new Collider[16];
+
         // Маска для OverlapBox: слои Buildings + Units (по умолчанию — Default + все)
         private static readonly int PlacementMask = ~0;
 
@@ -57,6 +69,11 @@ namespace DiplomaGame.Runtime.Buildings
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
+
+        private void Awake()
+        {
+            _cachedCamera = Camera.main;
+        }
 
         private void Update()
         {
@@ -97,9 +114,10 @@ namespace DiplomaGame.Runtime.Buildings
         /// <summary>Отменяет режим размещения и уничтожает призрак.</summary>
         public void CancelPlacement()
         {
-            _isPlacing     = false;
-            _currentData   = null;
-            _currentPrefab = null;
+            _isPlacing      = false;
+            _currentData    = null;
+            _currentPrefab  = null;
+            _ghostRenderers = null;
 
             if (_ghostInstance != null)
             {
@@ -171,9 +189,8 @@ namespace DiplomaGame.Runtime.Buildings
         {
             if (_currentData == null || _currentPrefab == null) return false;
 
-            // Проверяем пересечение с другими объектами
-            var  bounds      = GetPrefabBounds(_currentPrefab);
-            bool overlaps    = Physics.CheckBox(worldPos + bounds.center, bounds.extents * 0.9f,
+            // Используем кэшированный Bounds префаба (заполнен в CreateGhost)
+            bool overlaps    = Physics.CheckBox(worldPos + _ghostPrefabBounds.center, _ghostPrefabBounds.extents * 0.9f,
                                                Quaternion.identity, PlacementMask,
                                                QueryTriggerInteraction.Ignore);
 
@@ -230,26 +247,39 @@ namespace DiplomaGame.Runtime.Buildings
 
             foreach (var col in _ghostInstance.GetComponentsInChildren<Collider>())
                 col.enabled = false;
+
+            // Кэшируем рендереры призрака — используются каждый кадр в ApplyGhostMaterial
+            _ghostRenderers = _ghostInstance.GetComponentsInChildren<MeshRenderer>();
+
+            // Кэшируем Bounds префаба — используется каждый кадр в IsCurrentPositionValid
+            _ghostPrefabBounds = GetPrefabBounds(prefab);
         }
 
         private void ApplyGhostMaterial(bool valid)
         {
-            if (_ghostInstance == null) return;
+            if (_ghostRenderers == null) return;
 
             var mat = valid ? _ghostValid : _ghostInvalid;
             if (mat == null) return;
 
-            foreach (var mr in _ghostInstance.GetComponentsInChildren<MeshRenderer>())
-                mr.sharedMaterial = mat;
+            for (int i = 0; i < _ghostRenderers.Length; i++)
+            {
+                if (_ghostRenderers[i] != null)
+                    _ghostRenderers[i].sharedMaterial = mat;
+            }
         }
 
-        private static Vector3 GetMouseWorldPosition()
+        private Vector3 GetMouseWorldPosition()
         {
-            if (Camera.main == null || Mouse.current == null)
+            // Null-safe повторная попытка получить камеру (как в SelectionSystem)
+            if (_cachedCamera == null)
+                _cachedCamera = Camera.main;
+
+            if (_cachedCamera == null || Mouse.current == null)
                 return Vector3.zero;
 
             var mousePos = Mouse.current.position.ReadValue();
-            var ray      = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
+            var ray      = _cachedCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
 
             if (Physics.Raycast(ray, out RaycastHit hit, 1000f))
                 return hit.point;
@@ -277,10 +307,11 @@ namespace DiplomaGame.Runtime.Buildings
 
         private static bool HasNodeNearby(Vector3 origin, float radius)
         {
-            var colliders = Physics.OverlapSphere(origin, radius);
-            foreach (var col in colliders)
+            int count = Physics.OverlapSphereNonAlloc(origin, radius, _overlapBuffer);
+            for (int i = 0; i < count; i++)
             {
-                if (col.GetComponent<Economy.ResourceNode>() != null)
+                if (_overlapBuffer[i] != null &&
+                    _overlapBuffer[i].GetComponent<Economy.ResourceNode>() != null)
                     return true;
             }
 

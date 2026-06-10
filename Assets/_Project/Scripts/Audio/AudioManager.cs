@@ -150,6 +150,18 @@ namespace DiplomaGame.Runtime.Audio
         private readonly List<Building> _buildingBuffer = new List<Building>(32);
 
         // ----------------------------------------------------------------
+        // Кэшированные ссылки на компоненты сцены (заполняются в SubscribeToEvents)
+        // ----------------------------------------------------------------
+
+        private HeroShooter       _cachedHeroShooter;
+        private SelectionSystem   _cachedSelectionSystem;
+        private CommandInput      _cachedCommandInput;
+        private BuildingPlacer    _cachedBuildingPlacer;
+
+        // Кэш последнего значения AudioListener.volume (избегаем лишнего присвоения в Update)
+        private float _lastAppliedListenerVolume = -1f;
+
+        // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
 
@@ -181,9 +193,12 @@ namespace DiplomaGame.Runtime.Audio
                 UpdateCombatState();
             }
 
-            // Обновляем AudioListener.volume в fallback-режиме
-            if (_mixer == null)
-                AudioListener.volume = _masterVol;
+            // Обновляем AudioListener.volume в fallback-режиме — только при изменении значения
+            if (_mixer == null && !Mathf.Approximately(_masterVol, _lastAppliedListenerVolume))
+            {
+                AudioListener.volume            = _masterVol;
+                _lastAppliedListenerVolume      = _masterVol;
+            }
         }
 
         private void OnDestroy()
@@ -406,27 +421,25 @@ namespace DiplomaGame.Runtime.Audio
 
         private void SubscribeToEvents()
         {
-            // HeroShooter — подписываемся через поиск в сцене
-            var heroShooter = Object.FindFirstObjectByType<HeroShooter>();
-            if (heroShooter != null)
-                heroShooter.ShotFired += OnHeroShotFired;
+            // Кэшируем ссылки, чтобы UnsubscribeFromEvents не искал объекты повторно
+            _cachedHeroShooter     = Object.FindFirstObjectByType<HeroShooter>();
+            _cachedSelectionSystem = Object.FindFirstObjectByType<SelectionSystem>();
+            _cachedCommandInput    = Object.FindFirstObjectByType<CommandInput>();
+            _cachedBuildingPlacer  = Object.FindFirstObjectByType<BuildingPlacer>();
 
-            // SelectionSystem
-            var selectionSystem = Object.FindFirstObjectByType<SelectionSystem>();
-            if (selectionSystem != null)
-                selectionSystem.SelectionChanged += OnSelectionChanged;
+            if (_cachedHeroShooter != null)
+                _cachedHeroShooter.ShotFired += OnHeroShotFired;
 
-            // CommandInput
-            var commandInput = Object.FindFirstObjectByType<CommandInput>();
-            if (commandInput != null)
-                commandInput.OrderIssued += OnOrderIssued;
+            if (_cachedSelectionSystem != null)
+                _cachedSelectionSystem.SelectionChanged += OnSelectionChanged;
 
-            // BuildingPlacer
-            var placer = Object.FindFirstObjectByType<BuildingPlacer>();
-            if (placer != null)
+            if (_cachedCommandInput != null)
+                _cachedCommandInput.OrderIssued += OnOrderIssued;
+
+            if (_cachedBuildingPlacer != null)
             {
-                placer.BuildingPlaced  += OnBuildingPlaced;
-                placer.PlacementFailed += OnPlacementFailed;
+                _cachedBuildingPlacer.BuildingPlaced  += OnBuildingPlaced;
+                _cachedBuildingPlacer.PlacementFailed += OnPlacementFailed;
             }
 
             // Health.AnyDied — статическое событие
@@ -444,26 +457,23 @@ namespace DiplomaGame.Runtime.Audio
 
         private void UnsubscribeFromEvents()
         {
-            var heroShooter = Object.FindFirstObjectByType<HeroShooter>();
-            if (heroShooter != null)
-                heroShooter.ShotFired -= OnHeroShotFired;
+            // Используем кэшированные ссылки — не вызываем FindFirstObjectByType повторно
+            if (_cachedHeroShooter != null)
+                _cachedHeroShooter.ShotFired -= OnHeroShotFired;
 
-            var selectionSystem = Object.FindFirstObjectByType<SelectionSystem>();
-            if (selectionSystem != null)
-                selectionSystem.SelectionChanged -= OnSelectionChanged;
+            if (_cachedSelectionSystem != null)
+                _cachedSelectionSystem.SelectionChanged -= OnSelectionChanged;
 
-            var commandInput = Object.FindFirstObjectByType<CommandInput>();
-            if (commandInput != null)
-                commandInput.OrderIssued -= OnOrderIssued;
+            if (_cachedCommandInput != null)
+                _cachedCommandInput.OrderIssued -= OnOrderIssued;
 
-            var placer = Object.FindFirstObjectByType<BuildingPlacer>();
-            if (placer != null)
+            if (_cachedBuildingPlacer != null)
             {
-                placer.BuildingPlaced  -= OnBuildingPlaced;
-                placer.PlacementFailed -= OnPlacementFailed;
+                _cachedBuildingPlacer.BuildingPlaced  -= OnBuildingPlaced;
+                _cachedBuildingPlacer.PlacementFailed -= OnPlacementFailed;
             }
 
-            Health.AnyDied       -= OnAnyHealthDied;
+            Health.AnyDied         -= OnAnyHealthDied;
             UnitCombat.AnyAttacked -= OnAnyUnitAttacked;
 
             BuildingRegistry.BuildingRegistered -= OnBuildingRegistered;
@@ -498,9 +508,9 @@ namespace DiplomaGame.Runtime.Audio
 
         private void OnSelectionChanged()
         {
-            // Играем ack только если выделены юниты (не здания)
-            var sel = Object.FindFirstObjectByType<SelectionSystem>();
-            if (sel != null && sel.Selected.Count > 0)
+            // Играем ack только если выделены юниты (не здания).
+            // Используем кэшированную ссылку — без FindFirstObjectByType в горячем пути.
+            if (_cachedSelectionSystem != null && _cachedSelectionSystem.Selected.Count > 0)
                 PlayUnitAckInternal();
         }
 

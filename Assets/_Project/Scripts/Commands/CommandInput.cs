@@ -35,9 +35,17 @@ namespace DiplomaGame.Runtime.Commands
         private InputAction _commandAction;
         private InputAction _holdAction;
 
+        // Кэш Camera.main (заполняется в Awake, null-safe повторная попытка в OnCommand)
+        private Camera _cachedCamera;
+
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
+
+        private void Awake()
+        {
+            _cachedCamera = Camera.main;
+        }
 
         private void OnEnable()
         {
@@ -100,10 +108,12 @@ namespace DiplomaGame.Runtime.Commands
             // RMB → SetRallyPoint
             if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
             {
-                if (Camera.main == null) return;
+                if (_cachedCamera == null)
+                    _cachedCamera = Camera.main;
+                if (_cachedCamera == null) return;
 
                 var mousePos = Mouse.current.position.ReadValue();
-                var ray      = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
+                var ray      = _cachedCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
 
                 if (Physics.Raycast(ray, out RaycastHit hit, 1000f))
                 {
@@ -122,11 +132,15 @@ namespace DiplomaGame.Runtime.Commands
             if (selectionSystem.SelectedBuilding != null) return;
 
             if (selectionSystem.Selected.Count == 0) return;
-            if (Camera.main == null) return;
             if (Mouse.current == null) return;
 
+            // Null-safe повторная попытка (как в SelectionSystem)
+            if (_cachedCamera == null)
+                _cachedCamera = Camera.main;
+            if (_cachedCamera == null) return;
+
             Vector2 mousePos = Mouse.current.position.ReadValue();
-            var ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
+            var ray = _cachedCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
 
             if (!Physics.Raycast(ray, out RaycastHit hit, 1000f)) return;
 

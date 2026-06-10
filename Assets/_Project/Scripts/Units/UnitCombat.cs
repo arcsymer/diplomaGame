@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Hero;
@@ -9,7 +10,8 @@ using UnityEngine.AI;
 namespace DiplomaGame.Runtime.Units
 {
     /// <summary>
-    /// Боевой ИИ юнита. Автоматически выбирает цели, атакует, преследует и отступает.
+    /// Боевой ИИ юнита. Автоматически выбирает цели (юниты И здания вражеской фракции),
+    /// атакует, преследует и отступает.
     /// Не дублирует движение — делегирует Unit.MoveToInternal / StopInternal.
     /// </summary>
     [RequireComponent(typeof(Unit))]
@@ -24,6 +26,9 @@ namespace DiplomaGame.Runtime.Units
         public static event Action<Vector3> AnyAttacked;
 
         [SerializeField] private UnitData _data;
+
+        // Дополнительный буфер к attackRange при атаке здания (здания крупные).
+        private const float BuildingAttackBuffer = 2f;
 
         // ----------------------------------------------------------------
         // Публичный API для тестов и HUD
@@ -44,17 +49,24 @@ namespace DiplomaGame.Runtime.Units
         private Vector3 _rallyPoint;
 
         // ----------------------------------------------------------------
-        // Буферы без аллокаций
+        // Буферы без аллокаций — кандидаты (Health + позиции)
         // ----------------------------------------------------------------
 
-        private readonly List<Unit>    _candidateUnits     = new List<Unit>(32);
+        private readonly List<Health>  _candidateHealths   = new List<Health>(32);
         private readonly List<Vector3> _candidatePositions = new List<Vector3>(32);
+
+        // Временные буферы для заполнения из реестров
+        private readonly List<Unit>     _unitBuffer     = new List<Unit>(32);
+        private readonly List<Building> _buildingBuffer = new List<Building>(32);
 
         // ----------------------------------------------------------------
         // Внутреннее состояние
         // ----------------------------------------------------------------
 
-        private Unit  _currentTarget;
+        /// <summary>Текущая цель: Health юнита или здания.</summary>
+        private Health    _currentTargetHealth;
+        private Transform _currentTargetTransform;
+
         private float _scanTimer;
         private float _lastAttackTime;
 
@@ -155,20 +167,55 @@ namespace DiplomaGame.Runtime.Units
         {
             if (_data == null) return;
 
-            // Определяем фракцию врагов
+            float scanRange = GetScanRange();
+            if (scanRange <= 0f)
+            {
+                _currentTargetHealth    = null;
+                _currentTargetTransform = null;
+                return;
+            }
+
             Faction enemyFaction = _unit.Faction == Faction.Player ? Faction.Enemy : Faction.Player;
 
-            // Заполняем буферы без аллокаций
-            UnitRegistry.GetUnits(enemyFaction, _candidateUnits);
+            // Собираем всех кандидатов: сначала юниты, затем здания
+            _candidateHealths.Clear();
             _candidatePositions.Clear();
-            for (int i = 0; i < _candidateUnits.Count; i++)
-                _candidatePositions.Add(_candidateUnits[i].transform.position);
 
-            // Радиус сканирования зависит от режима
-            float scanRange = GetScanRange();
+            // Юниты вражеской фракции
+            UnitRegistry.GetUnits(enemyFaction, _unitBuffer);
+            for (int i = 0; i < _unitBuffer.Count; i++)
+            {
+                var u = _unitBuffer[i];
+                if (u == null) continue;
+                var h = u.CachedHealth;
+                if (h == null || h.IsDead) continue;
+                _candidateHealths.Add(h);
+                _candidatePositions.Add(u.transform.position);
+            }
+
+            // Здания вражеской фракции
+            BuildingRegistry.GetBuildings(enemyFaction, _buildingBuffer);
+            for (int i = 0; i < _buildingBuffer.Count; i++)
+            {
+                var b = _buildingBuffer[i];
+                if (b == null) continue;
+                var h = b.CachedHealth;
+                if (h == null || h.IsDead) continue;
+                _candidateHealths.Add(h);
+                _candidatePositions.Add(b.transform.position);
+            }
 
             int idx = CombatLogic.FindNearestTargetIndex(transform.position, _candidatePositions, scanRange);
-            _currentTarget = idx >= 0 ? _candidateUnits[idx] : null;
+            if (idx >= 0)
+            {
+                _currentTargetHealth    = _candidateHealths[idx];
+                _currentTargetTransform = _currentTargetHealth.transform;
+            }
+            else
+            {
+                _currentTargetHealth    = null;
+                _currentTargetTransform = null;
+            }
         }
 
         private float GetScanRange()
@@ -201,7 +248,7 @@ namespace DiplomaGame.Runtime.Units
         {
             if (_data == null) return;
 
-            if (_currentTarget == null || _currentTarget.gameObject == null)
+            if (_currentTargetHealth == null || _currentTargetTransform == null)
             {
                 // Нет цели — выходим в None
                 if (CurrentCombatState != CombatState.None)
@@ -210,16 +257,19 @@ namespace DiplomaGame.Runtime.Units
             }
 
             // Цель умерла
-            var targetHealth = _currentTarget.GetComponent<Health>();
-            if (targetHealth != null && targetHealth.IsDead)
+            if (_currentTargetHealth.IsDead)
             {
-                _currentTarget     = null;
-                CurrentCombatState = CombatState.None;
+                _currentTargetHealth    = null;
+                _currentTargetTransform = null;
+                CurrentCombatState      = CombatState.None;
                 return;
             }
 
+            // Эффективный радиус атаки: для зданий добавляем буфер
+            float effectiveRange = _data.AttackRange + GetTargetRangeBuffer();
+
             bool inAttackRange = CombatLogic.IsInRange(
-                transform.position, _currentTarget.transform.position, _data.AttackRange);
+                transform.position, _currentTargetTransform.position, effectiveRange);
 
             if (inAttackRange)
             {
@@ -243,30 +293,41 @@ namespace DiplomaGame.Runtime.Units
                 if (CurrentCombatState != CombatState.Engaging)
                     CurrentCombatState = CombatState.Engaging;
 
-                _unit.MoveToInternal(_currentTarget.transform.position);
+                _unit.MoveToInternal(_currentTargetTransform.position);
             }
+        }
+
+        /// <summary>
+        /// Дополнительный буфер к attackRange.
+        /// Здания крупные — добавляем BuildingAttackBuffer.
+        /// Определяем по наличию NavMeshAgent на цели (у зданий его нет).
+        /// </summary>
+        private float GetTargetRangeBuffer()
+        {
+            if (_currentTargetTransform == null) return 0f;
+            // Здания не имеют NavMeshAgent; юниты — обязательно имеют
+            return _currentTargetTransform.GetComponent<NavMeshAgent>() == null
+                ? BuildingAttackBuffer
+                : 0f;
         }
 
         private void TryAttack()
         {
-            if (_data == null || _currentTarget == null) return;
+            if (_data == null || _currentTargetHealth == null) return;
 
             if (!FireRateLogic.CanFire(_lastAttackTime, _data.AttackCooldown, Time.time))
                 return;
 
-            var damageable = _currentTarget.GetComponent<IDamageable>();
-            if (damageable == null) return;
-
-            damageable.TakeDamage(_data.Damage);
+            _currentTargetHealth.TakeDamage(_data.Damage);
             _lastAttackTime = Time.time;
             AnyAttacked?.Invoke(transform.position);
 
             // Если цель умерла — сбрасываем
-            var targetHealth = _currentTarget.GetComponent<Health>();
-            if (targetHealth != null && targetHealth.IsDead)
+            if (_currentTargetHealth.IsDead)
             {
-                _currentTarget     = null;
-                CurrentCombatState = CombatState.None;
+                _currentTargetHealth    = null;
+                _currentTargetTransform = null;
+                CurrentCombatState      = CombatState.None;
             }
         }
 
@@ -284,16 +345,17 @@ namespace DiplomaGame.Runtime.Units
         {
             _retreatTriggered  = true;
             CurrentCombatState = CombatState.Retreating;
-            _currentTarget     = null;
+            _currentTargetHealth    = null;
+            _currentTargetTransform = null;
 
-            // Находим ближайшего врага для расчёта точки отступления
+            // Находим ближайшего врага (только юниты) для расчёта точки отступления
             Vector3 threatPos    = Vector3.zero;
             Faction enemyFaction = _unit.Faction == Faction.Player ? Faction.Enemy : Faction.Player;
 
-            UnitRegistry.GetUnits(enemyFaction, _candidateUnits);
+            UnitRegistry.GetUnits(enemyFaction, _unitBuffer);
             _candidatePositions.Clear();
-            for (int i = 0; i < _candidateUnits.Count; i++)
-                _candidatePositions.Add(_candidateUnits[i].transform.position);
+            for (int i = 0; i < _unitBuffer.Count; i++)
+                _candidatePositions.Add(_unitBuffer[i].transform.position);
 
             int idx = CombatLogic.FindNearestTargetIndex(transform.position, _candidatePositions, float.MaxValue);
             if (idx >= 0)
@@ -329,7 +391,9 @@ namespace DiplomaGame.Runtime.Units
 
         private void OnDied()
         {
-            CurrentCombatState = CombatState.None;
+            CurrentCombatState      = CombatState.None;
+            _currentTargetHealth    = null;
+            _currentTargetTransform = null;
 
             // Герой управляет своим жизненным циклом через GameWatcher (респаун).
             // Если на GO есть HeroController — не уничтожаем объект.

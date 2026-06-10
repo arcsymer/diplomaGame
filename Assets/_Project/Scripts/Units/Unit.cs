@@ -1,4 +1,5 @@
 using System;
+using DiplomaGame.Runtime.Combat;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -21,6 +22,20 @@ namespace DiplomaGame.Runtime.Units
         public UnitState CurrentState => _state;
 
         /// <summary>
+        /// Кэшированный Health-компонент (GetComponent в Awake). Используется UnitCombat
+        /// для работы с целями без аллокаций.
+        /// </summary>
+        public Health CachedHealth
+        {
+            // Ленивый кэш: в тестах Health может добавляться на GO после Unit.Awake
+            get
+            {
+                if (_cachedHealth == null) _cachedHealth = GetComponent<Health>();
+                return _cachedHealth;
+            }
+        }
+
+        /// <summary>
         /// Тип последнего приказа игрока. null — если приказов ещё не было.
         /// </summary>
         public UnitCommandType? CurrentCommandType { get; private set; }
@@ -37,6 +52,7 @@ namespace DiplomaGame.Runtime.Units
 
         private NavMeshAgent _agent;
         private GameObject   _selectionRing;
+        private Health       _cachedHealth;
 
         // ----------------------------------------------------------------
         // Состояние патруля
@@ -57,7 +73,8 @@ namespace DiplomaGame.Runtime.Units
 
         private void Awake()
         {
-            _agent = GetComponent<NavMeshAgent>();
+            _agent        = GetComponent<NavMeshAgent>();
+            _cachedHealth = GetComponent<Health>();
 
             // Ищем кольцо выделения — null-безопасно
             var ring = transform.Find("SelectionRing");
@@ -88,9 +105,33 @@ namespace DiplomaGame.Runtime.Units
             else if (_state == UnitState.Moving)
             {
                 if (UnitCommandLogic.HasArrived(_agent.remainingDistance, _agent.stoppingDistance, _agent.pathPending))
-                    _state = UnitState.Idle;
+                {
+                    _state     = UnitState.Idle;
+                    _stuckTime = 0f;
+                }
+                else if (!_agent.pathPending && _agent.velocity.sqrMagnitude < StuckVelocitySqr)
+                {
+                    // Анти-застревание: толпа агентов у общей точки не даёт достичь
+                    // stoppingDistance — юнит стоит на месте, но формально «едет».
+                    // Считаем его прибывшим, чтобы боевой ИИ видел юнита свободным.
+                    _stuckTime += Time.deltaTime;
+                    if (_stuckTime >= StuckTimeout)
+                    {
+                        _agent.ResetPath();
+                        _state     = UnitState.Idle;
+                        _stuckTime = 0f;
+                    }
+                }
+                else
+                {
+                    _stuckTime = 0f;
+                }
             }
         }
+
+        private const float StuckVelocitySqr = 0.01f;
+        private const float StuckTimeout     = 1.5f;
+        private float _stuckTime;
 
         // ----------------------------------------------------------------
         // Приказы

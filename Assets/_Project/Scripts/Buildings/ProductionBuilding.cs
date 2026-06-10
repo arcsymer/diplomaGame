@@ -162,10 +162,15 @@ namespace DiplomaGame.Runtime.Buildings
             var unit = go.GetComponent<Unit>();
             if (unit != null)
             {
-                unit.IssueCommand(UnitCommand.Move(RallyPoint));
+                // Формационное смещение: юниты не толпятся в одной rally-точке
+                // (иначе агенты блокируют друг другу прибытие и виснут в Moving)
+                Vector3 offset = UnitCommandLogic.GetFormationOffset(_spawnCounter++);
+                unit.IssueCommand(UnitCommand.Move(RallyPoint + offset));
                 UnitProduced?.Invoke(unit);
             }
         }
+
+        private int _spawnCounter;
 
         private Building GetBuilding()
         {

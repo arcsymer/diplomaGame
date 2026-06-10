@@ -26,6 +26,7 @@ namespace DiplomaGame.Runtime.UI
         [SerializeField] private TMP_Text   hintText;
 
         private ProductionBuilding _trackedProduction;
+        private int                _lastQueueCount = -1;
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -60,10 +61,19 @@ namespace DiplomaGame.Runtime.UI
             if (_trackedProduction == null) return;
             if (progressFill == null)       return;
 
+            // Fill-анимация — плавная, обновляем каждый кадр
             progressFill.fillAmount = _trackedProduction.CurrentProgress01;
 
+            // Текст очереди — обновляем только при изменении (избегаем лишней строки каждый кадр)
             if (queueText != null)
-                queueText.SetText("В очереди: " + _trackedProduction.QueueCount.ToString());
+            {
+                int currentCount = _trackedProduction.QueueCount;
+                if (currentCount != _lastQueueCount)
+                {
+                    _lastQueueCount = currentCount;
+                    queueText.SetText("В очереди: " + currentCount.ToString());
+                }
+            }
         }
 
         // ----------------------------------------------------------------
@@ -82,6 +92,7 @@ namespace DiplomaGame.Runtime.UI
         private void OnSelectionChanged()
         {
             _trackedProduction = null;
+            _lastQueueCount    = -1;
 
             if (selectionSystem == null) return;
 
@@ -128,6 +139,7 @@ namespace DiplomaGame.Runtime.UI
         private void OnBuildingSelected(Building building)
         {
             _trackedProduction = null;
+            _lastQueueCount    = -1;
 
             if (building == null)
             {
