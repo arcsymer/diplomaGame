@@ -1,0 +1,120 @@
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace DiplomaGame.Editor
+{
+    /// <summary>
+    /// Статический класс без состояния. Содержит всю логику валидации проекта.
+    /// Вынесен отдельно для прямого тестирования из EditMode-тестов.
+    /// </summary>
+    public static class ForgeValidator
+    {
+        private static readonly string[] RequiredFolders =
+        {
+            "Assets/_Project/Scripts",
+            "Assets/_Project/Scenes",
+            "Assets/_Project/Prefabs",
+            "Assets/_Project/Data",
+            "Assets/_Project/Art",
+            "Assets/_Project/Audio",
+            "Assets/_Project/UI",
+            "Assets/_Project/VFX",
+        };
+
+        private const string SandboxScenePath = "Assets/_Project/Scenes/Sandbox.unity";
+
+        /// <summary>
+        /// Запускает все проверки. Возвращает список проблем;
+        /// пустой список означает, что всё в порядке.
+        /// </summary>
+        public static List<string> Validate()
+        {
+            var issues = new List<string>();
+
+            CheckRequiredFolders(issues);
+            CheckSandboxInBuildSettings(issues);
+            CheckMissingScriptsInOpenScene(issues);
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Идемпотентно создаёт папки структуры проекта через AssetDatabase.
+        /// </summary>
+        public static void BootstrapProjectStructure()
+        {
+            foreach (var folder in RequiredFolders)
+                EnsureFolder(folder);
+
+            AssetDatabase.Refresh();
+        }
+
+        // ----------------------------------------------------------------
+        // Приватные проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckRequiredFolders(List<string> issues)
+        {
+            foreach (var folder in RequiredFolders)
+            {
+                if (!AssetDatabase.IsValidFolder(folder))
+                    issues.Add($"Отсутствует папка: {folder}");
+            }
+        }
+
+        private static void CheckSandboxInBuildSettings(List<string> issues)
+        {
+            bool found = EditorBuildSettings.scenes
+                .Any(s => s.path == SandboxScenePath);
+
+            if (!found)
+                issues.Add($"Sandbox не добавлена в Build Settings: {SandboxScenePath}");
+        }
+
+        private static void CheckMissingScriptsInOpenScene(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            int count = 0;
+            foreach (var root in scene.GetRootGameObjects())
+                count += CountMissingScripts(root);
+
+            if (count > 0)
+                issues.Add($"Missing scripts в открытой сцене ({scene.name}): {count} шт.");
+        }
+
+        private static int CountMissingScripts(GameObject go)
+        {
+            int count = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go);
+
+            foreach (Transform child in go.transform)
+                count += CountMissingScripts(child.gameObject);
+
+            return count;
+        }
+
+        // ----------------------------------------------------------------
+        // Вспомогательный метод создания папок
+        // ----------------------------------------------------------------
+
+        private static void EnsureFolder(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath)) return;
+
+            // Рекурсивно создаём всю цепочку родительских папок
+            var parts = folderPath.Split('/');
+            var current = parts[0]; // "Assets"
+            for (int i = 1; i < parts.Length; i++)
+            {
+                var next = current + "/" + parts[i];
+                if (!AssetDatabase.IsValidFolder(next))
+                    AssetDatabase.CreateFolder(current, parts[i]);
+                current = next;
+            }
+        }
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "name": "DiplomaGame.Tests.Editor",
+    "rootNamespace": "DiplomaGame.Tests.Editor",
+    "references": [
+        "UnityEditor.TestRunner",
+        "UnityEngine.TestRunner",
+        "DiplomaGame.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
