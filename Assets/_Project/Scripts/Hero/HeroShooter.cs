@@ -7,8 +7,8 @@ using UnityEngine.InputSystem;
 namespace DiplomaGame.Runtime.Hero
 {
     /// <summary>
-    /// Стрельба героя в TPS-режиме: raycast из центра экрана,
-    /// кулдаун, простейший crosshair на OnGUI.
+    /// Стрельба героя в TPS-режиме: raycast из центра экрана, кулдаун.
+    /// Прицел вынесен в CrosshairUI (M6a).
     /// </summary>
     public sealed class HeroShooter : MonoBehaviour
     {
@@ -36,12 +36,6 @@ namespace DiplomaGame.Runtime.Hero
         private float       _lastFireTime;
 
         // ----------------------------------------------------------------
-        // Crosshair texture (кэш, создаётся один раз)
-        // ----------------------------------------------------------------
-
-        private Texture2D _crosshairTex;
-
-        // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
 
@@ -51,14 +45,6 @@ namespace DiplomaGame.Runtime.Hero
 
             if (actions != null)
                 _fireAction = actions.FindActionMap("TPS")?.FindAction("Fire");
-
-            // 4×4 белая текстура для прицела
-            _crosshairTex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-            var pixels = new Color[16];
-            for (int i = 0; i < 16; i++)
-                pixels[i] = Color.white;
-            _crosshairTex.SetPixels(pixels);
-            _crosshairTex.Apply();
         }
 
         private void OnEnable()
@@ -77,29 +63,6 @@ namespace DiplomaGame.Runtime.Hero
 
             if (modeController != null)
                 modeController.ModeChanged -= OnModeChanged;
-        }
-
-        private void OnDestroy()
-        {
-            if (_crosshairTex != null)
-                Destroy(_crosshairTex);
-        }
-
-        private void OnGUI()
-        {
-            if (modeController == null || modeController.CurrentMode != GameMode.Tps)
-                return;
-
-            // Рисуем крестик в центре экрана
-            const int size    = 4;
-            const int armLen  = 8;
-            int cx = Screen.width  / 2;
-            int cy = Screen.height / 2;
-
-            // Горизонтальная черта
-            GUI.DrawTexture(new Rect(cx - armLen, cy - size / 2, armLen * 2, size), _crosshairTex);
-            // Вертикальная черта
-            GUI.DrawTexture(new Rect(cx - size / 2, cy - armLen, size, armLen * 2), _crosshairTex);
         }
 
         // ----------------------------------------------------------------

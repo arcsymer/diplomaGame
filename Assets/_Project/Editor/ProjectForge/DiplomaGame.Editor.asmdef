@@ -5,7 +5,9 @@
         "DiplomaGame.Runtime",
         "Unity.Cinemachine",
         "Unity.InputSystem",
-        "Unity.AI.Navigation"
+        "Unity.AI.Navigation",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [
         "Editor"

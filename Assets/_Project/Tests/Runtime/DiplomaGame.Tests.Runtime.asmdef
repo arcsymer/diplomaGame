@@ -6,7 +6,8 @@
         "UnityEditor.TestRunner",
         "DiplomaGame.Runtime",
         "Unity.Cinemachine",
-        "Unity.AI.Navigation"
+        "Unity.AI.Navigation",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

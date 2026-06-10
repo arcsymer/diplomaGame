@@ -6,10 +6,13 @@ using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
+using DiplomaGame.Runtime.UI;
 using DiplomaGame.Runtime.Units;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 
 namespace DiplomaGame.Editor
@@ -25,6 +28,9 @@ namespace DiplomaGame.Editor
         private const string MarineDataPath      = "Assets/_Project/Data/Units/Marine.asset";
         private const string EnemyGruntDataPath  = "Assets/_Project/Data/Units/EnemyGrunt.asset";
         private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
+
+        // M6a
+        private const string MinimapRTPath = "Assets/_Project/UI/MinimapRT.renderTexture";
 
         // M5
         private const string HQDataPath         = "Assets/_Project/Data/Buildings/HQ.asset";
@@ -71,6 +77,7 @@ namespace DiplomaGame.Editor
             CheckBuildingDataAssets(issues);
             CheckBuildingPrefabs(issues);
             CheckEconomyInScene(issues);
+            CheckHudInScene(issues);
 
             return issues;
         }
@@ -321,6 +328,48 @@ namespace DiplomaGame.Editor
 
             if (!hasEnemyHQ)
                 issues.Add("В сцене нет HQ фракции Enemy (запустите Setup Economy (M5)).");
+        }
+
+        // ----------------------------------------------------------------
+        // M6a проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckHudInScene(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // Canvas "GameHUD"
+            bool hasHud = false;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name == "GameHUD")
+                {
+                    hasHud = true;
+                    if (root.GetComponent<HudController>() == null)
+                        issues.Add("Canvas GameHUD: отсутствует HudController (запустите Build Game HUD (M6a)).");
+                    break;
+                }
+            }
+
+            if (!hasHud)
+                issues.Add("В сцене нет Canvas «GameHUD» (запустите Build Game HUD (M6a)).");
+
+            // EventSystem с InputSystemUIInputModule
+            var es = Object.FindFirstObjectByType<EventSystem>();
+            if (es == null)
+            {
+                issues.Add("В сцене нет EventSystem (запустите Build Game HUD (M6a)).");
+            }
+            else if (es.GetComponent<InputSystemUIInputModule>() == null)
+            {
+                issues.Add("EventSystem: отсутствует InputSystemUIInputModule (запустите Build Game HUD (M6a)).");
+            }
+
+            // RenderTexture миникарты
+            var rt = AssetDatabase.LoadAssetAtPath<RenderTexture>(MinimapRTPath);
+            if (rt == null)
+                issues.Add($"RenderTexture миникарты не найден: {MinimapRTPath} (запустите Build Game HUD (M6a)).");
         }
 
         private static int CountMissingScripts(GameObject go)

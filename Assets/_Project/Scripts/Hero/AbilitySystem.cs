@@ -106,6 +106,16 @@ namespace DiplomaGame.Runtime.Hero
             return abilities[index];
         }
 
+        /// <summary>
+        /// Возвращает полное время кулдауна слота i (0..3).
+        /// Берётся из AbilityData.Cooldown; 0 если слот пуст.
+        /// </summary>
+        public float GetCooldownDuration(int index)
+        {
+            var data = GetAbility(index);
+            return data != null ? data.Cooldown : 0f;
+        }
+
         // ----------------------------------------------------------------
         // Internal — для PlayMode-тестов
         // ----------------------------------------------------------------

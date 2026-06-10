@@ -39,7 +39,7 @@ namespace DiplomaGame.Editor
                 new ManagersTab(),
                 new ConfigTab(),
                 new NavMeshTab(),
-                new StubTab("UI",        "M6"),
+                new UITab(),
                 new StubTab("Audio",     "M7"),
                 new StubTab("VFX",       "M8"),
             };

@@ -68,5 +68,14 @@ namespace DiplomaGame.Editor
             PrefabsTab.CreateOrUpdateBuildingPrefabs();
             ManagersTab.SetupEconomy();
         }
+
+        /// <summary>
+        /// Полная настройка M6a: открыть Sandbox → собрать игровой HUD обоих режимов.
+        /// </summary>
+        public static void SetupM6Hud()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.BuildGameHud();
+        }
     }
 }

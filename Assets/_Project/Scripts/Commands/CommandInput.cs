@@ -1,3 +1,4 @@
+using System;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.Units;
@@ -16,6 +17,16 @@ namespace DiplomaGame.Runtime.Commands
     {
         [SerializeField] private SelectionSystem selectionSystem;
         [SerializeField] private InputActionAsset actions;
+
+        // ----------------------------------------------------------------
+        // Событие (UI-шина M6a)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Вызывается при каждом выданном приказе движения/атаки.
+        /// Параметры: точка назначения, тип приказа.
+        /// </summary>
+        public event Action<Vector3, UnitCommandType> OrderIssued;
 
         // ----------------------------------------------------------------
         // Кэш действий (Awake/OnEnable)
@@ -125,6 +136,11 @@ namespace DiplomaGame.Runtime.Commands
             bool pressP = Keyboard.current != null && Keyboard.current.pKey.isPressed;
 
             var selected = selectionSystem.Selected;
+
+            UnitCommandType issuedType = pressA ? UnitCommandType.AttackMove
+                                      : pressP  ? UnitCommandType.Patrol
+                                      :            UnitCommandType.Move;
+
             for (int i = 0; i < selected.Count; i++)
             {
                 var unit = selected[i];
@@ -143,6 +159,9 @@ namespace DiplomaGame.Runtime.Commands
 
                 unit.IssueCommand(cmd);
             }
+
+            // Уведомляем подписчиков (OrderMarkerFeedback и другие) о выданном приказе
+            OrderIssued?.Invoke(targetPoint, issuedType);
         }
 
         private void OnHold(InputAction.CallbackContext ctx)
