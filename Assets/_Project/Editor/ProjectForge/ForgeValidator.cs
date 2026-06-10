@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DiplomaGame.Runtime.Audio;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Core;
@@ -11,6 +12,7 @@ using DiplomaGame.Runtime.Units;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
@@ -31,6 +33,9 @@ namespace DiplomaGame.Editor
 
         // M6a
         private const string MinimapRTPath = "Assets/_Project/UI/MinimapRT.renderTexture";
+
+        // M7
+        private const string MixerPath = "Assets/_Project/Audio/GameMixer.mixer";
 
         // M5
         private const string HQDataPath         = "Assets/_Project/Data/Buildings/HQ.asset";
@@ -81,6 +86,7 @@ namespace DiplomaGame.Editor
             CheckHudInScene(issues);
             CheckMainMenuScene(issues);
             CheckGameMenusInScene(issues);
+            CheckAudioInScene(issues);
 
             return issues;
         }
@@ -431,6 +437,55 @@ namespace DiplomaGame.Editor
 
             if (!hasGameOver)
                 issues.Add("В сцене нет Canvas «GameOver» (запустите Build Menus (M6b)).");
+        }
+
+        // ----------------------------------------------------------------
+        // M7 проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckAudioInScene(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // AudioManager в сцене
+            var am = Object.FindFirstObjectByType<AudioManager>();
+            if (am == null)
+            {
+                issues.Add("В сцене нет AudioManager (запустите Setup Audio (M7)).");
+                return;
+            }
+
+            var so = new SerializedObject(am);
+
+            // Музыкальные клипы обязательны
+            if (so.FindProperty("_menuMusic").objectReferenceValue == null)
+                issues.Add("AudioManager: не задан _menuMusic (запустите Setup Audio (M7)).");
+
+            if (so.FindProperty("_ambientMusic").objectReferenceValue == null)
+                issues.Add("AudioManager: не задан _ambientMusic (запустите Setup Audio (M7)).");
+
+            if (so.FindProperty("_combatMusic").objectReferenceValue == null)
+                issues.Add("AudioManager: не задан _combatMusic (запустите Setup Audio (M7)).");
+
+            // Хотя бы один SFX-клип
+            var heroShot = so.FindProperty("_heroShot");
+            if (heroShot == null || heroShot.arraySize == 0)
+                issues.Add("AudioManager: массив _heroShot пуст (запустите Setup Audio (M7)).");
+
+            // Голосовые подтверждения
+            var unitAck = so.FindProperty("_unitAck");
+            if (unitAck == null || unitAck.arraySize == 0)
+                issues.Add("AudioManager: массив _unitAck пуст (запустите Setup Audio (M7)).");
+
+            // GameMixer — предупреждение (не ошибка: fallback-режим поддерживается)
+            var mixer = AssetDatabase.LoadAssetAtPath<AudioMixer>(MixerPath);
+            if (mixer == null)
+            {
+                issues.Add($"[Warning] GameMixer.mixer не найден: {MixerPath}. " +
+                           "AudioManager будет работать в fallback-режиме без mixer " +
+                           "(громкости через AudioSource.volume).");
+            }
         }
 
         private static int CountMissingScripts(GameObject go)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Data;
@@ -15,6 +16,13 @@ namespace DiplomaGame.Runtime.Units
     [RequireComponent(typeof(Health))]
     public sealed class UnitCombat : MonoBehaviour
     {
+        // ----------------------------------------------------------------
+        // Статическое событие (M7 Audio шина)
+        // ----------------------------------------------------------------
+
+        /// <summary>Вызывается при атаке любого UnitCombat. Параметр — мировая позиция атакующего.</summary>
+        public static event Action<Vector3> AnyAttacked;
+
         [SerializeField] private UnitData _data;
 
         // ----------------------------------------------------------------
@@ -251,6 +259,7 @@ namespace DiplomaGame.Runtime.Units
 
             damageable.TakeDamage(_data.Damage);
             _lastAttackTime = Time.time;
+            AnyAttacked?.Invoke(transform.position);
 
             // Если цель умерла — сбрасываем
             var targetHealth = _currentTarget.GetComponent<Health>();

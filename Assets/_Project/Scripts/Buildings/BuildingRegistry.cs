@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Units;
 
@@ -15,11 +16,17 @@ namespace DiplomaGame.Runtime.Buildings
         /// <summary>Все зарегистрированные здания.</summary>
         public static IReadOnlyList<Building> AllBuildings => _all;
 
+        /// <summary>Вызывается при регистрации нового здания (M7 Audio шина).</summary>
+        public static event Action<Building> BuildingRegistered;
+
         /// <summary>Регистрирует здание (вызывается из Building.OnEnable).</summary>
         public static void Register(Building building)
         {
             if (!_all.Contains(building))
+            {
                 _all.Add(building);
+                BuildingRegistered?.Invoke(building);
+            }
         }
 
         /// <summary>Снимает здание с учёта (вызывается из Building.OnDisable).</summary>

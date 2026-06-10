@@ -1,3 +1,4 @@
+using System;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
@@ -27,6 +28,16 @@ namespace DiplomaGame.Runtime.Buildings
         [Header("Ghost Materials")]
         [SerializeField] private Material        _ghostValid;
         [SerializeField] private Material        _ghostInvalid;
+
+        // ----------------------------------------------------------------
+        // События (M7 Audio шина)
+        // ----------------------------------------------------------------
+
+        /// <summary>Вызывается при успешной постройке здания. Параметр — мировая позиция.</summary>
+        public event Action<Vector3> BuildingPlaced;
+
+        /// <summary>Вызывается при попытке постройки при нехватке ресурсов.</summary>
+        public event Action PlacementFailed;
 
         // ----------------------------------------------------------------
         // Состояние
@@ -186,11 +197,13 @@ namespace DiplomaGame.Runtime.Buildings
             if (!_bank.TrySpend(Units.Faction.Player, _currentData.Cost))
             {
                 Debug.Log($"[BuildingPlacer] Недостаточно ресурсов для {_currentData.DisplayName} (cost={_currentData.Cost}).");
+                PlacementFailed?.Invoke();
                 return;
             }
 
             var go = Instantiate(_currentPrefab, worldPos, Quaternion.identity);
             go.SetActive(true);
+            BuildingPlaced?.Invoke(worldPos);
 
             // Фракция у нового инстанса — Player (сцен-инстансы врага расставляются через Forge).
             // Данные и фракция уже задаются в Building._faction через серийный префаб,

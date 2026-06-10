@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Audio;
 using UnityEngine;
 
 namespace DiplomaGame.Runtime.Core
@@ -116,9 +117,30 @@ namespace DiplomaGame.Runtime.Core
         // ApplyAll
         // ----------------------------------------------------------------
 
+        /// <summary>Ключ PlayerPrefs для UI-громкости.</summary>
+        private const string KeyUiVol    = "Settings.UiVolume";
+
+        /// <summary>Ключ PlayerPrefs для Voice-громкости.</summary>
+        private const string KeyVoiceVol = "Settings.VoiceVolume";
+
+        public static float LoadUiVolume()    => PlayerPrefs.GetFloat(KeyUiVol,    1f);
+        public static float LoadVoiceVolume() => PlayerPrefs.GetFloat(KeyVoiceVol, 1f);
+
+        public static void SaveUiVolume(float value)
+        {
+            PlayerPrefs.SetFloat(KeyUiVol, SettingsLogic.ClampVolume01(value));
+            PlayerPrefs.Save();
+        }
+
+        public static void SaveVoiceVolume(float value)
+        {
+            PlayerPrefs.SetFloat(KeyVoiceVol, SettingsLogic.ClampVolume01(value));
+            PlayerPrefs.Save();
+        }
+
         /// <summary>
         /// Применяет все сохранённые настройки к движку.
-        /// AudioMixer-интеграция придёт в M7.
+        /// M7: громкости идут в AudioManager (через mixer или fallback).
         /// </summary>
         public static void ApplyAll()
         {
@@ -130,11 +152,20 @@ namespace DiplomaGame.Runtime.Core
             // Полный экран
             Screen.fullScreen = LoadFullscreen();
 
-            // Громкость — AudioListener (мастер)
-            // TODO M7: перепривязать к AudioMixer (MasterVolume, MusicVolume, SfxVolume).
-            AudioListener.volume = SettingsLogic.ClampVolume01(LoadMasterVolume());
+            // Master — AudioListener (глобальный множитель)
+            float master = SettingsLogic.ClampVolume01(LoadMasterVolume());
+            AudioListener.volume = master;
 
-            // MusicVolume и SfxVolume пока только сохраняются, ждут AudioMixer из M7.
+            // Остальные категории — AudioManager
+            var am = AudioManager.Instance;
+            if (am != null)
+            {
+                am.SetCategoryVolume(AudioManager.VolumeCategory.Master, master);
+                am.SetCategoryVolume(AudioManager.VolumeCategory.Music,  SettingsLogic.ClampVolume01(LoadMusicVolume()));
+                am.SetCategoryVolume(AudioManager.VolumeCategory.Sfx,    SettingsLogic.ClampVolume01(LoadSfxVolume()));
+                am.SetCategoryVolume(AudioManager.VolumeCategory.Ui,     SettingsLogic.ClampVolume01(LoadUiVolume()));
+                am.SetCategoryVolume(AudioManager.VolumeCategory.Voice,  SettingsLogic.ClampVolume01(LoadVoiceVolume()));
+            }
         }
     }
 }

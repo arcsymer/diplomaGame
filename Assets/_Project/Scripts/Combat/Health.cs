@@ -9,6 +9,12 @@ namespace DiplomaGame.Runtime.Combat
     /// </summary>
     public sealed class Health : MonoBehaviour, IDamageable
     {
+        // ----------------------------------------------------------------
+        // Статическое событие (M7 Audio шина)
+        // ----------------------------------------------------------------
+
+        /// <summary>Вызывается при гибели любого Health в сцене. Параметр — экземпляр.</summary>
+        public static event Action<Health> AnyDied;
         [SerializeField] private float _maxHp = 100f;
 
         // ----------------------------------------------------------------
@@ -85,6 +91,7 @@ namespace DiplomaGame.Runtime.Combat
             {
                 _isDead = true;
                 Died?.Invoke();
+                AnyDied?.Invoke(this);
             }
         }
     }

@@ -131,6 +131,7 @@ GameObject:
   - component: {fileID: 39962947}
   - component: {fileID: 39962946}
   - component: {fileID: 39962945}
+  - component: {fileID: 39962948}
   m_Layer: 0
   m_Name: BtnSettings
   m_TagString: Untagged
@@ -252,6 +253,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 39962943}
   m_CullTransparentMesh: 1
+--- !u!114 &39962948
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 39962943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34ca9bb4af2130a4c93a2ce6f4b4af84, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Audio.UiButtonSound
 --- !u!1 &40743590
 GameObject:
   m_ObjectHideFlags: 0
@@ -1264,6 +1277,7 @@ GameObject:
   - component: {fileID: 240827829}
   - component: {fileID: 240827828}
   - component: {fileID: 240827827}
+  - component: {fileID: 240827830}
   m_Layer: 0
   m_Name: BtnPlay
   m_TagString: Untagged
@@ -1385,6 +1399,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 240827825}
   m_CullTransparentMesh: 1
+--- !u!114 &240827830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 240827825}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34ca9bb4af2130a4c93a2ce6f4b4af84, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Audio.UiButtonSound
 --- !u!1 &299002549
 GameObject:
   m_ObjectHideFlags: 0
@@ -1624,6 +1650,7 @@ GameObject:
   - component: {fileID: 338826139}
   - component: {fileID: 338826138}
   - component: {fileID: 338826137}
+  - component: {fileID: 338826141}
   m_Layer: 0
   m_Name: BtnBack
   m_TagString: Untagged
@@ -1733,6 +1760,18 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 40}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0}
+--- !u!114 &338826141
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338826136}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34ca9bb4af2130a4c93a2ce6f4b4af84, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Audio.UiButtonSound
 --- !u!1 &387148926
 GameObject:
   m_ObjectHideFlags: 0
@@ -3224,6 +3263,7 @@ GameObject:
   - component: {fileID: 892677860}
   - component: {fileID: 892677859}
   - component: {fileID: 892677858}
+  - component: {fileID: 892677861}
   m_Layer: 0
   m_Name: BtnQuit
   m_TagString: Untagged
@@ -3345,6 +3385,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 892677856}
   m_CullTransparentMesh: 1
+--- !u!114 &892677861
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 892677856}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34ca9bb4af2130a4c93a2ce6f4b4af84, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Audio.UiButtonSound
 --- !u!1 &899055036
 GameObject:
   m_ObjectHideFlags: 0
@@ -4607,6 +4659,95 @@ RectTransform:
   m_AnchoredPosition: {x: -5, y: 0}
   m_SizeDelta: {x: -20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &2005261978
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2005261980}
+  - component: {fileID: 2005261979}
+  m_Layer: 0
+  m_Name: AudioSystem
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2005261979
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2005261978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c7a69651ccbec642a9817bb5434ec7b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Audio.AudioManager
+  _mixer: {fileID: 0}
+  _musicGroup: {fileID: 0}
+  _sfxGroup: {fileID: 0}
+  _uiGroup: {fileID: 0}
+  _voiceGroup: {fileID: 0}
+  _menuMusic: {fileID: 8300000, guid: bc2d70efa786bed459ab330caf702a59, type: 3}
+  _ambientMusic: {fileID: 8300000, guid: 0190928995750f94598653abc8fa05fa, type: 3}
+  _combatMusic: {fileID: 8300000, guid: da2ffc01dd6154b40af6d59313d23986, type: 3}
+  _heroShot:
+  - {fileID: 8300000, guid: e9167e764623a3b468217a0880858c15, type: 3}
+  - {fileID: 8300000, guid: 6f0f9c0a96022e94081a7fe21b115385, type: 3}
+  - {fileID: 8300000, guid: 1e46a3ceef49de045863224849d8e170, type: 3}
+  _unitShot:
+  - {fileID: 8300000, guid: b192a37fe7ac70140bb2642b6b21a0ec, type: 3}
+  - {fileID: 8300000, guid: c67bb0af1b5dad049926575ebc6b17fc, type: 3}
+  _explosion:
+  - {fileID: 8300000, guid: 605466ee79dfd474cac84012ea572484, type: 3}
+  - {fileID: 8300000, guid: 7ff1725d31913a14b89e4c91688a072c, type: 3}
+  - {fileID: 8300000, guid: 1cd65f2d6b0dfa64782182c0a36b745e, type: 3}
+  _buildPlace:
+  - {fileID: 8300000, guid: 8f38e406d9a383741a32ec77940f9505, type: 3}
+  - {fileID: 8300000, guid: 10b9a508c4a6b384f8d9d39c1f7b53cb, type: 3}
+  _hitHeavy:
+  - {fileID: 8300000, guid: 86ca158472cffb741aeeba470cc08c10, type: 3}
+  - {fileID: 8300000, guid: ffef0811b10f32f44a62dcdba3d815ae, type: 3}
+  _hitLight:
+  - {fileID: 8300000, guid: ce96984758b33b747a742edb03426292, type: 3}
+  - {fileID: 8300000, guid: ff761aa06e9bba94f8d63f6af7c0c5d0, type: 3}
+  _uiClick:
+  - {fileID: 8300000, guid: caac9530ceb05e549bae13e3afbcda19, type: 3}
+  - {fileID: 8300000, guid: f3742de56ac5d3e42a6f93ebd7231187, type: 3}
+  _uiBack:
+  - {fileID: 8300000, guid: a8af6005a5b298442b79225b27095656, type: 3}
+  _uiConfirm:
+  - {fileID: 8300000, guid: 4f571309b87a1a04a927ea601ee8dd91, type: 3}
+  - {fileID: 8300000, guid: 573632065d368554489a770918f3a588, type: 3}
+  _uiError:
+  - {fileID: 8300000, guid: bd798226030441e42bc679ddcf28c0ad, type: 3}
+  _unitAck:
+  - {fileID: 8300000, guid: f4ac61ade7c851e40b0ca3f37018c41b, type: 3}
+  - {fileID: 8300000, guid: 64e37745c17e9b446b0c5c84fc5f0c2d, type: 3}
+  - {fileID: 8300000, guid: fc277aa798299b94185c128a0466d9ff, type: 3}
+  - {fileID: 8300000, guid: 688e40140f9696648b86728c7445e594, type: 3}
+  _victoryClip: {fileID: 8300000, guid: bcbb81a763aefdc42a61d4e0d29da3f2, type: 3}
+  _defeatClip: {fileID: 8300000, guid: 22ee4a768b909fb47acaad5a7bf29654, type: 3}
+--- !u!4 &2005261980
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2005261978}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2019430586
 GameObject:
   m_ObjectHideFlags: 0
@@ -4944,3 +5085,4 @@ SceneRoots:
   - {fileID: 2019430589}
   - {fileID: 598906443}
   - {fileID: 41283965}
+  - {fileID: 2005261980}

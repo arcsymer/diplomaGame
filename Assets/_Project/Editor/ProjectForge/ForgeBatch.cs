@@ -96,5 +96,29 @@ namespace DiplomaGame.Editor
             // 3. Возвращаемся в Sandbox, чтобы он был активным после batch
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
         }
+
+        /// <summary>
+        /// Полная настройка M7: аудио.
+        /// Создаёт GameMixer, добавляет AudioManager в Sandbox и MainMenu,
+        /// навешивает UiButtonSound на кнопки. Возвращается в Sandbox.
+        /// </summary>
+        public static void SetupM7()
+        {
+            const string MainMenuScenePath = "Assets/_Project/Scenes/MainMenu.unity";
+
+            // 1. Sandbox
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            AudioTab.SetupAudio();
+
+            // 2. MainMenu (если существует)
+            if (System.IO.File.Exists(System.IO.Path.GetFullPath(MainMenuScenePath)))
+            {
+                EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+                AudioTab.SetupAudio();
+            }
+
+            // 3. Возвращаемся в Sandbox
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+        }
     }
 }

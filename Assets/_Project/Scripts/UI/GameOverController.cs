@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Audio;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -37,6 +38,7 @@ namespace DiplomaGame.Runtime.UI
             if (defeatPanel  != null) defeatPanel.SetActive(false);
             if (victoryPanel != null) victoryPanel.SetActive(true);
             Time.timeScale = 0f;
+            AudioManager.Instance?.PlayVictory();
         }
 
         /// <summary>
@@ -48,6 +50,7 @@ namespace DiplomaGame.Runtime.UI
             if (victoryPanel != null) victoryPanel.SetActive(false);
             if (defeatPanel  != null) defeatPanel.SetActive(true);
             Time.timeScale = 0f;
+            AudioManager.Instance?.PlayDefeat();
         }
 
         // ----------------------------------------------------------------

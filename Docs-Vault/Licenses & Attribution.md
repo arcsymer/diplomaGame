@@ -9,11 +9,11 @@
 
 | Ассет | Источник | Лицензия | Атрибуция требуется? | Где используется | Статус |
 |---|---|---|---|---|---|
-| Kenney — Sci-fi Sounds | [kenney.nl](https://kenney.nl/assets/sci-fi-sounds) | CC0 1.0 | Нет | SFX: выстрелы, взрывы | Запланировано, не импортировано |
-| Kenney — Interface Sounds | [kenney.nl](https://kenney.nl/assets/interface-sounds) | CC0 1.0 | Нет | SFX: UI-клики, ошибки | Запланировано, не импортировано |
-| Kenney — Impact Sounds | [kenney.nl](https://kenney.nl/assets/impact-sounds) | CC0 1.0 | Нет | SFX: попадания | Запланировано, не импортировано |
-| Kenney — Voiceover Pack | [kenney.nl](https://kenney.nl/assets/voiceover-pack) | CC0 1.0 | Нет | Голоса юнитов (ack-реплики) | Запланировано, не импортировано |
-| Kenney — Voiceover Pack (Fighter) | [kenney.nl](https://kenney.nl/assets/voiceover-pack-fighter) | CC0 1.0 | Нет | Голоса боевых юнитов | Запланировано, не импортировано |
+| Kenney — Sci-fi Sounds | [kenney.nl](https://kenney.nl/assets/sci-fi-sounds) | CC0 1.0 | Нет | SFX: выстрелы, взрывы | Импортировано |
+| Kenney — Interface Sounds | [kenney.nl](https://kenney.nl/assets/interface-sounds) | CC0 1.0 | Нет | SFX: UI-клики, ошибки | Импортировано |
+| Kenney — Impact Sounds | [kenney.nl](https://kenney.nl/assets/impact-sounds) | CC0 1.0 | Нет | SFX: попадания | Импортировано |
+| Kenney — Voiceover Pack | [kenney.nl](https://kenney.nl/assets/voiceover-pack) | CC0 1.0 | Нет | Голоса юнитов (ack-реплики) | Импортировано |
+| Kenney — Voiceover Pack (Fighter) | [kenney.nl](https://kenney.nl/assets/voiceover-pack-fighter) | CC0 1.0 | Нет | Голоса боевых юнитов | Импортировано |
 | Kenney — Blaster Kit | [kenney.nl](https://kenney.nl/assets/blaster-kit) | CC0 1.0 | Нет | 3D-модели оружия | Запланировано, не импортировано |
 | Kenney — Space Kit | [kenney.nl](https://kenney.nl/assets/space-kit) | CC0 1.0 | Нет | Пропсы, детали окружения | Запланировано, не импортировано |
 | Kenney — UI Pack: Sci-Fi | [kenney.nl](https://kenney.nl/assets/ui-pack-sci-fi) | CC0 1.0 | Нет | UI: панели, кнопки, рамки | Запланировано, не импортировано |
@@ -24,7 +24,9 @@
 | game-icons.net (набор SVG) | [game-icons.net](https://game-icons.net/) | CC-BY 3.0 | **Да** — в Credits | Иконки способностей и ресурсов | Запланировано, не импортировано |
 | Russo One (шрифт) | [fonts.google.com](https://fonts.google.com/specimen/Russo+One) | SIL OFL 1.1 | Нет (файл лицензии в репо) | Заголовки UI | Запланировано, не импортировано |
 | Exo 2 (шрифт) | [fonts.google.com](https://fonts.google.com/specimen/Exo+2) | SIL OFL 1.1 | Нет (файл лицензии в репо) | Основной текст UI | Запланировано, не импортировано |
-| incompetech / Kevin MacLeod (треки) | [incompetech.com](https://incompetech.com/music/royalty-free/) | CC-BY 4.0 | **Да** — в Credits | Музыка: меню, бой, эмбиент | Запланировано, не импортировано |
+| Kevin MacLeod — "Floating Cities" | [incompetech.com](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100588) | CC-BY 4.0 | **Да** — в Credits | Музыка: меню (MainMenu) | Импортировано |
+| Kevin MacLeod — "Deep Haze" | [incompetech.com](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100313) | CC-BY 4.0 | **Да** — в Credits | Музыка: эмбиент (Ambient) | Импортировано |
+| Kevin MacLeod — "Volatile Reaction" | [incompetech.com](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100825) | CC-BY 4.0 | **Да** — в Credits | Музыка: бой (Combat) | Импортировано |
 | Sonniss GDC Audio Bundle | [gdc.sonniss.com](https://gdc.sonniss.com/) | Royalty-free (без атрибуции) | Нет | SFX: точечные профессиональные звуки | Запланировано, не импортировано |
 
 ---
@@ -45,8 +47,14 @@
 
 ```
 Музыка:
-  "Название трека" by Kevin MacLeod (incompetech.com)
-  Licensed under Creative Commons Attribution 4.0
+  "Floating Cities" by Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons Attribution 4.0 — https://creativecommons.org/licenses/by/4.0/
+
+  "Deep Haze" by Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons Attribution 4.0 — https://creativecommons.org/licenses/by/4.0/
+
+  "Volatile Reaction" by Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons Attribution 4.0 — https://creativecommons.org/licenses/by/4.0/
 
 Иконки:
   game-icons.net, Lorc, Delapouite и другие авторы
