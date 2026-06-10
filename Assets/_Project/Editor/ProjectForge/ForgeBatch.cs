@@ -43,5 +43,18 @@ namespace DiplomaGame.Editor
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
             ManagersTab.SetupHero();
         }
+
+        /// <summary>
+        /// Полная настройка M4: открыть Sandbox → создать UnitData-ассеты →
+        /// обновить оба префаба → настроить бой в сцене.
+        /// </summary>
+        public static void SetupM4()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.CreateOrUpdateUnitDataAssets();
+            PrefabsTab.CreateOrUpdateTestUnitPrefab();
+            PrefabsTab.CreateOrUpdateEnemyUnitPrefab();
+            ManagersTab.SetupCombat();
+        }
     }
 }

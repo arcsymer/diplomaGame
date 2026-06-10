@@ -1,4 +1,5 @@
 using DiplomaGame.Runtime.CameraControl;
+using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
@@ -25,6 +26,7 @@ namespace DiplomaGame.Editor
     {
         private const string InputActionsPath    = "Assets/_Project/Settings/GameControls.inputactions";
         private const string TestUnitPrefabPath  = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+        private const string EnemyUnitPrefabPath = "Assets/_Project/Prefabs/Units/EnemyUnit.prefab";
         private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
 
         public string Title => "Managers";
@@ -70,6 +72,19 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Hero (M3)", GUILayout.Height(32)))
                 SetupHero();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "M4: добавляет Health на Hero (maxHp 150), спавнит 3 EnemyUnit у EnemyBaseSpawn, " +
+                "переспавнивает TestUnit из обновлённого префаба (5 шт.).\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Combat (M4)", GUILayout.Height(32)))
+                SetupCombat();
         }
 
         // ----------------------------------------------------------------
@@ -382,6 +397,125 @@ namespace DiplomaGame.Editor
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[Project Forge] Setup Hero (M3) выполнен.");
+        }
+
+        // ----------------------------------------------------------------
+        // M4: Setup Combat
+        // ----------------------------------------------------------------
+
+        internal static void SetupCombat()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            // --- Hero: добавить Health с maxHp 150 ---
+            var heroGo = GameObject.Find("Hero");
+            if (heroGo != null)
+            {
+                var health = EnsureComponent<Health>(heroGo);
+                var so     = new SerializedObject(health);
+                so.FindProperty("_maxHp").floatValue = 150f;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            else
+            {
+                Debug.LogWarning("[Project Forge] Hero не найден в сцене — сначала запустите Setup Hero (M3).");
+            }
+
+            // --- Переспавнить TestUnit (удалить старые, инстанцировать из префаба) ---
+            RespawnTestUnits(scene);
+
+            // --- Заспавнить 3 EnemyUnit у EnemyBaseSpawn (идемпотентно) ---
+            SpawnEnemyUnits(scene);
+
+            // --- Сохранение сцены ---
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] Setup Combat (M4) выполнен.");
+        }
+
+        private static void RespawnTestUnits(UnityEngine.SceneManagement.Scene scene)
+        {
+            // Удаляем все существующие TestUnit*
+            var toDestroy = new System.Collections.Generic.List<GameObject>();
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name.StartsWith("TestUnit"))
+                    toDestroy.Add(root);
+                foreach (Transform child in root.transform)
+                {
+                    if (child.name.StartsWith("TestUnit"))
+                        toDestroy.Add(child.gameObject);
+                }
+            }
+            foreach (var go in toDestroy)
+                Object.DestroyImmediate(go);
+
+            // Спавним 5 из обновлённого префаба
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestUnitPrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Project Forge] TestUnit prefab не найден: {TestUnitPrefabPath}. " +
+                                 "Сначала нажмите 'Create/Update TestUnit Prefab' во вкладке Prefabs.");
+                return;
+            }
+
+            Vector3 spawnOrigin = Vector3.zero;
+            var playerBase = GameObject.Find("PlayerBaseSpawn");
+            if (playerBase != null)
+                spawnOrigin = playerBase.transform.position;
+
+            const int   count = 5;
+            const float space = 2f;
+            for (int i = 0; i < count; i++)
+            {
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+                go.name                = $"TestUnit_{i + 1}";
+                go.transform.position  = spawnOrigin + new Vector3((i - 2) * space, 0f, 0f);
+            }
+        }
+
+        private static void SpawnEnemyUnits(UnityEngine.SceneManagement.Scene scene)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyUnitPrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Project Forge] EnemyUnit prefab не найден: {EnemyUnitPrefabPath}. " +
+                                 "Сначала нажмите 'Create/Update EnemyUnit Prefab' во вкладке Prefabs.");
+                return;
+            }
+
+            Vector3 spawnOrigin = Vector3.zero;
+            var enemyBase = GameObject.Find("EnemyBaseSpawn");
+            if (enemyBase != null)
+                spawnOrigin = enemyBase.transform.position;
+
+            // Считаем уже существующих EnemyUnit*
+            int existing = 0;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name.StartsWith("EnemyUnit"))
+                    existing++;
+                foreach (Transform child in root.transform)
+                {
+                    if (child.name.StartsWith("EnemyUnit"))
+                        existing++;
+                }
+            }
+
+            const int   total = 3;
+            const float space = 2f;
+            for (int i = existing; i < total; i++)
+            {
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+                go.name               = $"EnemyUnit_{i + 1}";
+                go.transform.position = spawnOrigin + new Vector3((i - 1) * space, 0f, 0f);
+            }
         }
 
         // ----------------------------------------------------------------

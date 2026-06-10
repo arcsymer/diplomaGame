@@ -37,7 +37,7 @@ namespace DiplomaGame.Editor
                 new ReportsTab(),
                 new PrefabsTab(),
                 new ManagersTab(),
-                new StubTab("Config",    "M5"),
+                new ConfigTab(),
                 new NavMeshTab(),
                 new StubTab("UI",        "M6"),
                 new StubTab("Audio",     "M7"),

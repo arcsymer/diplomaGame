@@ -39,5 +39,18 @@ namespace DiplomaGame.Runtime.Units
                     buffer.Add(_all[i]);
             }
         }
+
+        /// <summary>
+        /// Заполняет переданный буфер юнитами указанной фракции. Без аллокаций.
+        /// </summary>
+        public static void GetUnits(Faction faction, List<Unit> buffer)
+        {
+            buffer.Clear();
+            for (int i = 0; i < _all.Count; i++)
+            {
+                if (_all[i] != null && _all[i].Faction == faction)
+                    buffer.Add(_all[i]);
+            }
+        }
     }
 }

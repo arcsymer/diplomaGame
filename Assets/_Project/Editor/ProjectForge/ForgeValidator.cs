@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Hero;
+using DiplomaGame.Runtime.Units;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
@@ -16,6 +18,9 @@ namespace DiplomaGame.Editor
     public static class ForgeValidator
     {
         private const string TestUnitPrefabPath  = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+        private const string EnemyUnitPrefabPath = "Assets/_Project/Prefabs/Units/EnemyUnit.prefab";
+        private const string MarineDataPath      = "Assets/_Project/Data/Units/Marine.asset";
+        private const string EnemyGruntDataPath  = "Assets/_Project/Data/Units/EnemyGrunt.asset";
         private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
 
         private static readonly string[] RequiredFolders =
@@ -48,6 +53,9 @@ namespace DiplomaGame.Editor
             CheckNavMeshSurfaceOnGround(issues);
             CheckHeroSetup(issues);
             CheckAbilityAssets(issues);
+            CheckUnitDataAssets(issues);
+            CheckUnitPrefabsHaveCombatComponents(issues);
+            CheckHeroHasHealth(issues);
 
             return issues;
         }
@@ -175,6 +183,50 @@ namespace DiplomaGame.Editor
                 if (asset == null)
                     issues.Add($"Ассет способности не найден: {path} (запустите Setup Hero (M3)).");
             }
+        }
+
+        // ----------------------------------------------------------------
+        // M4 проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckUnitDataAssets(List<string> issues)
+        {
+            if (AssetDatabase.LoadAssetAtPath<ScriptableObject>(MarineDataPath) == null)
+                issues.Add($"UnitData ассет не найден: {MarineDataPath} (запустите Create/Update Unit Data Assets (M4)).");
+
+            if (AssetDatabase.LoadAssetAtPath<ScriptableObject>(EnemyGruntDataPath) == null)
+                issues.Add($"UnitData ассет не найден: {EnemyGruntDataPath} (запустите Create/Update Unit Data Assets (M4)).");
+        }
+
+        private static void CheckUnitPrefabsHaveCombatComponents(List<string> issues)
+        {
+            CheckPrefabHasCombatComponents(TestUnitPrefabPath, "TestUnit", issues);
+            CheckPrefabHasCombatComponents(EnemyUnitPrefabPath, "EnemyUnit", issues);
+        }
+
+        private static void CheckPrefabHasCombatComponents(string prefabPath, string prefabName, List<string> issues)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null)
+            {
+                issues.Add($"Префаб {prefabName} не найден: {prefabPath}.");
+                return;
+            }
+
+            if (prefab.GetComponent<Health>() == null)
+                issues.Add($"Префаб {prefabName}: отсутствует Health (запустите Create/Update {prefabName} Prefab).");
+
+            if (prefab.GetComponent<UnitCombat>() == null)
+                issues.Add($"Префаб {prefabName}: отсутствует UnitCombat (запустите Create/Update {prefabName} Prefab).");
+        }
+
+        private static void CheckHeroHasHealth(List<string> issues)
+        {
+            var heroGo = GameObject.Find("Hero");
+            if (heroGo == null) return;  // Hero не в сцене — не проверяем
+
+            if (heroGo.GetComponent<Health>() == null)
+                issues.Add("Hero: отсутствует Health (запустите Setup Combat (M4)).");
         }
 
         private static int CountMissingScripts(GameObject go)

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -18,6 +19,17 @@ namespace DiplomaGame.Runtime.Units
 
         public Faction   Faction      => _faction;
         public UnitState CurrentState => _state;
+
+        /// <summary>
+        /// Тип последнего приказа игрока. null — если приказов ещё не было.
+        /// </summary>
+        public UnitCommandType? CurrentCommandType { get; private set; }
+
+        /// <summary>
+        /// Вызывается при каждом IssueCommand от игрока.
+        /// UnitCombat использует это для сброса Retreating.
+        /// </summary>
+        public event Action<UnitCommand> CommandIssued;
 
         // ----------------------------------------------------------------
         // Кэшированные ссылки (Awake)
@@ -89,6 +101,8 @@ namespace DiplomaGame.Runtime.Units
         /// </summary>
         public void IssueCommand(UnitCommand cmd)
         {
+            CurrentCommandType = cmd.Type;
+
             switch (cmd.Type)
             {
                 case UnitCommandType.Move:
@@ -109,6 +123,32 @@ namespace DiplomaGame.Runtime.Units
                     _state = UnitState.Patrolling;
                     break;
             }
+
+            CommandIssued?.Invoke(cmd);
+        }
+
+        // ----------------------------------------------------------------
+        // Internal — для UnitCombat (не сбрасывают CurrentCommandType игрока)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Перемещает юнита к точке без изменения CurrentCommandType.
+        /// Используется UnitCombat для преследования/отступления.
+        /// </summary>
+        internal void MoveToInternal(Vector3 destination)
+        {
+            _agent.SetDestination(destination);
+            _state = UnitState.Moving;
+        }
+
+        /// <summary>
+        /// Останавливает юнита без изменения CurrentCommandType.
+        /// Используется UnitCombat при атаке на месте.
+        /// </summary>
+        internal void StopInternal()
+        {
+            _agent.ResetPath();
+            _state = UnitState.Idle;
         }
 
         // ----------------------------------------------------------------
