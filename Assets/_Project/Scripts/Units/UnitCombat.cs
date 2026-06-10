@@ -330,6 +330,11 @@ namespace DiplomaGame.Runtime.Units
         private void OnDied()
         {
             CurrentCombatState = CombatState.None;
+
+            // Герой управляет своим жизненным циклом через GameWatcher (респаун).
+            // Если на GO есть HeroController — не уничтожаем объект.
+            if (GetComponent<HeroController>() != null) return;
+
             // Небольшая задержка перед уничтожением GO (для проигрывания эффектов)
             Destroy(gameObject, 0.1f);
         }

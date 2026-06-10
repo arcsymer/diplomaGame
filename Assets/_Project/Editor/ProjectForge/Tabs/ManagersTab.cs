@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.AI;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.CameraControl;
 using DiplomaGame.Runtime.Combat;
@@ -7,6 +8,7 @@ using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
+using DiplomaGame.Runtime.UI;
 using DiplomaGame.Runtime.Units;
 using Unity.Cinemachine;
 using UnityEditor;
@@ -42,6 +44,9 @@ namespace DiplomaGame.Editor
         private const string ExtractorDataPath      = "Assets/_Project/Data/Buildings/Extractor.asset";
         private const string GhostValidMatPath      = "Assets/_Project/Art/Materials/GhostValid.mat";
         private const string GhostInvalidMatPath    = "Assets/_Project/Art/Materials/GhostInvalid.mat";
+
+        // M9 пути
+        private const string GameOverCanvasName = "GameOver";
 
         public string Title => "Managers";
 
@@ -113,6 +118,20 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Economy (M5)", GUILayout.Height(32)))
                 SetupEconomy();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "M9: добавляет EnemyCommander + GameWatcher на GameManagers; " +
+                "создаёт Barracks_Enemy у EnemyBaseSpawn (фракция Enemy); " +
+                "создаёт маркер PlayerBaseSpawn при отсутствии. " +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Scenario (M9)", GUILayout.Height(32)))
+                SetupScenario();
         }
 
         // ----------------------------------------------------------------
@@ -638,6 +657,136 @@ namespace DiplomaGame.Editor
             EnsureFolder("Assets/_Project/Art/Materials");
             AssetDatabase.CreateAsset(mat, path);
             return mat;
+        }
+
+        // ----------------------------------------------------------------
+        // M9: Setup Scenario
+        // ----------------------------------------------------------------
+
+        internal static void SetupScenario()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            var managersGo = EnsureGameObject("GameManagers");
+
+            // --- ResourceBank (должен уже быть от M5, убеждаемся) ---
+            var bank = EnsureComponent<ResourceBank>(managersGo);
+
+            // --- Маркер PlayerBaseSpawn (создать, если отсутствует) ---
+            if (GameObject.Find("PlayerBaseSpawn") == null)
+            {
+                var spawnMarker = new GameObject("PlayerBaseSpawn");
+                spawnMarker.transform.position = new Vector3(0f, 0f, -20f);
+                Debug.Log("[Project Forge] Создан маркер PlayerBaseSpawn.");
+            }
+
+            // --- Barracks_Enemy у EnemyBaseSpawn (идемпотентно) ---
+            var barracksPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BarracksPrefabPath);
+            var enemyBarracks  = SetupEnemyBarracks(scene, barracksPrefab, bank);
+
+            // --- EnemyCommander на GameManagers ---
+            var commander = EnsureComponent<EnemyCommander>(managersGo);
+            {
+                var so = new SerializedObject(commander);
+                so.FindProperty("_bank").objectReferenceValue         = bank;
+
+                if (enemyBarracks != null)
+                {
+                    var prodBuilding = enemyBarracks.GetComponent<ProductionBuilding>();
+                    so.FindProperty("_enemyBarracks").objectReferenceValue = prodBuilding;
+                }
+
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- GameWatcher на GameManagers ---
+            var watcher = EnsureComponent<GameWatcher>(managersGo);
+            {
+                // Находим GameOverController в сцене
+                GameOverController gameOverCtrl = null;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    gameOverCtrl = root.GetComponentInChildren<GameOverController>(includeInactive: true);
+                    if (gameOverCtrl != null) break;
+                }
+
+                var so = new SerializedObject(watcher);
+                so.FindProperty("_gameOver").objectReferenceValue = gameOverCtrl;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- Сохранение сцены ---
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] Setup Scenario (M9) выполнен.");
+        }
+
+        private static GameObject SetupEnemyBarracks(
+            UnityEngine.SceneManagement.Scene scene,
+            GameObject prefab,
+            ResourceBank bank)
+        {
+            // Идемпотентность — если объект с именем Barracks_Enemy уже есть
+            var existing = GameObject.Find("Barracks_Enemy");
+            if (existing != null)
+                return existing;
+
+            Vector3 enemyBase = GetBasePosition("EnemyBaseSpawn");
+            // Барак размещаем чуть в стороне от EnemyBaseSpawn, ральная точка — к центру
+            Vector3 barracksPos = enemyBase + new Vector3(6f, 0f, -4f);
+
+            GameObject inst;
+            if (prefab != null)
+            {
+                inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+            }
+            else
+            {
+                Debug.LogWarning("[Project Forge] Barracks-префаб не найден. Создаём пустой GO.");
+                inst = new GameObject();
+                EnsureComponent<Building>(inst);
+                EnsureComponent<ProductionBuilding>(inst);
+            }
+
+            inst.name               = "Barracks_Enemy";
+            inst.transform.position = barracksPos;
+
+            // Загружаем BarracksData и EnemyUnit-префаб
+            var barracksData  = AssetDatabase.LoadAssetAtPath<BuildingData>(BarracksDataPath);
+            var enemyUnitPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyUnitPrefabPath);
+
+            // Устанавливаем фракцию Enemy через SerializedObject
+            var building = inst.GetComponent<Building>();
+            if (building != null)
+            {
+                var buildSo = new SerializedObject(building);
+                buildSo.FindProperty("_faction").enumValueIndex    = (int)Faction.Enemy;
+                buildSo.FindProperty("_bank").objectReferenceValue = bank;
+                if (barracksData != null)
+                    buildSo.FindProperty("_data").objectReferenceValue = barracksData;
+                buildSo.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // Проставляем unit prefab и rally point в ProductionBuilding
+            var production = inst.GetComponent<ProductionBuilding>();
+            if (production != null)
+            {
+                var prodSo = new SerializedObject(production);
+                if (enemyUnitPrefab != null)
+                    prodSo.FindProperty("_unitPrefab").objectReferenceValue = enemyUnitPrefab;
+                prodSo.ApplyModifiedPropertiesWithoutUndo();
+
+                // Rally point к центру карты (0,0,0)
+                production.SetRallyPoint(Vector3.zero);
+            }
+
+            return inst;
         }
 
         private static void RespawnTestUnits(UnityEngine.SceneManagement.Scene scene)

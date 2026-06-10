@@ -74,6 +74,9 @@ namespace DiplomaGame.Runtime.Audio
         [SerializeField] private AudioClip _victoryClip;
         [SerializeField] private AudioClip _defeatClip;
 
+        [Header("Голоса — Match Start (M9)")]
+        [SerializeField] private AudioClip _matchStartClip;
+
         // ----------------------------------------------------------------
         // Fallback-громкости (когда mixer == null)
         // ----------------------------------------------------------------
@@ -277,6 +280,16 @@ namespace DiplomaGame.Runtime.Audio
         {
             if (_defeatClip == null) return;
             PlayVoiceClip(_defeatClip);
+        }
+
+        /// <summary>
+        /// Воспроизводит звук старта матча (M9).
+        /// Если задан _matchStartClip — играет его, иначе молча завершается.
+        /// </summary>
+        public void PlayMatchStart()
+        {
+            if (_matchStartClip == null) return;
+            PlayVoiceClip(_matchStartClip);
         }
 
         // ----------------------------------------------------------------

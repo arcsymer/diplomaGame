@@ -30,6 +30,14 @@ namespace DiplomaGame.Runtime.UI
         // ----------------------------------------------------------------
 
         /// <summary>
+        /// Возвращает true, если один из экранов GameOver уже отображается.
+        /// Используется GameWatcher для идемпотентности.
+        /// </summary>
+        public bool IsShown =>
+            (victoryPanel != null && victoryPanel.activeSelf) ||
+            (defeatPanel  != null && defeatPanel.activeSelf);
+
+        /// <summary>
         /// Показывает экран победы и останавливает время.
         /// Вызывается из M9 (WinCondition / ScenarioController).
         /// </summary>

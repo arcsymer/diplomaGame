@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DiplomaGame.Runtime.AI;
 using DiplomaGame.Runtime.Audio;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
@@ -98,6 +99,7 @@ namespace DiplomaGame.Editor
             CheckVfxPrefabsExist(issues);
             CheckVolumeInScene(issues);
             CheckUnitPrefabsHaveVisualChild(issues);
+            CheckScenarioSetup(issues);
 
             return issues;
         }
@@ -561,6 +563,63 @@ namespace DiplomaGame.Editor
             var visualTf = prefab.transform.Find("Visual");
             if (visualTf == null)
                 issues.Add($"Префаб {prefabName}: нет дочернего объекта 'Visual' (запустите Apply Visuals (M8)).");
+        }
+
+        // ----------------------------------------------------------------
+        // M9 проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckScenarioSetup(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // Проверяем только в Sandbox-сцене
+            if (scene.name != "Sandbox") return;
+
+            bool hasEnemyCommander = false;
+            bool hasGameWatcher    = false;
+            bool hasBarracksEnemy  = false;
+
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.GetComponentInChildren<EnemyCommander>(includeInactive: true) != null)
+                    hasEnemyCommander = true;
+
+                if (root.GetComponentInChildren<GameWatcher>(includeInactive: true) != null)
+                    hasGameWatcher = true;
+
+                if (root.name == "Barracks_Enemy")
+                {
+                    hasBarracksEnemy = true;
+
+                    var building = root.GetComponent<Building>();
+                    if (building == null)
+                    {
+                        issues.Add("Barracks_Enemy: отсутствует компонент Building (запустите Setup Scenario (M9)).");
+                    }
+                    else if (building.Faction != Faction.Enemy)
+                    {
+                        issues.Add("Barracks_Enemy: фракция должна быть Enemy (запустите Setup Scenario (M9)).");
+                    }
+                }
+
+                // Проверяем и дочерних
+                foreach (Transform child in root.transform)
+                {
+                    if (child.name == "Barracks_Enemy")
+                        hasBarracksEnemy = true;
+                }
+            }
+
+            if (!hasEnemyCommander)
+                issues.Add("В сцене нет EnemyCommander (запустите Setup Scenario (M9)).");
+
+            if (!hasGameWatcher)
+                issues.Add("В сцене нет GameWatcher (запустите Setup Scenario (M9)).");
+
+            if (!hasBarracksEnemy)
+                issues.Add("В сцене нет Barracks_Enemy (запустите Setup Scenario (M9)).");
         }
 
         private static int CountMissingScripts(GameObject go)

@@ -138,5 +138,16 @@ namespace DiplomaGame.Editor
             EditorSceneManager.SaveScene(
                 UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         }
+
+        /// <summary>
+        /// Полная настройка M9: сценарий.
+        /// Открывает Sandbox → добавляет EnemyCommander, GameWatcher,
+        /// создаёт Barracks_Enemy и маркер PlayerBaseSpawn.
+        /// </summary>
+        public static void SetupM9()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ManagersTab.SetupScenario();
+        }
     }
 }
