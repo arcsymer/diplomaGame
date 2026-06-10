@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DiplomaGame.Runtime.Core;
+using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -13,6 +14,8 @@ namespace DiplomaGame.Editor
     /// </summary>
     public static class ForgeValidator
     {
+        private const string TestUnitPrefabPath = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+
         private static readonly string[] RequiredFolders =
         {
             "Assets/_Project/Scripts",
@@ -39,6 +42,8 @@ namespace DiplomaGame.Editor
             CheckSandboxInBuildSettings(issues);
             CheckMissingScriptsInOpenScene(issues);
             CheckGameModeControllerRefs(issues);
+            CheckTestUnitPrefabExists(issues);
+            CheckNavMeshSurfaceOnGround(issues);
 
             return issues;
         }
@@ -114,6 +119,25 @@ namespace DiplomaGame.Editor
                 // Проверяем только первый найденный контроллер в сцене
                 break;
             }
+        }
+
+        private static void CheckTestUnitPrefabExists(List<string> issues)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestUnitPrefabPath);
+            if (prefab == null)
+                issues.Add($"Префаб TestUnit не найден: {TestUnitPrefabPath} (запустите Create/Update TestUnit Prefab).");
+        }
+
+        private static void CheckNavMeshSurfaceOnGround(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            var ground = GameObject.Find("Ground");
+            if (ground == null) return; // Ground не в сцене — не проверяем
+
+            if (ground.GetComponent<NavMeshSurface>() == null)
+                issues.Add("На объекте Ground нет NavMeshSurface (запустите Bake NavMesh).");
         }
 
         private static int CountMissingScripts(GameObject go)

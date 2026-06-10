@@ -23,5 +23,16 @@ namespace DiplomaGame.Editor
         {
             ReportsTab.GenerateReport();
         }
+
+        /// <summary>
+        /// Полная настройка M2: открыть Sandbox → запечь NavMesh → создать префаб TestUnit → настроить RTS-управление.
+        /// </summary>
+        public static void SetupM2()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            NavMeshTab.BakeNavMesh();
+            PrefabsTab.CreateOrUpdateTestUnitPrefab();
+            ManagersTab.SetupRtsControl();
+        }
     }
 }

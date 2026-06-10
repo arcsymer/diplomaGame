@@ -3,7 +3,8 @@
     "rootNamespace": "DiplomaGame.Runtime",
     "references": [
         "Unity.Cinemachine",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

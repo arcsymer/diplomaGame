@@ -1,0 +1,125 @@
+using UnityEngine;
+using UnityEngine.AI;
+
+namespace DiplomaGame.Runtime.Units
+{
+    /// <summary>
+    /// Базовый компонент юнита. Принимает приказы, управляет NavMeshAgent и анимирует
+    /// кольцо выделения. Кэширует все компоненты в Awake — нет аллокаций в Update.
+    /// </summary>
+    [RequireComponent(typeof(NavMeshAgent))]
+    public sealed class Unit : MonoBehaviour
+    {
+        [SerializeField] private Faction _faction;
+
+        // ----------------------------------------------------------------
+        // Публичный API
+        // ----------------------------------------------------------------
+
+        public Faction   Faction      => _faction;
+        public UnitState CurrentState => _state;
+
+        // ----------------------------------------------------------------
+        // Кэшированные ссылки (Awake)
+        // ----------------------------------------------------------------
+
+        private NavMeshAgent _agent;
+        private GameObject   _selectionRing;
+
+        // ----------------------------------------------------------------
+        // Состояние патруля
+        // ----------------------------------------------------------------
+
+        private Vector3 _patrolPointA;
+        private Vector3 _patrolPointB;
+
+        // ----------------------------------------------------------------
+        // Внутреннее состояние
+        // ----------------------------------------------------------------
+
+        private UnitState _state = UnitState.Idle;
+
+        // ----------------------------------------------------------------
+        // Unity lifecycle
+        // ----------------------------------------------------------------
+
+        private void Awake()
+        {
+            _agent = GetComponent<NavMeshAgent>();
+
+            // Ищем кольцо выделения — null-безопасно
+            var ring = transform.Find("SelectionRing");
+            if (ring != null)
+                _selectionRing = ring.gameObject;
+        }
+
+        private void OnEnable()
+        {
+            UnitRegistry.Register(this);
+        }
+
+        private void OnDisable()
+        {
+            UnitRegistry.Unregister(this);
+        }
+
+        private void Update()
+        {
+            if (_state == UnitState.Patrolling)
+            {
+                if (UnitCommandLogic.HasArrived(_agent.remainingDistance, _agent.stoppingDistance, _agent.pathPending))
+                {
+                    Vector3 next = UnitCommandLogic.GetNextPatrolPoint(transform.position, _patrolPointA, _patrolPointB);
+                    _agent.SetDestination(next);
+                }
+            }
+            else if (_state == UnitState.Moving)
+            {
+                if (UnitCommandLogic.HasArrived(_agent.remainingDistance, _agent.stoppingDistance, _agent.pathPending))
+                    _state = UnitState.Idle;
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // Приказы
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Выдаёт юниту приказ. Меняет состояние и перенаправляет NavMeshAgent.
+        /// </summary>
+        public void IssueCommand(UnitCommand cmd)
+        {
+            switch (cmd.Type)
+            {
+                case UnitCommandType.Move:
+                case UnitCommandType.AttackMove:
+                    _agent.SetDestination(cmd.TargetPoint);
+                    _state = UnitState.Moving;
+                    break;
+
+                case UnitCommandType.Hold:
+                    _agent.ResetPath();
+                    _state = UnitState.Holding;
+                    break;
+
+                case UnitCommandType.Patrol:
+                    _patrolPointA = transform.position;
+                    _patrolPointB = cmd.TargetPoint;
+                    _agent.SetDestination(_patrolPointB);
+                    _state = UnitState.Patrolling;
+                    break;
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // Выделение
+        // ----------------------------------------------------------------
+
+        /// <summary>Показывает или скрывает кольцо выделения под юнитом.</summary>
+        public void SetSelected(bool selected)
+        {
+            if (_selectionRing != null)
+                _selectionRing.SetActive(selected);
+        }
+    }
+}

@@ -1,4 +1,7 @@
+using DiplomaGame.Runtime.CameraControl;
+using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Selection;
 using Unity.Cinemachine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -10,10 +13,13 @@ namespace DiplomaGame.Editor
     /// Вкладка Managers — настройка игровых менеджеров сцены.
     /// M1: кнопка "Setup Mode Rig" идемпотентно собирает камерный риг
     /// и GameModeController в открытой сцене.
+    /// M2: кнопка "Setup RTS Control" добавляет SelectionSystem, CommandInput,
+    /// RtsCameraController и спавнит 5 TestUnit.
     /// </summary>
     internal sealed class ManagersTab : IForgeTab
     {
-        private const string InputActionsPath = "Assets/_Project/Settings/GameControls.inputactions";
+        private const string InputActionsPath    = "Assets/_Project/Settings/GameControls.inputactions";
+        private const string TestUnitPrefabPath  = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
 
         public string Title => "Managers";
 
@@ -32,6 +38,19 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Mode Rig (M1)", GUILayout.Height(32)))
                 SetupModeRig();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Добавляет SelectionSystem, CommandInput и RtsCameraController " +
+                "на GameManagers, проставляет ссылки и спавнит 5 тестовых юнитов.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup RTS Control (M2)", GUILayout.Height(32)))
+                SetupRtsControl();
         }
 
         // ----------------------------------------------------------------
@@ -137,6 +156,116 @@ namespace DiplomaGame.Editor
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[Project Forge] Setup Mode Rig (M1) выполнен.");
+        }
+
+        // ----------------------------------------------------------------
+        // M2: Setup RTS Control
+        // ----------------------------------------------------------------
+
+        internal static void SetupRtsControl()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            var inputAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.InputSystem.InputActionAsset>(InputActionsPath);
+            if (inputAsset == null)
+                Debug.LogWarning($"[Project Forge] InputActionAsset не найден: {InputActionsPath}.");
+
+            // --- GameManagers ---
+            var managersGo = EnsureGameObject("GameManagers");
+
+            // Берём GameModeController (должен уже быть после M1)
+            var modeController = EnsureComponent<GameModeController>(managersGo);
+
+            // --- SelectionSystem ---
+            var selectionSystem = EnsureComponent<SelectionSystem>(managersGo);
+            {
+                var so = new SerializedObject(selectionSystem);
+                so.FindProperty("actions").objectReferenceValue       = inputAsset;
+                so.FindProperty("modeController").objectReferenceValue = modeController;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- CommandInput ---
+            var commandInput = EnsureComponent<CommandInput>(managersGo);
+            {
+                var so = new SerializedObject(commandInput);
+                so.FindProperty("selectionSystem").objectReferenceValue = selectionSystem;
+                so.FindProperty("actions").objectReferenceValue          = inputAsset;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- RtsCameraTarget ---
+            var rtsTarget = EnsureGameObject("RtsCameraTarget");
+
+            // --- RTS Camera CinemachineFollow ---
+            var rtsCamGo = EnsureGameObject("RTS Camera");
+            var rtsFollow = EnsureComponent<CinemachineFollow>(rtsCamGo);
+
+            // --- RtsCameraController ---
+            var rtsCamCtrl = EnsureComponent<RtsCameraController>(managersGo);
+            {
+                var so = new SerializedObject(rtsCamCtrl);
+                so.FindProperty("target").objectReferenceValue         = rtsTarget.transform;
+                so.FindProperty("rtsFollow").objectReferenceValue      = rtsFollow;
+                so.FindProperty("modeController").objectReferenceValue = modeController;
+                so.FindProperty("actions").objectReferenceValue        = inputAsset;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- Спавн 5 TestUnit (идемпотентно — считаем существующие) ---
+            SpawnTestUnits(scene);
+
+            // --- Сохранение сцены ---
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] Setup RTS Control (M2) выполнен.");
+        }
+
+        private static void SpawnTestUnits(UnityEngine.SceneManagement.Scene scene)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestUnitPrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Project Forge] TestUnit prefab не найден: {TestUnitPrefabPath}. " +
+                                 "Сначала нажмите «Create/Update TestUnit Prefab» во вкладке Prefabs.");
+                return;
+            }
+
+            // Находим базовую точку спавна
+            Vector3 spawnOrigin = Vector3.zero;
+            var playerBase = GameObject.Find("PlayerBaseSpawn");
+            if (playerBase != null)
+                spawnOrigin = playerBase.transform.position;
+
+            const int count   = 5;
+            const float space = 2f;
+
+            // Считаем сколько TestUnit уже в сцене
+            int existing = 0;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name.StartsWith("TestUnit"))
+                    existing++;
+                // Также ищем вложенные
+                foreach (Transform child in root.transform)
+                {
+                    if (child.name.StartsWith("TestUnit"))
+                        existing++;
+                }
+            }
+
+            for (int i = existing; i < count; i++)
+            {
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+                go.name = $"TestUnit_{i + 1}";
+                go.transform.position = spawnOrigin + new Vector3((i - 2) * space, 0f, 0f);
+            }
         }
 
         // ----------------------------------------------------------------
