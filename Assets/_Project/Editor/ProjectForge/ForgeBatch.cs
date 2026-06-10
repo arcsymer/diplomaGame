@@ -34,5 +34,14 @@ namespace DiplomaGame.Editor
             PrefabsTab.CreateOrUpdateTestUnitPrefab();
             ManagersTab.SetupRtsControl();
         }
+
+        /// <summary>
+        /// Полная настройка M3: открыть Sandbox → настроить TPS-героя.
+        /// </summary>
+        public static void SetupM3()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ManagersTab.SetupHero();
+        }
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Hero;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
@@ -14,7 +15,8 @@ namespace DiplomaGame.Editor
     /// </summary>
     public static class ForgeValidator
     {
-        private const string TestUnitPrefabPath = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+        private const string TestUnitPrefabPath  = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+        private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
 
         private static readonly string[] RequiredFolders =
         {
@@ -44,6 +46,8 @@ namespace DiplomaGame.Editor
             CheckGameModeControllerRefs(issues);
             CheckTestUnitPrefabExists(issues);
             CheckNavMeshSurfaceOnGround(issues);
+            CheckHeroSetup(issues);
+            CheckAbilityAssets(issues);
 
             return issues;
         }
@@ -138,6 +142,39 @@ namespace DiplomaGame.Editor
 
             if (ground.GetComponent<NavMeshSurface>() == null)
                 issues.Add("На объекте Ground нет NavMeshSurface (запустите Bake NavMesh).");
+        }
+
+        private static void CheckHeroSetup(List<string> issues)
+        {
+            var heroGo = GameObject.Find("Hero");
+            if (heroGo == null) return;  // Hero не в сцене — не проверяем
+
+            if (heroGo.GetComponent<HeroController>() == null)
+                issues.Add("Hero: отсутствует HeroController (запустите Setup Hero (M3)).");
+
+            if (heroGo.GetComponent<HeroShooter>() == null)
+                issues.Add("Hero: отсутствует HeroShooter (запустите Setup Hero (M3)).");
+
+            if (heroGo.GetComponent<AbilitySystem>() == null)
+                issues.Add("Hero: отсутствует AbilitySystem (запустите Setup Hero (M3)).");
+
+            if (heroGo.GetComponent<CharacterController>() == null)
+                issues.Add("Hero: отсутствует CharacterController (запустите Setup Hero (M3)).");
+
+            if (heroGo.GetComponent<DiplomaGame.Runtime.Units.Unit>() == null)
+                issues.Add("Hero: отсутствует Unit (запустите Setup Hero (M3)).");
+        }
+
+        private static void CheckAbilityAssets(List<string> issues)
+        {
+            string[] assetNames = { "Dash", "Ability2", "Ability3", "Ability4" };
+            foreach (var name in assetNames)
+            {
+                var path  = $"{AbilitiesFolder}/{name}.asset";
+                var asset = AssetDatabase.LoadAssetAtPath<ScriptableObject>(path);
+                if (asset == null)
+                    issues.Add($"Ассет способности не найден: {path} (запустите Setup Hero (M3)).");
+            }
         }
 
         private static int CountMissingScripts(GameObject go)

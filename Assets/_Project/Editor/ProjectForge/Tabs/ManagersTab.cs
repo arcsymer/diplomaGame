@@ -1,11 +1,15 @@
 using DiplomaGame.Runtime.CameraControl;
 using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Data;
+using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
+using DiplomaGame.Runtime.Units;
 using Unity.Cinemachine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace DiplomaGame.Editor
 {
@@ -15,11 +19,13 @@ namespace DiplomaGame.Editor
     /// и GameModeController в открытой сцене.
     /// M2: кнопка "Setup RTS Control" добавляет SelectionSystem, CommandInput,
     /// RtsCameraController и спавнит 5 TestUnit.
+    /// M3: кнопка "Setup Hero (M3)" настраивает HeroController, HeroShooter, AbilitySystem.
     /// </summary>
     internal sealed class ManagersTab : IForgeTab
     {
         private const string InputActionsPath    = "Assets/_Project/Settings/GameControls.inputactions";
         private const string TestUnitPrefabPath  = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+        private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
 
         public string Title => "Managers";
 
@@ -51,6 +57,19 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup RTS Control (M2)", GUILayout.Height(32)))
                 SetupRtsControl();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Настраивает TPS-героя: CharacterController, NavMeshAgent, Unit, HeroController, " +
+                "HeroShooter, AbilitySystem + SO-ассеты способностей.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Hero (M3)", GUILayout.Height(32)))
+                SetupHero();
         }
 
         // ----------------------------------------------------------------
@@ -227,6 +246,171 @@ namespace DiplomaGame.Editor
             Debug.Log("[Project Forge] Setup RTS Control (M2) выполнен.");
         }
 
+        // ----------------------------------------------------------------
+        // M3: Setup Hero
+        // ----------------------------------------------------------------
+
+        internal static void SetupHero()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            var inputAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.InputSystem.InputActionAsset>(InputActionsPath);
+            if (inputAsset == null)
+                Debug.LogWarning($"[Project Forge] InputActionAsset не найден: {InputActionsPath}.");
+
+            // --- Hero GO ---
+            var heroExisting = GameObject.Find("Hero");
+            GameObject hero;
+            if (heroExisting == null)
+            {
+                hero = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                hero.name = "Hero";
+            }
+            else
+            {
+                hero = heroExisting;
+            }
+
+            // --- CharacterController не совместим с CapsuleCollider на том же GO.
+            //     SetupModeRig (M1) добавляет CapsuleCollider к капсуле-примитиву — удаляем его. ---
+            var capsuleCollider = hero.GetComponent<CapsuleCollider>();
+            if (capsuleCollider != null)
+                Object.DestroyImmediate(capsuleCollider);
+
+            // --- CharacterController (height 2, radius 0.5, center y=0) ---
+            var cc = EnsureComponent<CharacterController>(hero);
+            cc.height = 2f;
+            cc.radius = 0.5f;
+            cc.center = new Vector3(0f, 0f, 0f);
+
+            // --- NavMeshAgent (enabled, speed 6) ---
+            var agent = EnsureComponent<NavMeshAgent>(hero);
+            agent.speed   = 6f;
+            agent.enabled = true;
+
+            // --- Unit (faction Player) ---
+            var unit   = EnsureComponent<Unit>(hero);
+            var unitSo = new SerializedObject(unit);
+            unitSo.FindProperty("_faction").enumValueIndex = (int)Faction.Player;
+            unitSo.ApplyModifiedPropertiesWithoutUndo();
+
+            // --- HeroController ---
+            var heroCtrl = EnsureComponent<HeroController>(hero);
+
+            // --- HeroShooter ---
+            var heroShooter = EnsureComponent<HeroShooter>(hero);
+
+            // --- AbilitySystem ---
+            var abilitySystem = EnsureComponent<AbilitySystem>(hero);
+
+            // --- SelectionRing (дочерний цилиндр, как у TestUnit) ---
+            var existingRing = hero.transform.Find("SelectionRing");
+            GameObject ring;
+            if (existingRing != null)
+            {
+                ring = existingRing.gameObject;
+            }
+            else
+            {
+                ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                ring.name = "SelectionRing";
+                ring.transform.SetParent(hero.transform, false);
+            }
+            ring.transform.localScale    = new Vector3(1.4f, 0.02f, 1.4f);
+            ring.transform.localPosition = new Vector3(0f, -0.95f, 0f);
+            var ringCollider = ring.GetComponent<Collider>();
+            if (ringCollider != null)
+                Object.DestroyImmediate(ringCollider);
+            ring.SetActive(false);
+
+            // --- Находим GameModeController ---
+            var managersGo     = EnsureGameObject("GameManagers");
+            var modeController = managersGo.GetComponent<GameModeController>();
+            if (modeController == null)
+            {
+                Debug.LogWarning("[Project Forge] GameModeController не найден — сначала запустите Setup Mode Rig (M1).");
+                modeController = EnsureComponent<GameModeController>(managersGo);
+            }
+
+            // --- SO-ассеты способностей (идемпотентно) ---
+            EnsureFolder(AbilitiesFolder);
+            var dashAsset   = EnsureAbilityAsset("Dash",     AbilityType.Dash,         4f,  6f);
+            var ab2Asset    = EnsureAbilityAsset("Ability2", AbilityType.Placeholder2,  8f,  0f);
+            var ab3Asset    = EnsureAbilityAsset("Ability3", AbilityType.Placeholder3,  8f,  0f);
+            var ab4Asset    = EnsureAbilityAsset("Ability4", AbilityType.Placeholder4,  8f,  0f);
+
+            // --- Проставляем ссылки через SerializedObject ---
+
+            // HeroController
+            {
+                var so = new SerializedObject(heroCtrl);
+                so.FindProperty("modeController").objectReferenceValue = modeController;
+                so.FindProperty("actions").objectReferenceValue        = inputAsset;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // HeroShooter
+            {
+                var so = new SerializedObject(heroShooter);
+                so.FindProperty("modeController").objectReferenceValue = modeController;
+                so.FindProperty("actions").objectReferenceValue        = inputAsset;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // AbilitySystem — abilities + ссылки
+            {
+                var so          = new SerializedObject(abilitySystem);
+                var abilitiesProp = so.FindProperty("abilities");
+                abilitiesProp.arraySize = 4;
+                abilitiesProp.GetArrayElementAtIndex(0).objectReferenceValue = dashAsset;
+                abilitiesProp.GetArrayElementAtIndex(1).objectReferenceValue = ab2Asset;
+                abilitiesProp.GetArrayElementAtIndex(2).objectReferenceValue = ab3Asset;
+                abilitiesProp.GetArrayElementAtIndex(3).objectReferenceValue = ab4Asset;
+                so.FindProperty("modeController").objectReferenceValue       = modeController;
+                so.FindProperty("actions").objectReferenceValue              = inputAsset;
+                so.FindProperty("heroController").objectReferenceValue       = heroCtrl;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- Сохранение сцены ---
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] Setup Hero (M3) выполнен.");
+        }
+
+        // ----------------------------------------------------------------
+        // Вспомогательные методы M3
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт AbilityData ScriptableObject или загружает существующий.
+        /// </summary>
+        private static AbilityData EnsureAbilityAsset(string assetName, AbilityType type, float cooldown, float dashDistance)
+        {
+            var path     = $"{AbilitiesFolder}/{assetName}.asset";
+            var existing = AssetDatabase.LoadAssetAtPath<AbilityData>(path);
+            if (existing != null)
+                return existing;
+
+            var data = ScriptableObject.CreateInstance<AbilityData>();
+            var so   = new SerializedObject(data);
+            so.FindProperty("_displayName").stringValue       = assetName;
+            so.FindProperty("_cooldown").floatValue           = cooldown;
+            so.FindProperty("_abilityType").enumValueIndex    = (int)type;
+            so.FindProperty("_dashDistance").floatValue       = dashDistance;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            AssetDatabase.CreateAsset(data, path);
+            AssetDatabase.SaveAssets();
+            return data;
+        }
+
         private static void SpawnTestUnits(UnityEngine.SceneManagement.Scene scene)
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestUnitPrefabPath);
@@ -284,6 +468,22 @@ namespace DiplomaGame.Editor
         {
             var existing = go.GetComponent<T>();
             return existing != null ? existing : go.AddComponent<T>();
+        }
+
+        /// <summary>Идемпотентно создаёт цепочку папок через AssetDatabase.</summary>
+        private static void EnsureFolder(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath)) return;
+
+            var parts   = folderPath.Split('/');
+            var current = parts[0];
+            for (int i = 1; i < parts.Length; i++)
+            {
+                var next = current + "/" + parts[i];
+                if (!AssetDatabase.IsValidFolder(next))
+                    AssetDatabase.CreateFolder(current, parts[i]);
+                current = next;
+            }
         }
 
     }
