@@ -94,6 +94,11 @@ namespace DiplomaGame.Editor
             var rtsBlock = EnsureChild(canvasGo, "RTS_Block");
             var tpsBlock = EnsureChild(canvasGo, "TPS_Block");
 
+            // Оба блока — full-stretch контейнеры (иначе дочерние элементы
+            // позиционируются относительно дефолтного rect 100×100 в центре).
+            SetFullStretch(rtsBlock);
+            SetFullStretch(tpsBlock);
+
             // --- RTS-блок ---
             BuildRtsBlock(rtsBlock, scene);
 
@@ -773,7 +778,7 @@ namespace DiplomaGame.Editor
                 rt.pivot     = new Vector2(0.5f, 1f);
                 rt.offsetMin = Vector2.zero;
                 rt.offsetMax = Vector2.zero;
-                rt.sizeDelta = new Vector2(0f, 50f);
+                rt.sizeDelta = new Vector2(0f, 44f);
 
                 var bg = EnsureComponent<Image>(topPanel);
                 bg.color = new Color(0f, 0f, 0f, 0.55f);
@@ -781,10 +786,11 @@ namespace DiplomaGame.Editor
                 // ResourceDisplay label
                 var resGo  = EnsureChild(topPanel, "ResourceText");
                 var resTmp = EnsureComponent<TextMeshProUGUI>(resGo);
-                resTmp.text      = "Crystals: 150";
-                resTmp.fontSize  = 20f;
-                resTmp.alignment = TextAlignmentOptions.MidlineLeft;
-                resTmp.color     = Color.white;
+                resTmp.text                = "Crystals: 150";
+                resTmp.fontSize            = 22f;
+                resTmp.alignment           = TextAlignmentOptions.MidlineLeft;
+                resTmp.color               = Color.white;
+                resTmp.enableWordWrapping  = false;
 
                 var resRt = resGo.GetComponent<RectTransform>() ?? resGo.AddComponent<RectTransform>();
                 resRt.anchorMin = Vector2.zero;
@@ -808,12 +814,12 @@ namespace DiplomaGame.Editor
             var bottomPanel = EnsureChild(rtsBlock, "SelectionPanel");
             {
                 var rt   = bottomPanel.GetComponent<RectTransform>() ?? bottomPanel.AddComponent<RectTransform>();
-                rt.anchorMin = new Vector2(0f, 0f);
-                rt.anchorMax = new Vector2(1f, 0f);
+                rt.anchorMin = new Vector2(0.25f, 0f);
+                rt.anchorMax = new Vector2(0.75f, 0f);
                 rt.pivot     = new Vector2(0.5f, 0f);
                 rt.offsetMin = Vector2.zero;
                 rt.offsetMax = Vector2.zero;
-                rt.sizeDelta = new Vector2(0f, 100f);
+                rt.sizeDelta = new Vector2(0f, 90f);
 
                 var bg = EnsureComponent<Image>(bottomPanel);
                 bg.color = new Color(0f, 0f, 0f, 0.6f);
@@ -920,13 +926,13 @@ namespace DiplomaGame.Editor
                 rt.anchorMin = new Vector2(0f, 0f);
                 rt.anchorMax = new Vector2(0f, 0f);
                 rt.pivot     = new Vector2(0f, 0f);
-                rt.anchoredPosition = new Vector2(12f, 108f);
+                rt.anchoredPosition = new Vector2(12f, 12f);
                 rt.sizeDelta        = new Vector2(280f, 80f);
 
                 var keysText = EnsureComponent<TextMeshProUGUI>(keysHint);
                 keysText.text      = "Tab — режим    B/E — строить\nT — обучить    H — стоять";
-                keysText.fontSize  = 13f;
-                keysText.color     = new Color(0.8f, 0.8f, 0.8f, 0.8f);
+                keysText.fontSize  = 16f;
+                keysText.color     = new Color(1f, 1f, 1f, 0.5f);
                 keysText.alignment = TextAlignmentOptions.BottomLeft;
             }
 
@@ -965,7 +971,7 @@ namespace DiplomaGame.Editor
             drect.anchorMin = new Vector2(1f, 0f);
             drect.anchorMax = new Vector2(1f, 0f);
             drect.pivot     = new Vector2(1f, 0f);
-            drect.anchoredPosition = new Vector2(-10f, 108f);
+            drect.anchoredPosition = new Vector2(-12f, 12f);
             drect.sizeDelta        = new Vector2(256f, 256f);
         }
 
@@ -998,8 +1004,8 @@ namespace DiplomaGame.Editor
                 rt.anchorMin = new Vector2(0f, 0f);
                 rt.anchorMax = new Vector2(0f, 0f);
                 rt.pivot     = new Vector2(0f, 0f);
-                rt.anchoredPosition = new Vector2(20f, 30f);
-                rt.sizeDelta        = new Vector2(200f, 20f);
+                rt.anchoredPosition = new Vector2(16f, 16f);
+                rt.sizeDelta        = new Vector2(280f, 22f);
 
                 // Фон
                 var bgI = EnsureComponent<Image>(heroHpGo);
@@ -1046,8 +1052,8 @@ namespace DiplomaGame.Editor
                 rt.anchorMin = new Vector2(1f, 0f);
                 rt.anchorMax = new Vector2(1f, 0f);
                 rt.pivot     = new Vector2(1f, 0f);
-                rt.anchoredPosition = new Vector2(-10f - i * 70f, 30f);
-                rt.sizeDelta        = new Vector2(60f, 60f);
+                rt.anchoredPosition = new Vector2(-16f - i * 62f, 16f);
+                rt.sizeDelta        = new Vector2(56f, 56f);
 
                 // Иконка (фон-заглушка)
                 var iconI = EnsureComponent<Image>(slotGo);
@@ -1373,6 +1379,22 @@ namespace DiplomaGame.Editor
             go.transform.SetParent(parent.transform, false);
             go.AddComponent<RectTransform>();
             return go;
+        }
+
+        /// <summary>
+        /// Задаёт RectTransform full-stretch (anchorMin=0,0 anchorMax=1,1 pivot=0.5,0.5 offset=0).
+        /// Вызывается для корневых блоков-контейнеров, чтобы они покрывали весь Canvas,
+        /// а дочерние элементы позиционировались относительно полного экрана.
+        /// </summary>
+        private static void SetFullStretch(GameObject go)
+        {
+            var rt = go.GetComponent<RectTransform>();
+            if (rt == null) rt = go.AddComponent<RectTransform>();
+            rt.anchorMin  = Vector2.zero;
+            rt.anchorMax  = Vector2.one;
+            rt.pivot      = new Vector2(0.5f, 0.5f);
+            rt.offsetMin  = Vector2.zero;
+            rt.offsetMax  = Vector2.zero;
         }
 
         private static GameObject FindDescendantByName(GameObject root, string name)

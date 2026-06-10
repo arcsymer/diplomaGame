@@ -166,8 +166,15 @@ namespace DiplomaGame.Editor
             hero.transform.position = new Vector3(0f, 1f, 0f);
 
             // --- RtsCameraTarget ---
+            // Ставим на позицию PlayerBaseSpawn, чтобы RTS-камера стартовала у базы игрока.
+            // Fallback (-30, 0, -30) — если маркер ещё не создан (M9 запускается позже).
             var rtsTarget = EnsureGameObject("RtsCameraTarget");
-            rtsTarget.transform.position = Vector3.zero;
+            {
+                var playerBaseSpawn = GameObject.Find("PlayerBaseSpawn");
+                rtsTarget.transform.position = playerBaseSpawn != null
+                    ? playerBaseSpawn.transform.position
+                    : new Vector3(-30f, 0f, -30f);
+            }
 
             // --- Main Camera: CinemachineBrain ---
             var mainCam = Camera.main;
@@ -206,7 +213,7 @@ namespace DiplomaGame.Editor
             tpsCam.LookAt = hero.transform;
 
             var tpsFollow = EnsureComponent<CinemachineFollow>(tpsCamGo);
-            tpsFollow.FollowOffset = new Vector3(0.5f, 2f, -4f);
+            tpsFollow.FollowOffset = new Vector3(0.7f, 2.2f, -5f);
 
             EnsureComponent<CinemachineRotationComposer>(tpsCamGo);
 

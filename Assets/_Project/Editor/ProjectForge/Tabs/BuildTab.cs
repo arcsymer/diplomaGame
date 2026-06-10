@@ -31,7 +31,7 @@ namespace DiplomaGame.Editor
                 BuildWindows();
         }
 
-        private static void BuildWindows()
+        internal static void BuildWindows()
         {
             var enabledScenes = EditorBuildSettings.scenes
                 .Where(s => s.enabled)

@@ -149,5 +149,37 @@ namespace DiplomaGame.Editor
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
             ManagersTab.SetupScenario();
         }
+
+        /// <summary>Сборка Windows x64 билда (та же логика, что кнопка Build).</summary>
+        public static void BuildWindows()
+        {
+            BuildTab.BuildWindows();
+        }
+
+        /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
+        public static void AddScreenshotDirector()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            var managers = UnityEngine.GameObject.Find("GameManagers");
+            if (managers == null)
+            {
+                UnityEngine.Debug.LogWarning("[Forge] GameManagers не найден.");
+                return;
+            }
+
+            var director = managers.GetComponent<DiplomaGame.Runtime.Core.ScreenshotDirector>();
+            if (director == null)
+                director = managers.AddComponent<DiplomaGame.Runtime.Core.ScreenshotDirector>();
+
+            var so = new UnityEditor.SerializedObject(director);
+            var prop = so.FindProperty("modeController");
+            if (prop != null)
+                prop.objectReferenceValue = managers.GetComponent<DiplomaGame.Runtime.Core.GameModeController>();
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+            UnityEngine.Debug.Log("[Forge] ScreenshotDirector добавлен.");
+        }
     }
 }

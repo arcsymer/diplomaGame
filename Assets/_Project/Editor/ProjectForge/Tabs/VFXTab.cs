@@ -221,21 +221,21 @@ namespace DiplomaGame.Editor
                 "Assets/_Project/Art/Models/Units/character-b.fbx",
                 unitRedMat);
 
-            // --- Префабы зданий ---
+            // --- Префабы зданий (целевой footprint = max(size.x, size.z)) ---
             ApplyBuildingVisual(
                 "Assets/_Project/Prefabs/Buildings/HQ.prefab",
                 "Assets/_Project/Art/Models/Buildings/hangar_largeA.fbx",
-                new Vector3(2f, 2f, 2f));
+                targetFootprint: 5f);
 
             ApplyBuildingVisual(
                 "Assets/_Project/Prefabs/Buildings/Barracks.prefab",
                 "Assets/_Project/Art/Models/Buildings/hangar_smallA.fbx",
-                new Vector3(1.5f, 1.5f, 1.5f));
+                targetFootprint: 3.5f);
 
             ApplyBuildingVisual(
                 "Assets/_Project/Prefabs/Buildings/Extractor.prefab",
                 "Assets/_Project/Art/Models/Buildings/hangar_roundA.fbx",
-                new Vector3(1.2f, 1.2f, 1.2f));
+                targetFootprint: 2.5f);
 
             // --- ResourceNode ---
             ApplyResourceNodeVisual(
@@ -285,7 +285,7 @@ namespace DiplomaGame.Editor
             {
                 var root = scope.prefabContentsRoot;
 
-                // Скрыть MeshRenderer капсулы, коллайдер оставить
+                // Скрыть MeshRenderer капсулы корня, коллайдер оставить
                 var capsuleMr = root.GetComponent<MeshRenderer>();
                 if (capsuleMr != null)
                     capsuleMr.enabled = false;
@@ -304,10 +304,15 @@ namespace DiplomaGame.Editor
                     visual = visualTf.gameObject;
                 }
 
-                // Позиция: ноги на земле (капсула height=2, center=0 → низ на y=-1)
-                visual.transform.localPosition = new Vector3(0f, -1f, 0f);
-                visual.transform.localRotation = Quaternion.identity;
+                // Нормализация: сбрасываем, потом масштабируем под высоту 1.8
+                // (капсула height=2, центр=0 → низ на y=-1; ноги Visual тоже на y=-1)
                 visual.transform.localScale    = Vector3.one;
+                visual.transform.localPosition = Vector3.zero;
+                // У Kenney-персонажей forward = -Z: разворачиваем по ходу движения
+                visual.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                NormalizeVisualByHeight(visual, targetHeight: 1.8f);
+                // Сдвигаем низ баундов на y=-1 (низ капсулы)
+                AlignVisualBottom(visual, bottomY: -1f);
 
                 // Применить тинт-материал на все рендеры Visual
                 if (tintMat != null)
@@ -318,7 +323,7 @@ namespace DiplomaGame.Editor
             }
         }
 
-        private static void ApplyBuildingVisual(string prefabPath, string modelPath, Vector3 modelScale)
+        private static void ApplyBuildingVisual(string prefabPath, string modelPath, float targetFootprint)
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (prefab == null)
@@ -345,18 +350,25 @@ namespace DiplomaGame.Editor
 
                 // Visual child
                 var visualTf = root.transform.Find("Visual");
+                GameObject visual;
                 if (visualTf == null)
                 {
                     var inst = (GameObject)PrefabUtility.InstantiatePrefab(modelAsset, root.transform);
                     inst.name = "Visual";
-                    inst.transform.localPosition = Vector3.zero;
-                    inst.transform.localRotation = Quaternion.identity;
-                    inst.transform.localScale    = modelScale;
+                    visual = inst;
                 }
                 else
                 {
-                    visualTf.localScale = modelScale;
+                    visual = visualTf.gameObject;
                 }
+
+                // Нормализация: сбрасываем, масштабируем по max(size.x, size.z) = targetFootprint
+                visual.transform.localScale    = Vector3.one;
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                NormalizeVisualByFootprint(visual, targetFootprint);
+                // Низ здания на y=0 относительно корня префаба
+                AlignVisualBottom(visual, bottomY: 0f);
             }
         }
 
@@ -398,9 +410,12 @@ namespace DiplomaGame.Editor
                     visual = visualTf.gameObject;
                 }
 
-                visual.transform.localPosition = new Vector3(0f, -0.5f, 0f);
+                // Нормализация: высота 1.5, низ на y=0
+                visual.transform.localScale    = Vector3.one;
+                visual.transform.localPosition = Vector3.zero;
                 visual.transform.localRotation = Quaternion.identity;
-                visual.transform.localScale    = new Vector3(1.2f, 1.2f, 1.2f);
+                NormalizeVisualByHeight(visual, targetHeight: 1.5f);
+                AlignVisualBottom(visual, bottomY: 0f);
 
                 if (crystalMat != null)
                 {
@@ -418,6 +433,11 @@ namespace DiplomaGame.Editor
                 Debug.LogWarning("[Project Forge] Hero не найден в сцене — пропуск ApplyHeroVisualInScene.");
                 return;
             }
+
+            // Дефект 3: скрыть MeshRenderer капсулы героя (коллайдер/CharacterController не трогаем)
+            var heroMr = heroGo.GetComponent<MeshRenderer>();
+            if (heroMr != null)
+                heroMr.enabled = false;
 
             var characterModel = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/_Project/Art/Models/Units/character-h.fbx");
@@ -442,9 +462,13 @@ namespace DiplomaGame.Editor
                 visual = visualTf.gameObject;
             }
 
-            visual.transform.localPosition = new Vector3(0f, -1f, 0f);
-            visual.transform.localRotation = Quaternion.identity;
+            // Нормализация: сбрасываем, масштабируем под высоту 1.8, ноги на y=-1
             visual.transform.localScale    = Vector3.one;
+            visual.transform.localPosition = Vector3.zero;
+            // У Kenney-персонажей forward = -Z: герой должен смотреть от камеры
+            visual.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            NormalizeVisualByHeight(visual, targetHeight: 1.8f);
+            AlignVisualBottom(visual, bottomY: -1f);
 
             // Бластер в правой руке
             var blasterModel = AssetDatabase.LoadAssetAtPath<GameObject>(
@@ -452,55 +476,82 @@ namespace DiplomaGame.Editor
             if (blasterModel != null)
             {
                 var weaponSlot = visual.transform.Find("Blaster");
+                GameObject blasterInst;
                 if (weaponSlot == null)
                 {
-                    var blasterInst = (GameObject)PrefabUtility.InstantiatePrefab(blasterModel);
+                    blasterInst = (GameObject)PrefabUtility.InstantiatePrefab(blasterModel);
                     blasterInst.transform.SetParent(visual.transform, false);
                     blasterInst.name = "Blaster";
-                    blasterInst.transform.localPosition = new Vector3(0.35f, 0.4f, 0.25f);
-                    blasterInst.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-                    blasterInst.transform.localScale    = Vector3.one * 0.8f;
                 }
+                else
+                {
+                    blasterInst = weaponSlot.gameObject;
+                }
+
+                // Нормализация бластера по длине (size.z) = 0.6
+                blasterInst.transform.localScale    = Vector3.one;
+                blasterInst.transform.localPosition = Vector3.zero;
+                blasterInst.transform.localRotation = Quaternion.identity;
+                NormalizeVisualByDepth(blasterInst, targetDepth: 0.6f);
+                blasterInst.transform.localPosition = new Vector3(0.35f, 0.4f, 0.25f);
+                blasterInst.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
             }
         }
 
         private static void PlaceSceneDecor()
         {
-            // Декор: фиксированные позиции вне баз
+            // Декор: фиксированные позиции вне баз.
+            // targetHeight: целевая высота для нормализации (камни крупные = 2, остальные = 1).
             var decorItems = new[]
             {
-                ("Deco_Rock_01",          "Assets/_Project/Art/Models/Props/rock.fbx",         new Vector3(-15f, 0f, 10f),  Vector3.one),
-                ("Deco_Rock_02",          "Assets/_Project/Art/Models/Props/rock_largeA.fbx",  new Vector3( 12f, 0f, -8f),  Vector3.one),
-                ("Deco_Rock_03",          "Assets/_Project/Art/Models/Props/rock.fbx",         new Vector3(  8f, 0f,  15f), Vector3.one),
-                ("Deco_Crater_01",        "Assets/_Project/Art/Models/Props/crater.fbx",       new Vector3(-10f, 0f, -12f), Vector3.one),
-                ("Deco_Crater_02",        "Assets/_Project/Art/Models/Props/crater.fbx",       new Vector3( 18f, 0f,  8f),  Vector3.one),
-                ("Deco_Barrel_01",        "Assets/_Project/Art/Models/Props/barrel.fbx",       new Vector3( -5f, 0f,  20f), Vector3.one),
-                ("Deco_Barrel_02",        "Assets/_Project/Art/Models/Props/barrel.fbx",       new Vector3(  3f, 0f, -18f), Vector3.one),
-                ("Deco_Crystal_01",       "Assets/_Project/Art/Models/Props/rock_crystals.fbx", new Vector3(-20f, 0f,  5f), Vector3.one),
-                ("Deco_MachineBarrel_01", "Assets/_Project/Art/Models/Props/machine_barrel.fbx", new Vector3(14f, 0f, -15f), Vector3.one),
+                (name: "Deco_Rock_01",          path: "Assets/_Project/Art/Models/Props/rock.fbx",             pos: new Vector3(-15f, 0f, 10f),  targetH: 1f),
+                (name: "Deco_Rock_02",          path: "Assets/_Project/Art/Models/Props/rock_largeA.fbx",      pos: new Vector3( 12f, 0f, -8f),  targetH: 2f),
+                (name: "Deco_Rock_03",          path: "Assets/_Project/Art/Models/Props/rock.fbx",             pos: new Vector3(  8f, 0f,  15f), targetH: 1f),
+                (name: "Deco_Crater_01",        path: "Assets/_Project/Art/Models/Props/crater.fbx",           pos: new Vector3(-10f, 0f, -12f), targetH: 1f),
+                (name: "Deco_Crater_02",        path: "Assets/_Project/Art/Models/Props/crater.fbx",           pos: new Vector3( 18f, 0f,  8f),  targetH: 1f),
+                (name: "Deco_Barrel_01",        path: "Assets/_Project/Art/Models/Props/barrel.fbx",           pos: new Vector3( -5f, 0f,  20f), targetH: 1f),
+                (name: "Deco_Barrel_02",        path: "Assets/_Project/Art/Models/Props/barrel.fbx",           pos: new Vector3(  3f, 0f, -18f), targetH: 1f),
+                (name: "Deco_Crystal_01",       path: "Assets/_Project/Art/Models/Props/rock_crystals.fbx",    pos: new Vector3(-20f, 0f,  5f),  targetH: 1.5f),
+                (name: "Deco_MachineBarrel_01", path: "Assets/_Project/Art/Models/Props/machine_barrel.fbx",   pos: new Vector3( 14f, 0f, -15f), targetH: 1f),
             };
 
             var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
             if (!scene.IsValid()) return;
 
-            foreach (var (name, modelPath, pos, scale) in decorItems)
+            foreach (var item in decorItems)
             {
-                // Идемпотентно — пропускаем, если объект уже есть
-                if (GameObject.Find(name) != null)
+                // Идемпотентно: существующий объект не создаём заново,
+                // но перенормализуем масштаб (декор мог быть создан до фикса масштабов)
+                var existing = GameObject.Find(item.name);
+                if (existing != null)
+                {
+                    existing.transform.localScale = Vector3.one;
+                    NormalizeVisualByHeight(existing, item.targetH);
+                    AlignVisualBottom(existing, bottomY: 0f);
+                    var epos = existing.transform.position;
+                    existing.transform.position = new Vector3(item.pos.x, epos.y, item.pos.z);
                     continue;
+                }
 
-                var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(item.path);
                 if (model == null)
                 {
-                    Debug.LogWarning($"[Project Forge] Декор-модель не найдена: {modelPath}");
+                    Debug.LogWarning($"[Project Forge] Декор-модель не найдена: {item.path}");
                     continue;
                 }
 
                 var go = (GameObject)PrefabUtility.InstantiatePrefab(model, scene);
-                go.name                   = name;
-                go.transform.position     = pos;
-                go.transform.localScale   = scale;
-                go.transform.rotation     = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                go.name               = item.name;
+                go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+                // Нормализация масштаба
+                go.transform.localScale = Vector3.one;
+                NormalizeVisualByHeight(go, item.targetH);
+                // Низ объекта на y=0 (на уровне земли)
+                AlignVisualBottom(go, bottomY: 0f);
+                // Применяем горизонтальную позицию после выравнивания
+                var pos = go.transform.position;
+                go.transform.position = new Vector3(item.pos.x, pos.y, item.pos.z);
             }
         }
 
@@ -1135,6 +1186,87 @@ namespace DiplomaGame.Editor
 
             AssetDatabase.CreateAsset(mat, matPath);
             return mat;
+        }
+
+        // ================================================================
+        // Нормализация масштаба по баундам
+        // ================================================================
+
+        /// <summary>
+        /// Вычисляет суммарный AABB всех Renderer'ов объекта в мировых координатах.
+        /// Возвращает bounds с центром (0,0,0) и нулевым размером, если рендереров нет.
+        /// Важно: вызывать ПОСЛЕ установки localScale и localPosition.
+        /// </summary>
+        private static Bounds CalcBounds(GameObject go)
+        {
+            var renderers = go.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+                return new Bounds(go.transform.position, Vector3.zero);
+
+            var b = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                b.Encapsulate(renderers[i].bounds);
+            return b;
+        }
+
+        /// <summary>
+        /// Масштабирует go так, чтобы высота суммарного AABB (size.y) равнялась targetHeight.
+        /// Идемпотентен: сначала сбрасывает localScale в Vector3.one, потом применяет коэффициент.
+        /// </summary>
+        private static void NormalizeVisualByHeight(GameObject go, float targetHeight)
+        {
+            go.transform.localScale = Vector3.one;
+            var b = CalcBounds(go);
+            float currentH = b.size.y;
+            if (currentH < 0.0001f) return;
+            float factor = targetHeight / currentH;
+            go.transform.localScale = Vector3.one * factor;
+        }
+
+        /// <summary>
+        /// Масштабирует go так, чтобы max(size.x, size.z) суммарного AABB равнялся targetFootprint.
+        /// Используется для зданий, где важен горизонтальный gabарит.
+        /// </summary>
+        private static void NormalizeVisualByFootprint(GameObject go, float targetFootprint)
+        {
+            go.transform.localScale = Vector3.one;
+            var b = CalcBounds(go);
+            float currentFp = Mathf.Max(b.size.x, b.size.z);
+            if (currentFp < 0.0001f) return;
+            float factor = targetFootprint / currentFp;
+            go.transform.localScale = Vector3.one * factor;
+        }
+
+        /// <summary>
+        /// Масштабирует go так, чтобы размер по оси Z (глубина/длина) равнялся targetDepth.
+        /// Используется для бластера в руке героя.
+        /// </summary>
+        private static void NormalizeVisualByDepth(GameObject go, float targetDepth)
+        {
+            go.transform.localScale = Vector3.one;
+            var b = CalcBounds(go);
+            float currentD = b.size.z;
+            if (currentD < 0.0001f) return;
+            float factor = targetDepth / currentD;
+            go.transform.localScale = Vector3.one * factor;
+        }
+
+        /// <summary>
+        /// После нормализации масштаба сдвигает go по Y так, чтобы нижняя граница
+        /// суммарного AABB находилась на bottomY (в координатах родителя).
+        /// </summary>
+        private static void AlignVisualBottom(GameObject go, float bottomY)
+        {
+            var b = CalcBounds(go);
+            // b.min.y — мировая нижняя граница. Нам нужно перевести в локальные координаты родителя.
+            // go.transform.position.y — текущая мировая Y позиция go.
+            // Смещение: bottomY_world = bottomY + parent.position.y
+            var parent = go.transform.parent;
+            float parentWorldY = parent != null ? parent.position.y : 0f;
+            float targetWorldBottomY = parentWorldY + bottomY;
+            float deltaY = targetWorldBottomY - b.min.y;
+            var p = go.transform.localPosition;
+            go.transform.localPosition = new Vector3(p.x, p.y + deltaY, p.z);
         }
 
         // ================================================================
