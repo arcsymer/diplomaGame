@@ -1,7 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
+using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Data;
+using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Units;
 using Unity.AI.Navigation;
@@ -22,6 +25,15 @@ namespace DiplomaGame.Editor
         private const string MarineDataPath      = "Assets/_Project/Data/Units/Marine.asset";
         private const string EnemyGruntDataPath  = "Assets/_Project/Data/Units/EnemyGrunt.asset";
         private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
+
+        // M5
+        private const string HQDataPath         = "Assets/_Project/Data/Buildings/HQ.asset";
+        private const string BarracksDataPath    = "Assets/_Project/Data/Buildings/Barracks.asset";
+        private const string ExtractorDataPath   = "Assets/_Project/Data/Buildings/Extractor.asset";
+        private const string HQPrefabPath        = "Assets/_Project/Prefabs/Buildings/HQ.prefab";
+        private const string BarracksPrefabPath  = "Assets/_Project/Prefabs/Buildings/Barracks.prefab";
+        private const string ExtractorPrefabPath = "Assets/_Project/Prefabs/Buildings/Extractor.prefab";
+        private const string ResourceNodePrefabPath = "Assets/_Project/Prefabs/Props/ResourceNode.prefab";
 
         private static readonly string[] RequiredFolders =
         {
@@ -56,6 +68,9 @@ namespace DiplomaGame.Editor
             CheckUnitDataAssets(issues);
             CheckUnitPrefabsHaveCombatComponents(issues);
             CheckHeroHasHealth(issues);
+            CheckBuildingDataAssets(issues);
+            CheckBuildingPrefabs(issues);
+            CheckEconomyInScene(issues);
 
             return issues;
         }
@@ -227,6 +242,85 @@ namespace DiplomaGame.Editor
 
             if (heroGo.GetComponent<Health>() == null)
                 issues.Add("Hero: отсутствует Health (запустите Setup Combat (M4)).");
+        }
+
+        // ----------------------------------------------------------------
+        // M5 проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckBuildingDataAssets(List<string> issues)
+        {
+            if (AssetDatabase.LoadAssetAtPath<BuildingData>(HQDataPath) == null)
+                issues.Add($"BuildingData ассет не найден: {HQDataPath} (запустите Create/Update Building Data (M5)).");
+
+            if (AssetDatabase.LoadAssetAtPath<BuildingData>(BarracksDataPath) == null)
+                issues.Add($"BuildingData ассет не найден: {BarracksDataPath} (запустите Create/Update Building Data (M5)).");
+
+            if (AssetDatabase.LoadAssetAtPath<BuildingData>(ExtractorDataPath) == null)
+                issues.Add($"BuildingData ассет не найден: {ExtractorDataPath} (запустите Create/Update Building Data (M5)).");
+        }
+
+        private static void CheckBuildingPrefabs(List<string> issues)
+        {
+            CheckBuildingPrefabExists(HQPrefabPath,          "HQ",          issues);
+            CheckBuildingPrefabExists(BarracksPrefabPath,    "Barracks",    issues);
+            CheckBuildingPrefabExists(ExtractorPrefabPath,   "Extractor",   issues);
+            CheckBuildingPrefabExists(ResourceNodePrefabPath, "ResourceNode", issues);
+        }
+
+        private static void CheckBuildingPrefabExists(string path, string name, List<string> issues)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null)
+            {
+                issues.Add($"Префаб {name} не найден: {path} (запустите Create/Update Building Prefabs (M5)).");
+                return;
+            }
+
+            if (name != "ResourceNode" && prefab.GetComponent<Building>() == null)
+                issues.Add($"Префаб {name}: отсутствует компонент Building.");
+
+            if (name != "ResourceNode" && prefab.GetComponent<Health>() == null)
+                issues.Add($"Префаб {name}: отсутствует компонент Health.");
+
+            if (name == "ResourceNode" && prefab.GetComponent<ResourceNode>() == null)
+                issues.Add($"Префаб ResourceNode: отсутствует компонент ResourceNode.");
+        }
+
+        private static void CheckEconomyInScene(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // Проверяем наличие ResourceBank в сцене
+            bool hasBank = false;
+            bool hasPlayerHQ = false;
+            bool hasEnemyHQ  = false;
+
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.GetComponentInChildren<ResourceBank>(includeInactive: true) != null)
+                    hasBank = true;
+
+                var buildings = root.GetComponentsInChildren<Building>(includeInactive: true);
+                foreach (var b in buildings)
+                {
+                    if (b.Data != null && b.Data.BuildingType == BuildingType.Headquarters)
+                    {
+                        if (b.Faction == Faction.Player) hasPlayerHQ = true;
+                        if (b.Faction == Faction.Enemy)  hasEnemyHQ  = true;
+                    }
+                }
+            }
+
+            if (!hasBank)
+                issues.Add("В сцене нет ResourceBank (запустите Setup Economy (M5)).");
+
+            if (!hasPlayerHQ)
+                issues.Add("В сцене нет HQ фракции Player (запустите Setup Economy (M5)).");
+
+            if (!hasEnemyHQ)
+                issues.Add("В сцене нет HQ фракции Enemy (запустите Setup Economy (M5)).");
         }
 
         private static int CountMissingScripts(GameObject go)

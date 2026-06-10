@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
@@ -7,6 +8,7 @@ namespace DiplomaGame.Runtime.Commands
 {
     /// <summary>
     /// Преобразует RMB-клик (RTS/Command) и клавишу Hold (RTS/Hold) в приказы юнитам.
+    /// M5: RMB при выделенном здании → SetRallyPoint; T → TryEnqueue у Barracks.
     /// Раздаёт приказы всем выделенным юнитам с формационным смещением.
     /// Move по умолчанию; зажата A → AttackMove; зажата P → Patrol.
     /// </summary>
@@ -64,9 +66,50 @@ namespace DiplomaGame.Runtime.Commands
         // Обработчики входных событий
         // ----------------------------------------------------------------
 
+        private void Update()
+        {
+            HandleBuildingCommands();
+        }
+
+        private void HandleBuildingCommands()
+        {
+            if (selectionSystem == null) return;
+
+            var building = selectionSystem.SelectedBuilding;
+            if (building == null) return;
+
+            // T → TryEnqueue у Barracks
+            if (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame)
+            {
+                var prod = building.GetComponent<ProductionBuilding>();
+                if (prod != null)
+                    prod.TryEnqueue();
+            }
+
+            // RMB → SetRallyPoint
+            if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
+            {
+                if (Camera.main == null) return;
+
+                var mousePos = Mouse.current.position.ReadValue();
+                var ray      = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0f));
+
+                if (Physics.Raycast(ray, out RaycastHit hit, 1000f))
+                {
+                    var prod = building.GetComponent<ProductionBuilding>();
+                    if (prod != null)
+                        prod.SetRallyPoint(hit.point);
+                }
+            }
+        }
+
         private void OnCommand(InputAction.CallbackContext ctx)
         {
             if (selectionSystem == null) return;
+
+            // Если выделено здание — RMB обрабатывается в Update (HandleBuildingCommands)
+            if (selectionSystem.SelectedBuilding != null) return;
+
             if (selectionSystem.Selected.Count == 0) return;
             if (Camera.main == null) return;
             if (Mouse.current == null) return;

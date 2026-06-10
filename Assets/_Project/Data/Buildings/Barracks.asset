@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 322b872d91b465b48a3200d2ddac3966, type: 3}
+  m_Name: Barracks
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Data.BuildingData
+  _displayName: Barracks
+  _cost: 100
+  _maxHp: 500
+  _buildingType: 1
+  _incomePerTick: 0
+  _incomeTickInterval: 2
+  _produces: {fileID: 11400000, guid: acd48df819d60c24cb5c2d9178dfe6a1, type: 2}
+  _productionTime: 5
+  _productionCost: 50

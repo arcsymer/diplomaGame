@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
@@ -9,6 +10,7 @@ namespace DiplomaGame.Runtime.Selection
 {
     /// <summary>
     /// Управляет выделением юнитов: клик, рамка, контрол-группы (Ctrl+1..5 / 1..5).
+    /// M5: добавлено выделение зданий — клик по Building (Player) заполняет SelectedBuilding.
     /// Рисует рамку выделения через OnGUI.
     /// Активна только в RTS-режиме — контрол-группы опрашиваются только при RTS.
     /// </summary>
@@ -24,8 +26,14 @@ namespace DiplomaGame.Runtime.Selection
 
         public IReadOnlyList<Unit> Selected => _selected;
 
+        /// <summary>Текущее выделенное здание игрока; null если выделены юниты или клик был пустым.</summary>
+        public Building SelectedBuilding { get; private set; }
+
         /// <summary>Вызывается после каждого изменения состава выделения.</summary>
         public event Action SelectionChanged;
+
+        /// <summary>Вызывается при выделении здания. Параметр — выбранное здание.</summary>
+        public event Action<Building> BuildingSelected;
 
         // ----------------------------------------------------------------
         // Приватные поля — кэш
@@ -167,20 +175,36 @@ namespace DiplomaGame.Runtime.Selection
             if (_camera == null) return;
 
             var ray = _camera.ScreenPointToRay(new Vector3(screenPos.x, screenPos.y, 0f));
-            Unit hit = null;
+            Unit     hitUnit     = null;
+            Building hitBuilding = null;
 
             if (Physics.Raycast(ray, out RaycastHit info, 1000f))
-                hit = info.collider.GetComponentInParent<Unit>();
-
-            if (hit != null && hit.Faction == Faction.Player)
             {
+                hitUnit     = info.collider.GetComponentInParent<Unit>();
+                hitBuilding = info.collider.GetComponentInParent<Building>();
+            }
+
+            if (hitUnit != null && hitUnit.Faction == Faction.Player)
+            {
+                // Клик по юниту сбрасывает выделение здания
+                SelectedBuilding = null;
+
                 if (additive)
-                    AddToSelection(hit);
+                    AddToSelection(hitUnit);
                 else
-                    SetSelection(hit);
+                    SetSelection(hitUnit);
+            }
+            else if (hitBuilding != null && hitBuilding.Faction == Faction.Player)
+            {
+                // Клик по зданию игрока
+                ClearSelection();
+                SelectedBuilding = hitBuilding;
+                BuildingSelected?.Invoke(hitBuilding);
+                NotifyChanged();
             }
             else if (!additive)
             {
+                SelectedBuilding = null;
                 ClearSelection();
                 NotifyChanged();
             }
@@ -194,6 +218,7 @@ namespace DiplomaGame.Runtime.Selection
 
             if (!additive)
             {
+                SelectedBuilding = null;
                 ClearSelection();
             }
 

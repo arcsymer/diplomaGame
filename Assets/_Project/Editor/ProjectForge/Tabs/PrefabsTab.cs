@@ -1,5 +1,7 @@
+using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Data;
+using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Units;
 using UnityEditor;
 using UnityEngine;
@@ -11,6 +13,7 @@ namespace DiplomaGame.Editor
     /// Вкладка Prefabs — создание и обновление игровых префабов.
     /// M2: TestUnit — капсула с NavMeshAgent, Unit и кольцом выделения.
     /// M4: Health и UnitCombat добавлены к TestUnit; новый EnemyUnit с красным материалом.
+    /// M5: Building-префабы HQ, Barracks, Extractor; ResourceNode.
     /// </summary>
     internal sealed class PrefabsTab : IForgeTab
     {
@@ -19,6 +22,17 @@ namespace DiplomaGame.Editor
         private const string MarineDataPath      = "Assets/_Project/Data/Units/Marine.asset";
         private const string EnemyGruntDataPath  = "Assets/_Project/Data/Units/EnemyGrunt.asset";
         private const string EnemyMatPath        = "Assets/_Project/Art/Materials/EnemyRed.mat";
+
+        // M5 пути
+        private const string HQPrefabPath           = "Assets/_Project/Prefabs/Buildings/HQ.prefab";
+        private const string BarracksPrefabPath      = "Assets/_Project/Prefabs/Buildings/Barracks.prefab";
+        private const string ExtractorPrefabPath     = "Assets/_Project/Prefabs/Buildings/Extractor.prefab";
+        private const string ResourceNodePrefabPath  = "Assets/_Project/Prefabs/Props/ResourceNode.prefab";
+        private const string PlayerBlueMatPath       = "Assets/_Project/Art/Materials/PlayerBlue.mat";
+        private const string CrystalYellowMatPath    = "Assets/_Project/Art/Materials/CrystalYellow.mat";
+        private const string HQDataPath              = "Assets/_Project/Data/Buildings/HQ.asset";
+        private const string BarracksDataPath        = "Assets/_Project/Data/Buildings/Barracks.asset";
+        private const string ExtractorDataPath       = "Assets/_Project/Data/Buildings/Extractor.asset";
 
         public string Title => "Prefabs";
 
@@ -50,6 +64,22 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Create/Update EnemyUnit Prefab", GUILayout.Height(32)))
                 CreateOrUpdateEnemyUnitPrefab();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "M5: создаёт или обновляет строительные префабы:\n" +
+                "• HQ.prefab — штаб (бокс 4×3×4, синий)\n" +
+                "• Barracks.prefab — казарма (бокс 3×2×3)\n" +
+                "• Extractor.prefab — экстрактор (цилиндр 2×1×2)\n" +
+                "• Props/ResourceNode.prefab — месторождение кристаллов (цилиндр жёлтый)\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Create/Update Building Prefabs (M5)", GUILayout.Height(32)))
+                CreateOrUpdateBuildingPrefabs();
         }
 
         // ----------------------------------------------------------------
@@ -161,6 +191,180 @@ namespace DiplomaGame.Editor
 
             // --- Сохранение ---
             SavePrefab(root, EnemyUnitPrefabPath);
+        }
+
+        // ----------------------------------------------------------------
+        // M5: Building Prefabs
+        // ----------------------------------------------------------------
+
+        internal static void CreateOrUpdateBuildingPrefabs()
+        {
+            EnsureFolder("Assets/_Project/Prefabs/Buildings");
+            EnsureFolder("Assets/_Project/Prefabs/Props");
+            EnsureFolder("Assets/_Project/Art/Materials");
+
+            var playerBlueMat    = EnsureMaterial(PlayerBlueMatPath,    new Color(0.2f, 0.4f, 0.9f));
+            var crystalYellowMat = EnsureMaterial(CrystalYellowMatPath, new Color(1f, 0.9f, 0.1f));
+
+            // Загружаем Building Data ассеты
+            var hqData        = AssetDatabase.LoadAssetAtPath<BuildingData>(HQDataPath);
+            var barracksData  = AssetDatabase.LoadAssetAtPath<BuildingData>(BarracksDataPath);
+            var extractorData = AssetDatabase.LoadAssetAtPath<BuildingData>(ExtractorDataPath);
+            var testUnitPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestUnitPrefabPath);
+
+            if (hqData == null || barracksData == null || extractorData == null)
+                Debug.LogWarning("[Project Forge] BuildingData ассеты не найдены — сначала запустите 'Create/Update Building Data (M5)'.");
+
+            // --- HQ (бокс 4×3×4) ---
+            {
+                var root = CreateBuildingRoot("HQ", PrimitiveType.Cube, new Vector3(4f, 3f, 4f), playerBlueMat);
+                var building = EnsureComponent<Building>(root);
+                var health   = EnsureComponent<Health>(root);
+                EnsureNavMeshObstacle(root, new Vector3(4f, 3f, 4f));
+
+                if (hqData != null)
+                {
+                    var so = new SerializedObject(building);
+                    so.FindProperty("_data").objectReferenceValue = hqData;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+
+                    var hso = new SerializedObject(health);
+                    hso.FindProperty("_maxHp").floatValue = hqData.MaxHp;
+                    hso.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                SavePrefab(root, HQPrefabPath);
+            }
+
+            // --- Barracks (бокс 3×2×3) ---
+            {
+                var root = CreateBuildingRoot("Barracks", PrimitiveType.Cube, new Vector3(3f, 2f, 3f), null);
+                var building  = EnsureComponent<Building>(root);
+                var health    = EnsureComponent<Health>(root);
+                var prodBldg  = EnsureComponent<ProductionBuilding>(root);
+                EnsureNavMeshObstacle(root, new Vector3(3f, 2f, 3f));
+
+                if (barracksData != null)
+                {
+                    var so = new SerializedObject(building);
+                    so.FindProperty("_data").objectReferenceValue = barracksData;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+
+                    var hso = new SerializedObject(health);
+                    hso.FindProperty("_maxHp").floatValue = barracksData.MaxHp;
+                    hso.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                if (testUnitPrefab != null)
+                {
+                    var pso = new SerializedObject(prodBldg);
+                    pso.FindProperty("_unitPrefab").objectReferenceValue = testUnitPrefab;
+                    pso.ApplyModifiedPropertiesWithoutUndo();
+                }
+                else
+                {
+                    Debug.LogWarning("[Project Forge] TestUnit prefab не найден — unitPrefab у Barracks не проставлен.");
+                }
+
+                SavePrefab(root, BarracksPrefabPath);
+            }
+
+            // --- Extractor (цилиндр 2×1×2) ---
+            {
+                var root = CreateBuildingRoot("Extractor", PrimitiveType.Cylinder, new Vector3(2f, 1f, 2f), null);
+                var building = EnsureComponent<Building>(root);
+                var health   = EnsureComponent<Health>(root);
+
+                if (extractorData != null)
+                {
+                    var so = new SerializedObject(building);
+                    so.FindProperty("_data").objectReferenceValue = extractorData;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+
+                    var hso = new SerializedObject(health);
+                    hso.FindProperty("_maxHp").floatValue = extractorData.MaxHp;
+                    hso.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                SavePrefab(root, ExtractorPrefabPath);
+            }
+
+            // --- ResourceNode (цилиндр жёлтый) ---
+            {
+                var root = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                root.name = "ResourceNode";
+                root.transform.localScale = new Vector3(2f, 0.5f, 2f);
+
+                if (crystalYellowMat != null)
+                {
+                    var mr = root.GetComponent<MeshRenderer>();
+                    if (mr != null)
+                        mr.sharedMaterial = crystalYellowMat;
+                }
+
+                EnsureComponent<ResourceNode>(root);
+
+                // ResourceNode не является NavMeshObstacle
+                SavePrefab(root, ResourceNodePrefabPath);
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Building-префабы (M5) созданы/обновлены.");
+        }
+
+        private static GameObject CreateBuildingRoot(
+            string        name,
+            PrimitiveType primitiveType,
+            Vector3       scale,
+            Material      mat)
+        {
+            var root = GameObject.CreatePrimitive(primitiveType);
+            root.name = name;
+            root.transform.localScale = scale;
+
+            if (mat != null)
+            {
+                var mr = root.GetComponent<MeshRenderer>();
+                if (mr != null)
+                    mr.sharedMaterial = mat;
+            }
+
+            return root;
+        }
+
+        private static void EnsureNavMeshObstacle(GameObject go, Vector3 size)
+        {
+            var obs = EnsureComponent<NavMeshObstacle>(go);
+            obs.carving = true;
+            obs.size    = size;
+            obs.center  = new Vector3(0f, size.y * 0.5f, 0f);
+        }
+
+        private static Material EnsureMaterial(string path, Color color)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+                return existing;
+
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+                shader = Shader.Find("Standard");
+
+            if (shader == null)
+            {
+                Debug.LogWarning($"[Project Forge] Шейдер не найден, материал не создан: {path}");
+                return null;
+            }
+
+            var mat = new Material(shader);
+            mat.color = color;
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", color);
+
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
         }
 
         // ----------------------------------------------------------------

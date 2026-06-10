@@ -1,8 +1,10 @@
+using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.CameraControl;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
+using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.Units;
@@ -21,6 +23,7 @@ namespace DiplomaGame.Editor
     /// M2: кнопка "Setup RTS Control" добавляет SelectionSystem, CommandInput,
     /// RtsCameraController и спавнит 5 TestUnit.
     /// M3: кнопка "Setup Hero (M3)" настраивает HeroController, HeroShooter, AbilitySystem.
+    /// M5: кнопка "Setup Economy (M5)" настраивает ResourceBank, BuildingPlacer, здания и ноды.
     /// </summary>
     internal sealed class ManagersTab : IForgeTab
     {
@@ -28,6 +31,17 @@ namespace DiplomaGame.Editor
         private const string TestUnitPrefabPath  = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
         private const string EnemyUnitPrefabPath = "Assets/_Project/Prefabs/Units/EnemyUnit.prefab";
         private const string AbilitiesFolder     = "Assets/_Project/Data/Abilities";
+
+        // M5 пути
+        private const string HQPrefabPath          = "Assets/_Project/Prefabs/Buildings/HQ.prefab";
+        private const string BarracksPrefabPath     = "Assets/_Project/Prefabs/Buildings/Barracks.prefab";
+        private const string ExtractorPrefabPath    = "Assets/_Project/Prefabs/Buildings/Extractor.prefab";
+        private const string ResourceNodePrefabPath = "Assets/_Project/Prefabs/Props/ResourceNode.prefab";
+        private const string HQDataPath             = "Assets/_Project/Data/Buildings/HQ.asset";
+        private const string BarracksDataPath       = "Assets/_Project/Data/Buildings/Barracks.asset";
+        private const string ExtractorDataPath      = "Assets/_Project/Data/Buildings/Extractor.asset";
+        private const string GhostValidMatPath      = "Assets/_Project/Art/Materials/GhostValid.mat";
+        private const string GhostInvalidMatPath    = "Assets/_Project/Art/Materials/GhostInvalid.mat";
 
         public string Title => "Managers";
 
@@ -85,6 +99,20 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Combat (M4)", GUILayout.Height(32)))
                 SetupCombat();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "M5: добавляет ResourceBank и BuildingPlacer на GameManagers; " +
+                "расставляет 4 ResourceNode (по 2 у каждой базы); " +
+                "создаёт HQ и Barracks игрока у PlayerBaseSpawn, HQ врага у EnemyBaseSpawn.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Economy (M5)", GUILayout.Height(32)))
+                SetupEconomy();
         }
 
         // ----------------------------------------------------------------
@@ -437,6 +465,179 @@ namespace DiplomaGame.Editor
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[Project Forge] Setup Combat (M4) выполнен.");
+        }
+
+        // ----------------------------------------------------------------
+        // M5: Setup Economy
+        // ----------------------------------------------------------------
+
+        internal static void SetupEconomy()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            var managersGo = EnsureGameObject("GameManagers");
+
+            // --- ResourceBank ---
+            var bank = EnsureComponent<ResourceBank>(managersGo);
+
+            // --- BuildingPlacer ---
+            var placer = EnsureComponent<BuildingPlacer>(managersGo);
+
+            // Загружаем ассеты
+            var hqData         = AssetDatabase.LoadAssetAtPath<BuildingData>(HQDataPath);
+            var barracksData   = AssetDatabase.LoadAssetAtPath<BuildingData>(BarracksDataPath);
+            var extractorData  = AssetDatabase.LoadAssetAtPath<BuildingData>(ExtractorDataPath);
+            var hqPrefab       = AssetDatabase.LoadAssetAtPath<GameObject>(HQPrefabPath);
+            var barracksPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BarracksPrefabPath);
+            var extractorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ExtractorPrefabPath);
+
+            if (hqData == null || barracksData == null || extractorData == null ||
+                hqPrefab == null || barracksPrefab == null || extractorPrefab == null)
+            {
+                Debug.LogWarning("[Project Forge] Не все Building-ассеты/префабы найдены. " +
+                                 "Сначала запустите 'Create/Update Building Data (M5)' и 'Create/Update Building Prefabs (M5)'.");
+            }
+
+            // Создаём / обновляем ghost-материалы
+            var ghostValid   = EnsureGhostMaterial(GhostValidMatPath,   new Color(0.2f, 0.9f, 0.2f, 0.5f));
+            var ghostInvalid = EnsureGhostMaterial(GhostInvalidMatPath, new Color(0.9f, 0.2f, 0.2f, 0.5f));
+
+            // Проставляем ссылки в BuildingPlacer
+            var modeController = managersGo.GetComponent<GameModeController>();
+            {
+                var so = new SerializedObject(placer);
+                so.FindProperty("_bank").objectReferenceValue            = bank;
+                so.FindProperty("_modeController").objectReferenceValue  = modeController;
+                so.FindProperty("_barracksData").objectReferenceValue    = barracksData;
+                so.FindProperty("_extractorData").objectReferenceValue   = extractorData;
+                so.FindProperty("_barracksPrefab").objectReferenceValue  = barracksPrefab;
+                so.FindProperty("_extractorPrefab").objectReferenceValue = extractorPrefab;
+                so.FindProperty("_ghostValid").objectReferenceValue      = ghostValid;
+                so.FindProperty("_ghostInvalid").objectReferenceValue    = ghostInvalid;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- 4 ResourceNode (идемпотентно по имени) ---
+            Vector3 playerBase = GetBasePosition("PlayerBaseSpawn");
+            Vector3 enemyBase  = GetBasePosition("EnemyBaseSpawn");
+
+            var nodePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ResourceNodePrefabPath);
+            EnsureResourceNode(scene, "ResourceNode_Player_1", playerBase + new Vector3(-8f, 0f, -5f), nodePrefab);
+            EnsureResourceNode(scene, "ResourceNode_Player_2", playerBase + new Vector3( 8f, 0f, -5f), nodePrefab);
+            EnsureResourceNode(scene, "ResourceNode_Enemy_1",  enemyBase  + new Vector3(-8f, 0f,  5f), nodePrefab);
+            EnsureResourceNode(scene, "ResourceNode_Enemy_2",  enemyBase  + new Vector3( 8f, 0f,  5f), nodePrefab);
+
+            // --- HQ игрока у PlayerBaseSpawn (идемпотентно) ---
+            EnsureBuilding(scene, "HQ_Player",    hqPrefab,       playerBase + new Vector3(0f, 0f, 0f),  Faction.Player, bank);
+            EnsureBuilding(scene, "HQ_Enemy",     hqPrefab,       enemyBase  + new Vector3(0f, 0f, 0f),  Faction.Enemy,  bank);
+            EnsureBuilding(scene, "Barracks_Player", barracksPrefab, playerBase + new Vector3(6f, 0f, 4f), Faction.Player, bank);
+
+            // --- Запечь NavMesh (здания статичны) ---
+            NavMeshTab.BakeNavMesh();
+
+            // --- Сохранение сцены ---
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] Setup Economy (M5) выполнен.");
+        }
+
+        private static void EnsureResourceNode(
+            UnityEngine.SceneManagement.Scene scene,
+            string name,
+            Vector3 position,
+            GameObject prefab)
+        {
+            // Идемпотентно — если объект с таким именем уже есть, пропускаем
+            if (GameObject.Find(name) != null) return;
+
+            if (prefab == null)
+            {
+                // Создаём вручную без префаба
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                go.name                   = name;
+                go.transform.position     = position;
+                go.transform.localScale   = new Vector3(2f, 0.5f, 2f);
+                go.AddComponent<ResourceNode>();
+                return;
+            }
+
+            var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+            inst.name                 = name;
+            inst.transform.position   = position;
+        }
+
+        private static void EnsureBuilding(
+            UnityEngine.SceneManagement.Scene scene,
+            string name,
+            GameObject prefab,
+            Vector3 position,
+            Faction faction,
+            ResourceBank bank)
+        {
+            if (GameObject.Find(name) != null) return;
+
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Project Forge] Префаб не найден для '{name}' — пропускаем.");
+                return;
+            }
+
+            var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+            inst.name               = name;
+            inst.transform.position = position;
+
+            var building = inst.GetComponent<Building>();
+            if (building != null)
+            {
+                var so = new SerializedObject(building);
+                so.FindProperty("_faction").enumValueIndex         = (int)faction;
+                so.FindProperty("_bank").objectReferenceValue      = bank;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static Vector3 GetBasePosition(string markerName)
+        {
+            var go = GameObject.Find(markerName);
+            return go != null ? go.transform.position : Vector3.zero;
+        }
+
+        private static Material EnsureGhostMaterial(string path, Color color)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+                return existing;
+
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+                shader = Shader.Find("Standard");
+
+            if (shader == null)
+                return null;
+
+            var mat = new Material(shader);
+
+            // Делаем полупрозрачным (URP)
+            if (mat.HasProperty("_Surface"))
+            {
+                mat.SetFloat("_Surface", 1f); // 1 = Transparent
+                mat.SetFloat("_Blend",   0f); // Alpha blend
+                mat.renderQueue = 3000;
+            }
+
+            mat.color = color;
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", color);
+
+            EnsureFolder("Assets/_Project/Art/Materials");
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
         }
 
         private static void RespawnTestUnits(UnityEngine.SceneManagement.Scene scene)

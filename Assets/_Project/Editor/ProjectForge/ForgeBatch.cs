@@ -56,5 +56,17 @@ namespace DiplomaGame.Editor
             PrefabsTab.CreateOrUpdateEnemyUnitPrefab();
             ManagersTab.SetupCombat();
         }
+
+        /// <summary>
+        /// Полная настройка M5: открыть Sandbox → создать BuildingData-ассеты →
+        /// создать Building-префабы → настроить экономику в сцене.
+        /// </summary>
+        public static void SetupM5()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.CreateOrUpdateBuildingDataAssets();
+            PrefabsTab.CreateOrUpdateBuildingPrefabs();
+            ManagersTab.SetupEconomy();
+        }
     }
 }
