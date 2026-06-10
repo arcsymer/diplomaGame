@@ -36,6 +36,8 @@ jobs:
         with:
           targetPlatform: StandaloneWindows64
           buildName: diplomaGame
+          # Образа для 6000.4.9f1 нет — пин на ближайший старший патч (см. ADR-008)
+          customImage: unityci/editor:ubuntu-6000.4.10f1-windows-mono-3
 
       - name: Zip build
         run: |

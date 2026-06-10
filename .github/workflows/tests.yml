@@ -39,6 +39,9 @@ jobs:
         with:
           testMode: all
           checkName: Unity Test Results
+          # Образа unityci/editor для 6000.4.9f1 не существует (пропущен GameCI) —
+          # пинимся на ближайший старший патч. См. ADR-008.
+          customImage: unityci/editor:ubuntu-6000.4.10f1-linux-il2cpp-3
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
