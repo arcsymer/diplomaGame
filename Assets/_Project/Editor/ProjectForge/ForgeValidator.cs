@@ -9,12 +9,14 @@ using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.UI;
 using DiplomaGame.Runtime.Units;
+using DiplomaGame.Runtime.VFX;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace DiplomaGame.Editor
@@ -36,6 +38,12 @@ namespace DiplomaGame.Editor
 
         // M7
         private const string MixerPath = "Assets/_Project/Audio/GameMixer.mixer";
+
+        // M8
+        private const string MuzzleFlashPrefabPath = "Assets/_Project/Prefabs/VFX/MuzzleFlash.prefab";
+        private const string HitImpactPrefabPath   = "Assets/_Project/Prefabs/VFX/HitImpact.prefab";
+        private const string ExplosionPrefabPath   = "Assets/_Project/Prefabs/VFX/Explosion.prefab";
+        private const string BuildEffectPrefabPath = "Assets/_Project/Prefabs/VFX/BuildEffect.prefab";
 
         // M5
         private const string HQDataPath         = "Assets/_Project/Data/Buildings/HQ.asset";
@@ -87,6 +95,9 @@ namespace DiplomaGame.Editor
             CheckMainMenuScene(issues);
             CheckGameMenusInScene(issues);
             CheckAudioInScene(issues);
+            CheckVfxPrefabsExist(issues);
+            CheckVolumeInScene(issues);
+            CheckUnitPrefabsHaveVisualChild(issues);
 
             return issues;
         }
@@ -486,6 +497,70 @@ namespace DiplomaGame.Editor
                            "AudioManager будет работать в fallback-режиме без mixer " +
                            "(громкости через AudioSource.volume).");
             }
+        }
+
+        // ----------------------------------------------------------------
+        // M8 проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckVfxPrefabsExist(List<string> issues)
+        {
+            var vfxPrefabs = new[]
+            {
+                (MuzzleFlashPrefabPath, "MuzzleFlash"),
+                (HitImpactPrefabPath,   "HitImpact"),
+                (ExplosionPrefabPath,   "Explosion"),
+                (BuildEffectPrefabPath, "BuildEffect"),
+            };
+
+            foreach (var (path, name) in vfxPrefabs)
+            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab == null)
+                    issues.Add($"VFX-префаб {name} не найден: {path} (запустите Build VFX Prefabs (M8)).");
+            }
+        }
+
+        private static void CheckVolumeInScene(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // Ищем Volume с именем "PostFX"
+            bool found = false;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name == "PostFX" && root.GetComponent<Volume>() != null)
+                {
+                    found = true;
+                    var vol = root.GetComponent<Volume>();
+                    if (!vol.isGlobal)
+                        issues.Add("Volume 'PostFX': isGlobal = false (должен быть глобальным).");
+                    if (vol.sharedProfile == null)
+                        issues.Add("Volume 'PostFX': sharedProfile не задан (запустите Setup Lighting & Post (M8)).");
+                    break;
+                }
+            }
+
+            if (!found)
+                issues.Add("В сцене нет Global Volume 'PostFX' (запустите Setup Lighting & Post (M8)).");
+        }
+
+        private static void CheckUnitPrefabsHaveVisualChild(List<string> issues)
+        {
+            CheckPrefabHasVisualChild(TestUnitPrefabPath,  "TestUnit",  issues);
+            CheckPrefabHasVisualChild(EnemyUnitPrefabPath, "EnemyUnit", issues);
+            CheckPrefabHasVisualChild(HQPrefabPath,        "HQ",        issues);
+        }
+
+        private static void CheckPrefabHasVisualChild(string prefabPath, string prefabName, List<string> issues)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null) return; // Уже проверено в других методах
+
+            var visualTf = prefab.transform.Find("Visual");
+            if (visualTf == null)
+                issues.Add($"Префаб {prefabName}: нет дочернего объекта 'Visual' (запустите Apply Visuals (M8)).");
         }
 
         private static int CountMissingScripts(GameObject go)

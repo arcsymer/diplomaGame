@@ -120,5 +120,23 @@ namespace DiplomaGame.Editor
             // 3. Возвращаемся в Sandbox
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
         }
+
+        /// <summary>
+        /// Полная настройка M8: визуал.
+        /// Открывает Sandbox → фиксит импорт моделей → применяет визуал к префабам →
+        /// создаёт VFX-префабы → добавляет VfxManager → настраивает освещение и постобработку.
+        /// </summary>
+        public static void SetupM8()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+
+            VFXTab.FixModelImports();
+            VFXTab.ApplyVisuals();
+            VFXTab.BuildVfxPrefabs();
+            VFXTab.SetupLightingAndPost();
+
+            EditorSceneManager.SaveScene(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        }
     }
 }

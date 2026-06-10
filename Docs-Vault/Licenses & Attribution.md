@@ -14,10 +14,12 @@
 | Kenney — Impact Sounds | [kenney.nl](https://kenney.nl/assets/impact-sounds) | CC0 1.0 | Нет | SFX: попадания | Импортировано |
 | Kenney — Voiceover Pack | [kenney.nl](https://kenney.nl/assets/voiceover-pack) | CC0 1.0 | Нет | Голоса юнитов (ack-реплики) | Импортировано |
 | Kenney — Voiceover Pack (Fighter) | [kenney.nl](https://kenney.nl/assets/voiceover-pack-fighter) | CC0 1.0 | Нет | Голоса боевых юнитов | Импортировано |
-| Kenney — Blaster Kit | [kenney.nl](https://kenney.nl/assets/blaster-kit) | CC0 1.0 | Нет | 3D-модели оружия | Запланировано, не импортировано |
-| Kenney — Space Kit | [kenney.nl](https://kenney.nl/assets/space-kit) | CC0 1.0 | Нет | Пропсы, детали окружения | Запланировано, не импортировано |
+| Kenney — Blaster Kit | [kenney.nl](https://kenney.nl/assets/blaster-kit) | CC0 1.0 | Нет | 3D-модели оружия (blaster-a.fbx) | Импортировано |
+| Kenney — Space Kit | [kenney.nl](https://kenney.nl/assets/space-kit) | CC0 1.0 | Нет | Пропсы и детали окружения (hangar_*, rock_*, barrel, crater) | Импортировано |
+| Kenney — Blocky Characters | [kenney.nl](https://kenney.nl/assets/blocky-characters) | CC0 1.0 | Нет | 3D-модели юнитов и героя (character-a/b/h.fbx) | Импортировано |
+| Kenney — Modular Space Kit | [kenney.nl](https://kenney.nl/assets/modular-space-kit) | CC0 1.0 | Нет | Модульные детали окружения базы | Импортировано |
 | Kenney — UI Pack: Sci-Fi | [kenney.nl](https://kenney.nl/assets/ui-pack-sci-fi) | CC0 1.0 | Нет | UI: панели, кнопки, рамки | Запланировано, не импортировано |
-| Kenney — Particle Pack | [kenney.nl](https://kenney.nl/assets/particle-pack) | CC0 1.0 | Нет | VFX: взрывы, вспышки | Запланировано, не импортировано |
+| Kenney — Particle Pack | [kenney.nl](https://kenney.nl/assets/particle-pack) | CC0 1.0 | Нет | VFX-текстуры: flame, spark, smoke, light, twirl | Импортировано |
 | Quaternius — Animated Mech Pack | [quaternius.com](https://quaternius.com/) | CC0 1.0 | Нет | 3D-модели юнитов-мехов | Запланировано, не импортировано |
 | Quaternius — Animated Tanks Pack | [quaternius.com](https://quaternius.com/) | CC0 1.0 | Нет | 3D-модели танков | Запланировано, не импортировано |
 | Quaternius — Ultimate Modular Sci-Fi | [quaternius.com](https://quaternius.com/) | CC0 1.0 | Нет | 3D-модели зданий базы | Запланировано, не импортировано |
