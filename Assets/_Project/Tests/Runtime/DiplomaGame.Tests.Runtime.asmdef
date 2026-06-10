@@ -1,15 +1,13 @@
 {
-    "name": "DiplomaGame.Tests.Editor",
-    "rootNamespace": "DiplomaGame.Tests.Editor",
+    "name": "DiplomaGame.Tests.Runtime",
+    "rootNamespace": "DiplomaGame.Tests.Runtime",
     "references": [
-        "UnityEditor.TestRunner",
         "UnityEngine.TestRunner",
-        "DiplomaGame.Editor",
-        "DiplomaGame.Runtime"
+        "UnityEditor.TestRunner",
+        "DiplomaGame.Runtime",
+        "Unity.Cinemachine"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

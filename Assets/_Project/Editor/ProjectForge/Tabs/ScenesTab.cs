@@ -31,7 +31,7 @@ namespace DiplomaGame.Editor
         /// Идемпотентно создаёт или обновляет сцену Sandbox:
         /// Plane, Directional Light, два маркера спавна.
         /// </summary>
-        private static void CreateOrUpdateSandboxScene()
+        internal static void CreateOrUpdateSandboxScene()
         {
             // Сохраняем текущую открытую сцену, чтобы вернуться к ней
             var originalScene = SceneManager.GetActiveScene();

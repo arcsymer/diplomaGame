@@ -36,7 +36,7 @@ namespace DiplomaGame.Editor
                 new ValidationTab(),
                 new ReportsTab(),
                 new StubTab("Prefabs",   "M2"),
-                new StubTab("Managers",  "M1"),
+                new ManagersTab(),
                 new StubTab("Config",    "M5"),
                 new StubTab("NavMesh",   "M4"),
                 new StubTab("UI",        "M6"),

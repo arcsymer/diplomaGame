@@ -1,19 +1,16 @@
 {
-    "name": "DiplomaGame.Editor",
-    "rootNamespace": "DiplomaGame.Editor",
+    "name": "DiplomaGame.Runtime",
+    "rootNamespace": "DiplomaGame.Runtime",
     "references": [
-        "DiplomaGame.Runtime",
         "Unity.Cinemachine",
         "Unity.InputSystem"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
-    "autoReferenced": false,
+    "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false

@@ -37,7 +37,7 @@ namespace DiplomaGame.Editor
                 GenerateReport();
         }
 
-        private static void GenerateReport()
+        internal static void GenerateReport()
         {
             var snap = ForgeStats.Collect();
             string row = FormatRow(snap);

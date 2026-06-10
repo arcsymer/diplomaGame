@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DiplomaGame.Runtime.Core;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -37,6 +38,7 @@ namespace DiplomaGame.Editor
             CheckRequiredFolders(issues);
             CheckSandboxInBuildSettings(issues);
             CheckMissingScriptsInOpenScene(issues);
+            CheckGameModeControllerRefs(issues);
 
             return issues;
         }
@@ -85,6 +87,33 @@ namespace DiplomaGame.Editor
 
             if (count > 0)
                 issues.Add($"Missing scripts в открытой сцене ({scene.name}): {count} шт.");
+        }
+
+        private static void CheckGameModeControllerRefs(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // Ищем GameManagers с GameModeController в открытой сцене
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                var controller = root.GetComponentInChildren<GameModeController>(includeInactive: true);
+                if (controller == null) continue;
+
+                var so = new SerializedObject(controller);
+
+                if (so.FindProperty("rtsCamera").objectReferenceValue == null)
+                    issues.Add("GameModeController: поле rtsCamera не заполнено (запустите Setup Mode Rig).");
+
+                if (so.FindProperty("tpsCamera").objectReferenceValue == null)
+                    issues.Add("GameModeController: поле tpsCamera не заполнено (запустите Setup Mode Rig).");
+
+                if (so.FindProperty("actions").objectReferenceValue == null)
+                    issues.Add("GameModeController: поле actions (InputActionAsset) не заполнено (запустите Setup Mode Rig).");
+
+                // Проверяем только первый найденный контроллер в сцене
+                break;
+            }
         }
 
         private static int CountMissingScripts(GameObject go)
