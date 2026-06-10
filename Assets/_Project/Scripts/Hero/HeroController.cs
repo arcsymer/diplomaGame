@@ -57,10 +57,25 @@ namespace DiplomaGame.Runtime.Hero
                 _lookAction = actions.FindActionMap("TPS")?.FindAction("Look");
             }
 
+            // Читаем чувствительность из SettingsService при старте
+            lookSensitivity = SettingsService.LoadMouseSensitivity();
+
             // Подписываемся в Awake/OnDestroy, а не OnEnable/OnDisable,
             // иначе self-disable обрывает подписку и повторный TPS-переход игнорируется.
             if (modeController != null)
                 modeController.ModeChanged += OnModeChanged;
+        }
+
+        // ----------------------------------------------------------------
+        // Публичный сеттер чувствительности — вызывается из SettingsPanel при изменении
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Устанавливает чувствительность мыши и немедленно применяет её.
+        /// </summary>
+        public void SetLookSensitivity(float sensitivity)
+        {
+            lookSensitivity = SettingsLogic.ClampSensitivity(sensitivity);
         }
 
         private void OnDestroy()

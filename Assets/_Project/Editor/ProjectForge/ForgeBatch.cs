@@ -77,5 +77,24 @@ namespace DiplomaGame.Editor
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
             UITab.BuildGameHud();
         }
+
+        /// <summary>
+        /// Полная настройка M6b: открыть Sandbox → собрать меню паузы и GameOver →
+        /// создать/обновить MainMenu-сцену.
+        /// Sandbox остаётся последней сохранённой (MainMenu сохраняется внутри CreateOrUpdateMainMenuScene,
+        /// после чего мы переоткрываем Sandbox).
+        /// </summary>
+        public static void SetupM6Menus()
+        {
+            // 1. Sandbox: добавляем PauseMenu + GameOver
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.BuildMenus();
+
+            // 2. Создаём/обновляем MainMenu-сцену (открывает и сохраняет её)
+            ScenesTab.CreateOrUpdateMainMenuScene();
+
+            // 3. Возвращаемся в Sandbox, чтобы он был активным после batch
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+        }
     }
 }

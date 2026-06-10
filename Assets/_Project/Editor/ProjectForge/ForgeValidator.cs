@@ -53,7 +53,8 @@ namespace DiplomaGame.Editor
             "Assets/_Project/VFX",
         };
 
-        private const string SandboxScenePath = "Assets/_Project/Scenes/Sandbox.unity";
+        private const string SandboxScenePath  = "Assets/_Project/Scenes/Sandbox.unity";
+        private const string MainMenuScenePath = "Assets/_Project/Scenes/MainMenu.unity";
 
         /// <summary>
         /// Запускает все проверки. Возвращает список проблем;
@@ -78,6 +79,8 @@ namespace DiplomaGame.Editor
             CheckBuildingPrefabs(issues);
             CheckEconomyInScene(issues);
             CheckHudInScene(issues);
+            CheckMainMenuScene(issues);
+            CheckGameMenusInScene(issues);
 
             return issues;
         }
@@ -370,6 +373,64 @@ namespace DiplomaGame.Editor
             var rt = AssetDatabase.LoadAssetAtPath<RenderTexture>(MinimapRTPath);
             if (rt == null)
                 issues.Add($"RenderTexture миникарты не найден: {MinimapRTPath} (запустите Build Game HUD (M6a)).");
+        }
+
+        // ----------------------------------------------------------------
+        // M6b проверки
+        // ----------------------------------------------------------------
+
+        private static void CheckMainMenuScene(List<string> issues)
+        {
+            // Сцена MainMenu должна существовать как файл
+            if (!System.IO.File.Exists(MainMenuScenePath))
+            {
+                issues.Add($"Сцена MainMenu не найдена: {MainMenuScenePath} (запустите Create/Update MainMenu Scene).");
+                return;
+            }
+
+            // MainMenu должна быть в Build Settings под индексом 0
+            var scenes = EditorBuildSettings.scenes;
+            if (scenes.Length == 0 || scenes[0].path != MainMenuScenePath)
+                issues.Add($"MainMenu не находится под индексом 0 в Build Settings (запустите Create/Update MainMenu Scene).");
+
+            // Sandbox должна быть под индексом 1
+            if (scenes.Length < 2 || scenes[1].path != SandboxScenePath)
+                issues.Add($"Sandbox не находится под индексом 1 в Build Settings (запустите Create/Update MainMenu Scene).");
+        }
+
+        private static void CheckGameMenusInScene(List<string> issues)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            // Проверяем только в игровой сцене (Sandbox), в MainMenu этих канвасов быть не должно
+            if (scene.name != "Sandbox") return;
+
+            bool hasPause    = false;
+            bool hasGameOver = false;
+
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name == "PauseMenu")
+                {
+                    hasPause = true;
+                    if (root.GetComponent<DiplomaGame.Runtime.UI.PauseController>() == null)
+                        issues.Add("Canvas PauseMenu: отсутствует PauseController (запустите Build Menus (M6b)).");
+                }
+
+                if (root.name == "GameOver")
+                {
+                    hasGameOver = true;
+                    if (root.GetComponent<DiplomaGame.Runtime.UI.GameOverController>() == null)
+                        issues.Add("Canvas GameOver: отсутствует GameOverController (запустите Build Menus (M6b)).");
+                }
+            }
+
+            if (!hasPause)
+                issues.Add("В сцене нет Canvas «PauseMenu» (запустите Build Menus (M6b)).");
+
+            if (!hasGameOver)
+                issues.Add("В сцене нет Canvas «GameOver» (запустите Build Menus (M6b)).");
         }
 
         private static int CountMissingScripts(GameObject go)

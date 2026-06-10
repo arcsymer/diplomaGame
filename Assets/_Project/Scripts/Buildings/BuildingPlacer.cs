@@ -65,6 +65,12 @@ namespace DiplomaGame.Runtime.Buildings
         // Публичный API
         // ----------------------------------------------------------------
 
+        /// <summary>
+        /// Возвращает true, пока активен режим размещения здания.
+        /// Используется PauseController для блокировки паузы в том же кадре.
+        /// </summary>
+        public bool IsPlacing => _isPlacing;
+
         /// <summary>Начинает режим размещения для заданного типа здания.</summary>
         public void StartPlacement(BuildingData data, GameObject prefab)
         {
