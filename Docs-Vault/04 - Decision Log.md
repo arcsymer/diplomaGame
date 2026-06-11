@@ -273,3 +273,34 @@
 **Параметры:** пехота — radius 0.45, HighQuality avoidance, priority 50, stoppingDistance 0.5; Tank — radius 0.7, priority 30 (его обходят), stoppingDistance 1.0. Формация: дефолтный spacing 1.5 → 2.0; при группе >6 — 2.5 (одна строка в CommandInput).
 
 **Верификация:** PlayMode `CrowdAvoidanceTests` — после группового приказа к одной точке ни одна пара ближе 0.8; разброс атакующих вокруг танка > 1.5.
+
+---
+
+## ADR-019 — Устранение GC-аллокаций боя: таймерные массивы вместо корутин VFX, кэши GetComponent
+**Дата:** 2026-06-11 (Сессия 03, круг 4) · **Статус:** принято
+
+**Проблема:** стресс 20v20 показывал managedDelta до ~3.2 МБ за ~3300 кадров боя и worst frame 15.6 мс. Перф-ревью нашло главные источники: (1) `StartCoroutine(DeactivateAfterPlay)` в VfxManager на КАЖДУЮ атаку (до 40/кадр — аллокация state machine корутины); (2) string-конкатенации в HUD (SelectionPanel, ResourceDisplay/HudLogic); (3) `GetComponent` в боевом кадре (range-buffer цели в UnitCombat, циклы EnemyCommander, AudioManager.IsInCombat); (4) `GetActiveScene().name` каждые 0.5 с; (5) `GameObject.Find` rally-маркеров на каждом спавне.
+
+**Решения:**
+- VfxManager: массивы `float[]`-таймеров по пулам, декремент в `Update`, ноль аллокаций на выстрел. Публичный API не изменён (тесты совместимы).
+- UnitCombat: `SetCurrentTarget()` кэширует `_currentTargetIsBuilding` при захвате цели; `_isHero` в Awake; статический кэш rally-позиций с инвалидацией по `sceneLoaded`.
+- `Unit.CachedCombat` (ленивый кэш по образцу CachedHealth) — для EnemyCommander и AudioManager.
+- UI: TMP `SetText("{0}", n)`-перегрузы и кэшированный StringBuilder вместо конкатенаций; тултип-провайдеры кэшируют TooltipData по ссылке на SO.
+- AudioManager: `_isMainMenuScene` вычисляется один раз.
+
+**Альтернативы:** Unity Pooling API для корутин — не убирает аллокацию енумератора; UniTask — внешняя зависимость (нулевой бюджет — допустимо, но лишнее); инкрементальный GC — прячет симптом, не причину.
+
+**Верификация:** before/after managedDelta в стрессе 20v20 (Improvements/04), полные сьюты зелёные, публичные контракты (HudLogic.FormatCrystals, VfxManager.Play) сохранены.
+
+---
+
+## ADR-020 — Экран статистики матча: чистая модель MatchStats + событийный коллектор
+**Дата:** 2026-06-11 (Сессия 03, круг 4) · **Статус:** принято
+
+**Проблема:** после победы/поражения игрок не получает обратной связи по матчу (SC2 — post-game summary); P2 бэклога.
+
+**Решение:** три слоя — `MatchStats` (чистый C#, массивы[2] по Faction: убийства/потери, урон нанесён/получен, кристаллы, производство, пик армии, длительность; 11 EditMode-тестов), `MatchStatsCollector` (MonoBehaviour на GameManagers, подписки на события, ArmyPeak раз в 0.5 с через переиспользуемый буфер), `MatchStatsView` (uGUI-таблица «Вы/Противник» в GameOver-каназе, SetText-перегрузы без аллокаций). Новые события: `Health.AnyDamaged` (static), `ResourceBank.CrystalsMined`. Интеграция: GameWatcher передаёт stats в новые перегрузки `GameOverController.ShowVictory/ShowDefeat(MatchStats)`; старые перегрузки сохранены.
+
+**Решения по краям:** смерть героя не считается потерей юнита (герой респаунится); здания не учитываются в Kill/Lost (в уроне — учитываются); атакующая фракция = противоположная жертве (friendly fire отсутствует).
+
+**Forge:** кнопка «Build Match Stats Panel» (UITab) + `ForgeBatch.SetupMatchStats`. StatsPanel один на GameOver-канвас (поверх обеих панелей) — единственное отступление от спеки, упрощает связку с одним полем `_statsView`.

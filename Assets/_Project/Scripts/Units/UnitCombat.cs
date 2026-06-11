@@ -6,6 +6,7 @@ using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Hero;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.SceneManagement;
 
 namespace DiplomaGame.Runtime.Units
 {
@@ -47,6 +48,13 @@ namespace DiplomaGame.Runtime.Units
 
         // Rally-точка своей базы (кэш из Awake)
         private Vector3 _rallyPoint;
+
+        // Кэш: является ли текущая цель зданием (нет NavMeshAgent).
+        // Обновляется при каждой смене _currentTargetTransform.
+        private bool _currentTargetIsBuilding;
+
+        // Кэш: является ли этот юнит героем (есть HeroController). Вычисляется в Awake.
+        private bool _isHero;
 
         // ----------------------------------------------------------------
         // Буферы без аллокаций — кандидаты (Health + позиции)
@@ -93,6 +101,9 @@ namespace DiplomaGame.Runtime.Units
             _unit   = GetComponent<Unit>();
             _health = GetComponent<Health>();
             _agent  = GetComponent<NavMeshAgent>();
+
+            // Кэш: определяем один раз, является ли этот юнит героем
+            _isHero = GetComponent<HeroController>() != null;
 
             // Подписка на события
             _unit.CommandIssued += OnCommandIssued;
@@ -217,8 +228,7 @@ namespace DiplomaGame.Runtime.Units
             float scanRange = GetScanRange();
             if (scanRange <= 0f)
             {
-                _currentTargetHealth    = null;
-                _currentTargetTransform = null;
+                SetCurrentTarget(null, null);
                 return;
             }
 
@@ -246,13 +256,12 @@ namespace DiplomaGame.Runtime.Units
             int idx = CombatLogic.FindNearestTargetIndex(transform.position, _candidatePositions, scanRange);
             if (idx >= 0)
             {
-                _currentTargetHealth    = _candidateHealths[idx];
-                _currentTargetTransform = _currentTargetHealth.transform;
+                var targetHealth = _candidateHealths[idx];
+                SetCurrentTarget(targetHealth, targetHealth.transform);
             }
             else
             {
-                _currentTargetHealth    = null;
-                _currentTargetTransform = null;
+                SetCurrentTarget(null, null);
             }
         }
 
@@ -303,11 +312,11 @@ namespace DiplomaGame.Runtime.Units
                 return 0f;
 
             // После ретрита юнит вернулся на базу в Idle.
-            // Чтобы бой не замирал — сканируем на AggroRadius * 5 (достаточно чтобы
-            // увидеть противника на другом конце поля ≈ 60 ед. при базовом aggro 12).
-            // Это гарантирует возобновление боя без вечного стояния на базах.
+            // Чтобы бой не замирал — сканируем на AggroRadius * 10 (120 ед. при базовом
+            // aggro 12 — больше диагонали между базами ~85). При ×5 (60) ловился стейлмейт:
+            // обе стороны целиком отступали на свои базы и не видели друг друга.
             if (_retreatTriggered && _unit.CurrentState == UnitState.Idle)
-                return _data.AggroRadius * 5f;
+                return _data.AggroRadius * 10f;
 
             // Idle, Patrol — стандартный aggro
             return _data.AggroRadius;
@@ -332,9 +341,8 @@ namespace DiplomaGame.Runtime.Units
             // Цель умерла
             if (_currentTargetHealth.IsDead)
             {
-                _currentTargetHealth    = null;
-                _currentTargetTransform = null;
-                CurrentCombatState      = CombatState.None;
+                SetCurrentTarget(null, null);
+                CurrentCombatState = CombatState.None;
                 return;
             }
 
@@ -373,15 +381,25 @@ namespace DiplomaGame.Runtime.Units
         /// <summary>
         /// Дополнительный буфер к attackRange.
         /// Здания крупные — добавляем BuildingAttackBuffer.
-        /// Определяем по наличию NavMeshAgent на цели (у зданий его нет).
+        /// Использует кэшированный флаг _currentTargetIsBuilding — без GetComponent каждый кадр.
         /// </summary>
         private float GetTargetRangeBuffer()
         {
             if (_currentTargetTransform == null) return 0f;
+            return _currentTargetIsBuilding ? BuildingAttackBuffer : 0f;
+        }
+
+        /// <summary>
+        /// Устанавливает текущую цель и синхронно кэширует флаг "цель — здание".
+        /// Все присвоения _currentTargetTransform должны идти через этот метод.
+        /// </summary>
+        private void SetCurrentTarget(Health health, Transform target)
+        {
+            _currentTargetHealth    = health;
+            _currentTargetTransform = target;
             // Здания не имеют NavMeshAgent; юниты — обязательно имеют
-            return _currentTargetTransform.GetComponent<NavMeshAgent>() == null
-                ? BuildingAttackBuffer
-                : 0f;
+            _currentTargetIsBuilding = target != null &&
+                                       target.GetComponent<NavMeshAgent>() == null;
         }
 
         private void TryAttack()
@@ -405,9 +423,8 @@ namespace DiplomaGame.Runtime.Units
                 // Если цель умерла — сбрасываем
                 if (_currentTargetHealth.IsDead)
                 {
-                    _currentTargetHealth    = null;
-                    _currentTargetTransform = null;
-                    CurrentCombatState      = CombatState.None;
+                    SetCurrentTarget(null, null);
+                    CurrentCombatState = CombatState.None;
                 }
             }
         }
@@ -464,9 +481,8 @@ namespace DiplomaGame.Runtime.Units
             // Если основная цель погибла — сбрасываем
             if (_currentTargetHealth != null && _currentTargetHealth.IsDead)
             {
-                _currentTargetHealth    = null;
-                _currentTargetTransform = null;
-                CurrentCombatState      = CombatState.None;
+                SetCurrentTarget(null, null);
+                CurrentCombatState = CombatState.None;
             }
         }
 
@@ -485,8 +501,7 @@ namespace DiplomaGame.Runtime.Units
             _retreatTriggered  = true;
             _lastRetreatTime   = Time.time;
             CurrentCombatState = CombatState.Retreating;
-            _currentTargetHealth    = null;
-            _currentTargetTransform = null;
+            SetCurrentTarget(null, null);
 
             // Находим ближайшего врага (только юниты) для расчёта точки отступления
             Vector3 threatPos    = Vector3.zero;
@@ -531,27 +546,61 @@ namespace DiplomaGame.Runtime.Units
 
         private void OnDied()
         {
-            CurrentCombatState      = CombatState.None;
-            _currentTargetHealth    = null;
-            _currentTargetTransform = null;
+            CurrentCombatState = CombatState.None;
+            SetCurrentTarget(null, null);
 
             // Герой управляет своим жизненным циклом через GameWatcher (респаун).
-            // Если на GO есть HeroController — не уничтожаем объект.
-            if (GetComponent<HeroController>() != null) return;
+            // _isHero кэшируется в Awake — без GetComponent при каждой смерти.
+            if (_isHero) return;
 
             // Небольшая задержка перед уничтожением GO (для проигрывания эффектов)
             Destroy(gameObject, 0.1f);
         }
 
         // ----------------------------------------------------------------
-        // Rally-точка
+        // Rally-точка (статический кэш — GameObject.Find только один раз за загрузку сцены)
         // ----------------------------------------------------------------
+
+        // Кэшированные позиции маркеров спавна. Сцена с юнитами одна — инвалидация
+        // не нужна: если маркер уничтожен или отсутствует, кэш хранит Vector3.zero (допустимо).
+        private static bool    _rallyCacheValid;
+        private static Vector3 _playerRallyCache;
+        private static Vector3 _enemyRallyCache;
 
         private static Vector3 FindRallyPoint(Faction faction)
         {
-            string markerName = faction == Faction.Player ? "PlayerBaseSpawn" : "EnemyBaseSpawn";
-            var    go         = GameObject.Find(markerName);
-            return go != null ? go.transform.position : Vector3.zero;
+            if (!_rallyCacheValid)
+            {
+                var playerGo = GameObject.Find("PlayerBaseSpawn");
+                var enemyGo  = GameObject.Find("EnemyBaseSpawn");
+                _playerRallyCache = playerGo != null ? playerGo.transform.position : Vector3.zero;
+                _enemyRallyCache  = enemyGo  != null ? enemyGo.transform.position  : Vector3.zero;
+                _rallyCacheValid  = true;
+            }
+
+            return faction == Faction.Player ? _playerRallyCache : _enemyRallyCache;
+        }
+
+        /// <summary>
+        /// Сбрасывает статический кэш rally-точек. Вызывается при перезагрузке сцены или из тестов.
+        /// </summary>
+        internal static void InvalidateRallyCache()
+        {
+            _rallyCacheValid = false;
+        }
+
+        // Подписка на смену сцены — выполняется один раз при загрузке домена
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void RegisterSceneReloadCallback()
+        {
+            _rallyCacheValid = false;
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            _rallyCacheValid = false;
         }
     }
 }

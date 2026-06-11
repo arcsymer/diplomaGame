@@ -47,6 +47,11 @@ namespace DiplomaGame.Runtime.AI
         // Кэш HQ игрока — обновляется при смерти
         private Building          _playerHQ;
 
+        // Кэш Building-компонентов производственных зданий (заполняется в Start,
+        // избавляет от GetComponent внутри TryProduceFrom на каждом тике решений).
+        private Building          _cachedBarracksBuilding;
+        private Building          _cachedWarFactoryBuilding;
+
         // Буферы без аллокаций
         private readonly List<Unit>     _enemyUnitBuffer = new List<Unit>(32);
         private readonly List<Building> _buildingBuffer  = new List<Building>(16);
@@ -58,6 +63,13 @@ namespace DiplomaGame.Runtime.AI
         private void Start()
         {
             CachePlayerHQ();
+            CacheProductionBuildings();
+        }
+
+        private void CacheProductionBuildings()
+        {
+            _cachedBarracksBuilding   = _enemyBarracks   != null ? _enemyBarracks.GetComponent<Building>()   : null;
+            _cachedWarFactoryBuilding = _enemyWarFactory != null ? _enemyWarFactory.GetComponent<Building>() : null;
         }
 
         private void Update()
@@ -89,6 +101,9 @@ namespace DiplomaGame.Runtime.AI
             _enemyBarracks     = barracks;
             _enemyWarFactory   = warFactory;
             _decisionInterval  = decisionInterval;
+
+            // Кэшируем Building-компоненты сразу — Start() в тестах может вызваться позже
+            CacheProductionBuildings();
         }
 
         // ----------------------------------------------------------------
@@ -107,19 +122,15 @@ namespace DiplomaGame.Runtime.AI
             UnitRegistry.GetUnits(Faction.Enemy, _enemyUnitBuffer);
             int currentUnits = _enemyUnitBuffer.Count;
 
-            // Казарма — пехота
-            TryProduceFrom(_enemyBarracks, currentUnits);
-
-            // Военный завод — танки (если проставлен)
-            TryProduceFrom(_enemyWarFactory, currentUnits);
+            // Building кэшируем один раз в Start — передаём готовую ссылку
+            TryProduceFrom(_enemyBarracks, _cachedBarracksBuilding, currentUnits);
+            TryProduceFrom(_enemyWarFactory, _cachedWarFactoryBuilding, currentUnits);
         }
 
-        private void TryProduceFrom(ProductionBuilding building, int currentUnits)
+        private void TryProduceFrom(ProductionBuilding building, Building buildingComp, int currentUnits)
         {
-            if (_bank == null || building == null) return;
-
-            var buildingComp = building.GetComponent<Building>();
-            if (buildingComp == null || buildingComp.Data == null) return;
+            if (_bank == null || building == null || buildingComp == null) return;
+            if (buildingComp.Data == null) return;
 
             int balance  = _bank.GetBalance(Faction.Enemy);
             int unitCost = buildingComp.Data.ProductionCost;
@@ -141,8 +152,8 @@ namespace DiplomaGame.Runtime.AI
 
                 bool isIdle = u.CurrentState == UnitState.Idle;
 
-                // Проверяем боевой статус (UnitCombat может отсутствовать)
-                var combat = u.GetComponent<UnitCombat>();
+                // Используем кэшированный CachedCombat — без GetComponent в горячем цикле
+                var combat = u.CachedCombat;
                 bool combatIdle = combat == null || combat.CurrentCombatState == CombatState.None;
 
                 if (isIdle && combatIdle)
@@ -169,7 +180,7 @@ namespace DiplomaGame.Runtime.AI
                 if (u == null) continue;
 
                 bool isIdle    = u.CurrentState == UnitState.Idle;
-                var  combat    = u.GetComponent<UnitCombat>();
+                var  combat    = u.CachedCombat;
                 bool combatIdle = combat == null || combat.CurrentCombatState == CombatState.None;
 
                 if (isIdle && combatIdle)

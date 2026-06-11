@@ -2,6 +2,7 @@ using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.UI;
@@ -70,6 +71,19 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Build Tooltip System", GUILayout.Height(32)))
                 BuildTooltipSystem();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Match Stats Panel: создаёт StatsPanel внутри VictoryPanel и DefeatPanel,\n" +
+                "добавляет MatchStatsView и MatchStatsCollector, прописывает ссылки.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Build Match Stats Panel", GUILayout.Height(32)))
+                BuildMatchStatsPanel();
         }
 
         // ----------------------------------------------------------------
@@ -992,6 +1006,296 @@ namespace DiplomaGame.Editor
                 WireButton(buttonsGo, "BtnRestart",  ctrl, nameof(GameOverController.OnRestartClicked));
                 WireButton(buttonsGo, "BtnExitMenu", ctrl, nameof(GameOverController.OnExitToMenuClicked));
             }
+        }
+
+        // ----------------------------------------------------------------
+        // Match Stats Panel
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт единственный StatsPanel (640×260) в центре GameOver-Canvas
+        /// (дочерний элемент Canvas, перекрывает обе панели), добавляет MatchStatsView,
+        /// проставляет ссылки в GameOverController и добавляет MatchStatsCollector на GameManagers.
+        /// Кнопки Victory/Defeat смещаются на (0,−240) для освобождения места.
+        /// </summary>
+        internal static void BuildMatchStatsPanel()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            EnsureTmpEssentials();
+
+            // --- Найти GameOver Canvas ---
+            var gameOverCanvas = GameObject.Find("GameOver");
+            if (gameOverCanvas == null)
+            {
+                Debug.LogWarning("[Project Forge] GameOver Canvas не найден. Сначала запустите Build Menus (M6b).");
+                return;
+            }
+
+            // --- Смещаем кнопки в обеих панелях ---
+            var victoryGo = FindDescendantByName(gameOverCanvas, "VictoryPanel");
+            var defeatGo  = FindDescendantByName(gameOverCanvas, "DefeatPanel");
+
+            if (victoryGo != null) ShiftButtonsContainer(victoryGo, -240f);
+            if (defeatGo  != null) ShiftButtonsContainer(defeatGo,  -240f);
+
+            // --- Один StatsPanel на уровне Canvas (поверх обеих панелей) ---
+            var statsView = BuildStatsPanelInside(gameOverCanvas);
+
+            // --- Проставляем _statsView в GameOverController ---
+            var gameOverCtrl = gameOverCanvas.GetComponent<GameOverController>();
+            if (gameOverCtrl != null)
+            {
+                var so = new SerializedObject(gameOverCtrl);
+                so.FindProperty("_statsView").objectReferenceValue = statsView;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // --- MatchStatsCollector на GameManagers ---
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo != null)
+            {
+                var collector = EnsureComponent<MatchStatsCollector>(managersGo);
+
+                // Проставляем ResourceBank в коллектор
+                var bank = managersGo.GetComponent<ResourceBank>();
+                if (bank != null)
+                {
+                    var so = new SerializedObject(collector);
+                    so.FindProperty("_bank").objectReferenceValue = bank;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                // Проставляем коллектор в GameWatcher
+                var watcher = managersGo.GetComponent<GameWatcher>();
+                if (watcher != null)
+                {
+                    var so = new SerializedObject(watcher);
+                    so.FindProperty("_statsCollector").objectReferenceValue = collector;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Build Match Stats Panel выполнен.");
+        }
+
+        /// <summary>
+        /// Строит StatsPanel 640×260 внутри parentPanel (или на уровне Canvas).
+        /// Возвращает MatchStatsView, созданный или найденный на StatsPanel.
+        /// </summary>
+        private static MatchStatsView BuildStatsPanelInside(GameObject parentPanel)
+        {
+            // --- Корень StatsPanel ---
+            var statsPanelGo = EnsureChild(parentPanel, "StatsPanel");
+            {
+                var rt = statsPanelGo.GetComponent<RectTransform>();
+                rt.anchorMin        = new Vector2(0.5f, 0.5f);
+                rt.anchorMax        = new Vector2(0.5f, 0.5f);
+                rt.pivot            = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = new Vector2(0f, 20f);
+                rt.sizeDelta        = new Vector2(640f, 260f);
+
+                var bg = EnsureComponent<Image>(statsPanelGo);
+                bg.color = new Color(0.05f, 0.05f, 0.08f, 0.85f);
+            }
+
+            // --- Заголовок таблицы ---
+            var headerGo = EnsureChild(statsPanelGo, "Header");
+            {
+                var rt = headerGo.GetComponent<RectTransform>();
+                rt.anchorMin        = new Vector2(0f, 1f);
+                rt.anchorMax        = new Vector2(1f, 1f);
+                rt.pivot            = new Vector2(0.5f, 1f);
+                rt.anchoredPosition = new Vector2(0f, -8f);
+                rt.sizeDelta        = new Vector2(0f, 26f);
+
+                BuildStatsHeaderRow(headerGo, "Показатель", "Вы", "Противник");
+            }
+
+            // --- Строки таблицы ---
+            string[] rowNames  = { "Kills", "Losses", "DamageDealt", "DamageTaken", "Crystals", "Produced", "ArmyPeak" };
+            string[] rowLabels = { "Убито врагов", "Потеряно", "Урон нанесён", "Урон получен",
+                                   "Кристаллов добыто", "Произведено юнитов", "Пик армии" };
+
+            float rowHeight = 26f;
+            float rowStartY = -36f; // после заголовка
+
+            for (int i = 0; i < rowNames.Length; i++)
+            {
+                var rowGo = EnsureChild(statsPanelGo, "Row_" + rowNames[i]);
+                var rt    = rowGo.GetComponent<RectTransform>();
+                rt.anchorMin        = new Vector2(0f, 1f);
+                rt.anchorMax        = new Vector2(1f, 1f);
+                rt.pivot            = new Vector2(0.5f, 1f);
+                rt.anchoredPosition = new Vector2(0f, rowStartY - i * rowHeight);
+                rt.sizeDelta        = new Vector2(0f, rowHeight);
+
+                BuildStatsDataRow(rowGo, rowLabels[i], rowNames[i]);
+            }
+
+            // --- Строка длительности ---
+            var durationGo = EnsureChild(statsPanelGo, "DurationRow");
+            {
+                var rt = durationGo.GetComponent<RectTransform>();
+                rt.anchorMin        = new Vector2(0f, 0f);
+                rt.anchorMax        = new Vector2(1f, 0f);
+                rt.pivot            = new Vector2(0.5f, 0f);
+                rt.anchoredPosition = new Vector2(0f, 8f);
+                rt.sizeDelta        = new Vector2(0f, 22f);
+
+                var durationLabelGo = EnsureChild(durationGo, "DurationText");
+                var durationTmp     = EnsureComponent<TextMeshProUGUI>(durationLabelGo);
+                durationTmp.text      = "Длительность: --:--";
+                durationTmp.fontSize  = 12f;
+                durationTmp.color     = Color.white;
+                durationTmp.alignment = TextAlignmentOptions.Center;
+
+                var lrt = durationLabelGo.GetComponent<RectTransform>();
+                lrt.anchorMin = Vector2.zero;
+                lrt.anchorMax = Vector2.one;
+                lrt.offsetMin = Vector2.zero;
+                lrt.offsetMax = Vector2.zero;
+            }
+
+            // --- MatchStatsView ---
+            var view = EnsureComponent<MatchStatsView>(statsPanelGo);
+            {
+                var so = new SerializedObject(view);
+
+                // Игрок
+                so.FindProperty("_playerKills")      .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Kills",       "PlayerValue");
+                so.FindProperty("_playerLosses")     .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Losses",      "PlayerValue");
+                so.FindProperty("_playerDamageDealt").objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_DamageDealt", "PlayerValue");
+                so.FindProperty("_playerDamageTaken").objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_DamageTaken", "PlayerValue");
+                so.FindProperty("_playerCrystals")   .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Crystals",    "PlayerValue");
+                so.FindProperty("_playerProduced")   .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Produced",    "PlayerValue");
+                so.FindProperty("_playerArmyPeak")   .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_ArmyPeak",    "PlayerValue");
+
+                // Враг
+                so.FindProperty("_enemyKills")       .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Kills",       "EnemyValue");
+                so.FindProperty("_enemyLosses")      .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Losses",      "EnemyValue");
+                so.FindProperty("_enemyDamageDealt") .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_DamageDealt", "EnemyValue");
+                so.FindProperty("_enemyDamageTaken") .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_DamageTaken", "EnemyValue");
+                so.FindProperty("_enemyCrystals")    .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Crystals",    "EnemyValue");
+                so.FindProperty("_enemyProduced")    .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_Produced",    "EnemyValue");
+                so.FindProperty("_enemyArmyPeak")    .objectReferenceValue = GetRowValueTmp(statsPanelGo, "Row_ArmyPeak",    "EnemyValue");
+
+                // Длительность
+                var durationTextGo = FindDescendantByName(durationGo, "DurationText");
+                so.FindProperty("_durationText").objectReferenceValue =
+                    durationTextGo != null ? durationTextGo.GetComponent<TextMeshProUGUI>() : null;
+
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // По умолчанию скрыт (активируется из MatchStatsView.Show)
+            statsPanelGo.SetActive(false);
+
+            return view;
+        }
+
+        private static void BuildStatsHeaderRow(GameObject rowGo, string col1, string col2, string col3)
+        {
+            BuildStatsRowInternal(rowGo, col1, col2, col3,
+                new Color(0.7f, 0.7f, 0.9f, 1f),
+                new Color(0.2f, 1f, 0.2f, 1f),
+                new Color(1f, 0.2f, 0.2f, 1f),
+                fontSize: 13f,
+                isHeader: true);
+        }
+
+        private static void BuildStatsDataRow(GameObject rowGo, string label, string rowKey)
+        {
+            BuildStatsRowInternal(rowGo, label, "0", "0",
+                Color.white,
+                new Color(0.2f, 1f, 0.2f, 1f),
+                new Color(1f, 0.2f, 0.2f, 1f),
+                fontSize: 12f,
+                isHeader: false);
+        }
+
+        private static void BuildStatsRowInternal(GameObject rowGo, string label,
+            string playerVal, string enemyVal,
+            Color labelColor, Color playerColor, Color enemyColor,
+            float fontSize, bool isHeader)
+        {
+            // Колонка 1 — Название показателя (40% ширины)
+            var labelGo  = EnsureChild(rowGo, "Label");
+            var labelTmp = EnsureComponent<TextMeshProUGUI>(labelGo);
+            labelTmp.text      = label;
+            labelTmp.fontSize  = fontSize;
+            labelTmp.color     = labelColor;
+            labelTmp.alignment = TextAlignmentOptions.MidlineLeft;
+            if (isHeader) labelTmp.fontStyle = FontStyles.Bold;
+            {
+                var rt = labelGo.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0f,    0f);
+                rt.anchorMax = new Vector2(0.45f, 1f);
+                rt.offsetMin = new Vector2(12f, 0f);
+                rt.offsetMax = Vector2.zero;
+            }
+
+            // Колонка 2 — Значение игрока (центр-правый)
+            var playerGo  = EnsureChild(rowGo, "PlayerValue");
+            var playerTmp = EnsureComponent<TextMeshProUGUI>(playerGo);
+            playerTmp.text      = playerVal;
+            playerTmp.fontSize  = fontSize;
+            playerTmp.color     = playerColor;
+            playerTmp.alignment = TextAlignmentOptions.Center;
+            if (isHeader) playerTmp.fontStyle = FontStyles.Bold;
+            {
+                var rt = playerGo.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.45f, 0f);
+                rt.anchorMax = new Vector2(0.72f, 1f);
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+            }
+
+            // Колонка 3 — Значение врага
+            var enemyGo  = EnsureChild(rowGo, "EnemyValue");
+            var enemyTmp = EnsureComponent<TextMeshProUGUI>(enemyGo);
+            enemyTmp.text      = enemyVal;
+            enemyTmp.fontSize  = fontSize;
+            enemyTmp.color     = enemyColor;
+            enemyTmp.alignment = TextAlignmentOptions.Center;
+            if (isHeader) enemyTmp.fontStyle = FontStyles.Bold;
+            {
+                var rt = enemyGo.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.72f, 0f);
+                rt.anchorMax = new Vector2(1f,    1f);
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = new Vector2(-12f, 0f);
+            }
+        }
+
+        private static void ShiftButtonsContainer(GameObject panelGo, float deltaY)
+        {
+            var buttonsGo = panelGo.transform.Find("Buttons");
+            if (buttonsGo == null) return;
+
+            var rt = buttonsGo.GetComponent<RectTransform>();
+            if (rt == null) return;
+
+            // Идемпотентно: устанавливаем целевую позицию
+            rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, deltaY);
+        }
+
+        private static TextMeshProUGUI GetRowValueTmp(GameObject statsPanel, string rowName, string childName)
+        {
+            var row   = FindDescendantByName(statsPanel, rowName);
+            if (row == null) return null;
+            var child = row.transform.Find(childName);
+            return child != null ? child.GetComponent<TextMeshProUGUI>() : null;
         }
 
         // ----------------------------------------------------------------

@@ -1,3 +1,4 @@
+using System.Text;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Selection;
@@ -27,6 +28,9 @@ namespace DiplomaGame.Runtime.UI
 
         private ProductionBuilding _trackedProduction;
         private int                _lastQueueCount = -1;
+
+        // Переиспользуемый StringBuilder для составной строки выделения (без GC)
+        private readonly StringBuilder _selectionSb = new StringBuilder(64);
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -71,7 +75,8 @@ namespace DiplomaGame.Runtime.UI
                 if (currentCount != _lastQueueCount)
                 {
                     _lastQueueCount = currentCount;
-                    queueText.SetText("В очереди: " + currentCount.ToString());
+                    // SetText(string, float) использует внутренний форматтер TMP — без boxing/GC
+                    queueText.SetText("В очереди: {0}", currentCount);
                 }
             }
         }
@@ -128,10 +133,19 @@ namespace DiplomaGame.Runtime.UI
 
                 if (infoText != null)
                 {
+                    // Используем кэшированный StringBuilder — без строковых аллокаций
+                    _selectionSb.Clear();
+                    _selectionSb.Append("Выбрано: ");
+                    _selectionSb.Append(selected.Count);
+                    _selectionSb.Append(" юнитов");
                     if (maxHp > 0)
-                        infoText.SetText("Выбрано: " + selected.Count.ToString() + " юнитов  HP: " + totalHp.ToString() + "/" + maxHp.ToString());
-                    else
-                        infoText.SetText("Выбрано: " + selected.Count.ToString() + " юнитов");
+                    {
+                        _selectionSb.Append("  HP: ");
+                        _selectionSb.Append(totalHp);
+                        _selectionSb.Append('/');
+                        _selectionSb.Append(maxHp);
+                    }
+                    infoText.SetText(_selectionSb);
                 }
             }
         }

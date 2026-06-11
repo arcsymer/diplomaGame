@@ -24,7 +24,8 @@ namespace DiplomaGame.Runtime.Core
         // Сериализованные поля
         // ----------------------------------------------------------------
 
-        [SerializeField] private GameOverController _gameOver;
+        [SerializeField] private GameOverController  _gameOver;
+        [SerializeField] private MatchStatsCollector _statsCollector;
 
         // ----------------------------------------------------------------
         // Публичный API
@@ -58,6 +59,10 @@ namespace DiplomaGame.Runtime.Core
             // GameOverController — берём из SerializedObject или ищем в сцене
             if (_gameOver == null)
                 _gameOver = UnityEngine.Object.FindFirstObjectByType<GameOverController>();
+
+            // MatchStatsCollector — берём из SerializedObject или ищем в сцене
+            if (_statsCollector == null)
+                _statsCollector = UnityEngine.Object.FindAnyObjectByType<MatchStatsCollector>();
 
             // HQ подписка только если не была проставлена извне (через WatchHQs в тестах)
             if (!_hqsInitializedExternally)
@@ -180,14 +185,18 @@ namespace DiplomaGame.Runtime.Core
         private void OnEnemyHQDied()
         {
             if (_gameOver != null && _gameOver.IsShown) return;
-            _gameOver?.ShowVictory();
+            _statsCollector?.FinalizeStats();
+            var stats = _statsCollector?.Stats;
+            _gameOver?.ShowVictory(stats);
             MatchEnded?.Invoke(true);
         }
 
         private void OnPlayerHQDied()
         {
             if (_gameOver != null && _gameOver.IsShown) return;
-            _gameOver?.ShowDefeat();
+            _statsCollector?.FinalizeStats();
+            var stats = _statsCollector?.Stats;
+            _gameOver?.ShowDefeat(stats);
             MatchEnded?.Invoke(false);
         }
 

@@ -15,6 +15,9 @@ namespace DiplomaGame.Runtime.Combat
 
         /// <summary>Вызывается при гибели любого Health в сцене. Параметр — экземпляр.</summary>
         public static event Action<Health> AnyDied;
+
+        /// <summary>Вызывается при получении урона любым Health в сцене. Параметры: экземпляр, amount.</summary>
+        public static event Action<Health, float> AnyDamaged;
         [SerializeField] private float _maxHp = 100f;
 
         // ----------------------------------------------------------------
@@ -100,6 +103,7 @@ namespace DiplomaGame.Runtime.Combat
                 _currentHp = 0f;
 
             Damaged?.Invoke(amount, _currentHp);
+            AnyDamaged?.Invoke(this, amount);
 
             if (_currentHp <= 0f)
             {

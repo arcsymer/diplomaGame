@@ -1,4 +1,5 @@
 using DiplomaGame.Runtime.Audio;
+using DiplomaGame.Runtime.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -12,8 +13,9 @@ namespace DiplomaGame.Runtime.UI
     /// </summary>
     public sealed class GameOverController : MonoBehaviour
     {
-        [SerializeField] private GameObject victoryPanel;
-        [SerializeField] private GameObject defeatPanel;
+        [SerializeField] private GameObject    victoryPanel;
+        [SerializeField] private GameObject    defeatPanel;
+        [SerializeField] private MatchStatsView _statsView;
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -43,8 +45,18 @@ namespace DiplomaGame.Runtime.UI
         /// </summary>
         public void ShowVictory()
         {
+            ShowVictory(null);
+        }
+
+        /// <summary>
+        /// Показывает экран победы со статистикой матча.
+        /// stats может быть null — тогда MatchStatsView очищается.
+        /// </summary>
+        public void ShowVictory(MatchStats stats)
+        {
             if (defeatPanel  != null) defeatPanel.SetActive(false);
             if (victoryPanel != null) victoryPanel.SetActive(true);
+            _statsView?.Show(stats, playerWon: true);
             Time.timeScale = 0f;
             AudioManager.Instance?.PlayVictory();
         }
@@ -55,8 +67,18 @@ namespace DiplomaGame.Runtime.UI
         /// </summary>
         public void ShowDefeat()
         {
+            ShowDefeat(null);
+        }
+
+        /// <summary>
+        /// Показывает экран поражения со статистикой матча.
+        /// stats может быть null — тогда MatchStatsView очищается.
+        /// </summary>
+        public void ShowDefeat(MatchStats stats)
+        {
             if (victoryPanel != null) victoryPanel.SetActive(false);
             if (defeatPanel  != null) defeatPanel.SetActive(true);
+            _statsView?.Show(stats, playerWon: false);
             Time.timeScale = 0f;
             AudioManager.Instance?.PlayDefeat();
         }

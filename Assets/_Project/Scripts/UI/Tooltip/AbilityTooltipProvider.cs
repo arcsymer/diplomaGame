@@ -12,6 +12,11 @@ namespace DiplomaGame.Runtime.UI
     {
         private AbilitySlotUI _slotUi;
 
+        // Кэш: последний использованный AbilityData и соответствующий ему TooltipData.
+        // Пересчёт происходит только при смене ссылки на AbilityData.
+        private AbilityData _cachedAbility;
+        private TooltipData _cachedTooltip;
+
         private void Awake()
         {
             _slotUi = GetComponent<AbilitySlotUI>();
@@ -24,8 +29,15 @@ namespace DiplomaGame.Runtime.UI
             if (ability == null)
                 return new TooltipData("Способность", "Слот не назначен");
 
-            string stats = TooltipLogic.FormatAbilityStats(ability);
-            return new TooltipData(ability.DisplayName, ability.Description, stats);
+            // Пересчитываем только при смене AbilityData (сравнение по ссылке)
+            if (!ReferenceEquals(ability, _cachedAbility))
+            {
+                _cachedAbility = ability;
+                string stats   = TooltipLogic.FormatAbilityStats(ability);
+                _cachedTooltip = new TooltipData(ability.DisplayName, ability.Description, stats);
+            }
+
+            return _cachedTooltip;
         }
     }
 }

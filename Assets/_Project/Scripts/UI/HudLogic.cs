@@ -8,7 +8,12 @@ namespace DiplomaGame.Runtime.UI
     /// </summary>
     public static class HudLogic
     {
-        /// <summary>Форматирует количество кристаллов в строку «Crystals: N».</summary>
+        /// <summary>
+        /// Форматирует количество кристаллов в строку «Crystals: N».
+        /// Публичный контракт сохранён для EditMode-тестов.
+        /// В рантайме ResourceDisplay использует label.SetText("Crystals: {0}", amount)
+        /// напрямую — без аллокации строки.
+        /// </summary>
         public static string FormatCrystals(int amount)
         {
             return "Crystals: " + amount.ToString();

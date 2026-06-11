@@ -25,6 +25,9 @@ namespace DiplomaGame.Runtime.Economy
         /// <summary>Вызывается при любом изменении баланса фракции.</summary>
         public event Action<Faction, int> BalanceChanged;
 
+        /// <summary>Вызывается при добавлении кристаллов фракции. Параметры: фракция, количество.</summary>
+        public event Action<Faction, int> CrystalsMined;
+
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
@@ -68,6 +71,7 @@ namespace DiplomaGame.Runtime.Economy
 
             _balances[(int)faction] += amount;
             BalanceChanged?.Invoke(faction, _balances[(int)faction]);
+            CrystalsMined?.Invoke(faction, amount);
         }
 
         // ----------------------------------------------------------------

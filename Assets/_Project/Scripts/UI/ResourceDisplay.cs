@@ -71,8 +71,9 @@ namespace DiplomaGame.Runtime.UI
         private void Refresh(int amount)
         {
             if (_label == null) return;
-            // SetText(string) с int-аргументом в TMP 3.x использует внутренний конвертер без аллокаций
-            _label.SetText(HudLogic.FormatCrystals(amount));
+            // SetText("{0}", float) — перегрузка TMP без boxing и строковых аллокаций.
+            // HudLogic.FormatCrystals оставлен для EditMode-тестов (публичный контракт).
+            _label.SetText("Crystals: {0}", amount);
         }
     }
 }
