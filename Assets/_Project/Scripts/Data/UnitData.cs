@@ -10,6 +10,10 @@ namespace DiplomaGame.Runtime.Data
     public sealed class UnitData : ScriptableObject
     {
         [SerializeField] private string _displayName      = "Unit";
+        [TextArea(2, 4)]
+        [SerializeField] private string _description      = "";
+        [Tooltip("Стоимость в Supply. 0 — строка Supply в тултипе скрыта.")]
+        [SerializeField] private int    _supplyCost       = 0;
         [SerializeField] private float  _maxHp            = 100f;
         [SerializeField] private float  _damage           = 10f;
         [SerializeField] private float  _attackRange      = 8f;
@@ -23,11 +27,16 @@ namespace DiplomaGame.Runtime.Data
         [Tooltip("Если true — юнит никогда не уходит в отступление (для будущих типов).")]
         [SerializeField] private bool   _retreatDisabled  = false;
 
+        [Tooltip("Кулдаун (сек) между повторными отступлениями. 0 — отступление одноразовое.")]
+        [SerializeField] private float  _retreatCooldown  = 0f;
+
         // ----------------------------------------------------------------
         // Публичный API (read-only)
         // ----------------------------------------------------------------
 
         public string DisplayName       => _displayName;
+        public string Description       => _description;
+        public int    SupplyCost        => _supplyCost;
         public float  MaxHp             => _maxHp;
         public float  Damage            => _damage;
         public float  AttackRange       => _attackRange;
@@ -37,6 +46,13 @@ namespace DiplomaGame.Runtime.Data
         public float  RetreatHpFraction => _retreatHpFraction;
         public bool   RetreatDisabled   => _retreatDisabled;
 
+        /// <summary>
+        /// Кулдаун повторного отступления в секундах.
+        /// 0 — отступление одноразово за бой (старое поведение).
+        /// &gt; 0 — юнит может отступать повторно, но не чаще чем раз в N секунд.
+        /// </summary>
+        public float  RetreatCooldown   => _retreatCooldown;
+
         // ----------------------------------------------------------------
         // Internal — для PlayMode-тестов (без SerializedObject)
         // ----------------------------------------------------------------
@@ -45,18 +61,23 @@ namespace DiplomaGame.Runtime.Data
         /// Создаёт UnitData с произвольными значениями — без SerializedObject (доступно в PlayMode).
         /// </summary>
         internal static UnitData CreateForTest(
-            string displayName      = "TestUnit",
-            float  maxHp            = 100f,
-            float  damage           = 10f,
-            float  attackRange      = 8f,
-            float  attackCooldown   = 1f,
-            float  aggroRadius      = 12f,
-            float  moveSpeed        = 5f,
+            string displayName       = "TestUnit",
+            float  maxHp             = 100f,
+            float  damage            = 10f,
+            float  attackRange       = 8f,
+            float  attackCooldown    = 1f,
+            float  aggroRadius       = 12f,
+            float  moveSpeed         = 5f,
             float  retreatHpFraction = 0.25f,
-            bool   retreatDisabled  = false)
+            bool   retreatDisabled   = false,
+            float  retreatCooldown   = 0f,
+            string description       = "",
+            int    supplyCost        = 0)
         {
             var data                 = CreateInstance<UnitData>();
             data._displayName        = displayName;
+            data._description        = description;
+            data._supplyCost         = supplyCost;
             data._maxHp              = maxHp;
             data._damage             = damage;
             data._attackRange        = attackRange;
@@ -65,6 +86,7 @@ namespace DiplomaGame.Runtime.Data
             data._moveSpeed          = moveSpeed;
             data._retreatHpFraction  = retreatHpFraction;
             data._retreatDisabled    = retreatDisabled;
+            data._retreatCooldown    = retreatCooldown;
             return data;
         }
     }

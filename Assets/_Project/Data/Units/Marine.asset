@@ -13,6 +13,10 @@ MonoBehaviour:
   m_Name: Marine
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Data.UnitData
   _displayName: Marine
+  _description: "\u0423\u043D\u0438\u0432\u0435\u0440\u0441\u0430\u043B\u044C\u043D\u044B\u0439
+    \u0431\u043E\u0435\u0446. \u0410\u0442\u0430\u043A\u0443\u0435\u0442 \u043D\u0430\u0437\u0435\u043C\u043D\u044B\u0435
+    \u0446\u0435\u043B\u0438."
+  _supplyCost: 1
   _maxHp: 100
   _damage: 10
   _attackRange: 8
@@ -21,3 +25,4 @@ MonoBehaviour:
   _moveSpeed: 5
   _retreatHpFraction: 0.25
   _retreatDisabled: 0
+  _retreatCooldown: 0

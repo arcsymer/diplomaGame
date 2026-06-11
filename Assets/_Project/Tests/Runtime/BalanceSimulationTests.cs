@@ -160,53 +160,99 @@ namespace DiplomaGame.Tests.Runtime
         // Тест 1: зеркальный бой Marine vs Marine — проверка симметрии
         // ----------------------------------------------------------------
 
+        /// <summary>
+        /// Серия зеркальных боёв: один матч с ретритом почти всегда заканчивается
+        /// разгромом (отступающий не отстреливается — ранний перевес превращается
+        /// в снежный ком), поэтому симметрию ИИ измеряем ВИНРЕЙТОМ по серии.
+        /// Порядок создания команд чередуется по раундам — гасит остаточный
+        /// перекос от порядка Update (создан первым → Update первым).
+        /// </summary>
         [UnityTest]
-        [Timeout(180000)]
-        public IEnumerator MirrorClash_MarineVsMarine_ResolvesAndIsRecorded()
+        [Timeout(300000)]
+        public IEnumerator MirrorClash_MarineVsMarine_SeriesTerminatesAndIsRecorded()
         {
+            const int   Rounds        = 6;
+            const float RoundSimLimit = 240f;
+
             var buffer = new List<Unit>(64);
 
-            SpawnLine(Faction.Player, MarineData(), x: -5f, count: 8, namePrefix: "BalanceP");
-            SpawnLine(Faction.Enemy,  MarineData(), x: +5f, count: 8, namePrefix: "BalanceE");
+            int playerWins = 0, enemyWins = 0, draws = 0, timeouts = 0;
+            float totalDuration = 0f;
 
-            Time.timeScale = 10f;
-            yield return null;
+            for (int round = 0; round < Rounds; round++)
+            {
+                // Чередуем порядок создания (= порядок Update)
+                if (round % 2 == 0)
+                {
+                    SpawnLine(Faction.Player, MarineData(), x: -5f, count: 8, namePrefix: "BalanceP");
+                    SpawnLine(Faction.Enemy,  MarineData(), x: +5f, count: 8, namePrefix: "BalanceE");
+                }
+                else
+                {
+                    SpawnLine(Faction.Enemy,  MarineData(), x: +5f, count: 8, namePrefix: "BalanceE");
+                    SpawnLine(Faction.Player, MarineData(), x: -5f, count: 8, namePrefix: "BalanceP");
+                }
 
-            float simStart = Time.time;
-            yield return WaitForBattleEnd(simLimitSeconds: 240f, buffer);
-            float duration = Time.time - simStart;
+                Time.timeScale = 10f;
+                yield return null;
 
-            Time.timeScale = 1f;
+                float simStart = Time.time;
+                yield return WaitForBattleEnd(RoundSimLimit, buffer);
+                float duration = Time.time - simStart;
+                totalDuration += duration;
 
-            int   playerAlive = CountAlive(Faction.Player, buffer);
-            int   enemyAlive  = CountAlive(Faction.Enemy, buffer);
-            float playerHp    = SumHp(Faction.Player, buffer);
-            float enemyHp     = SumHp(Faction.Enemy, buffer);
+                int playerAlive = CountAlive(Faction.Player, buffer);
+                int enemyAlive  = CountAlive(Faction.Enemy, buffer);
 
-            // Победитель: уничтожение стороны либо больший суммарный HP по таймауту
-            string winner = playerAlive == 0 && enemyAlive == 0 ? "Draw"
-                          : enemyAlive == 0                      ? "Player"
-                          : playerAlive == 0                     ? "Enemy"
-                          : playerHp > enemyHp                   ? "Player (по HP)"
-                          : enemyHp  > playerHp                  ? "Enemy (по HP)"
-                          : "Draw";
+                if (playerAlive > 0 && enemyAlive > 0) timeouts++;
+
+                if      (enemyAlive == 0 && playerAlive > 0) playerWins++;
+                else if (playerAlive == 0 && enemyAlive > 0) enemyWins++;
+                else draws++;
+
+                Debug.Log($"[Balance] Mirror round {round + 1}/{Rounds}: " +
+                          $"P {playerAlive} — E {enemyAlive}, {duration:F0} сим-с");
+
+                // Зачистка раунда (юниты сами снимаются с регистрации в OnDestroy)
+                DestroyRoundUnits(buffer);
+                Time.timeScale = 1f;
+                yield return null;
+            }
+
+            string winner = playerWins > enemyWins ? "Player" :
+                            enemyWins > playerWins ? "Enemy"  : "Draw";
 
             BalanceReport.Write("balance-mirror.json", new BalanceReport.ClashResult
             {
-                scenario       = "Mirror 8v8 Marine vs Marine",
-                winner         = winner,
-                playerAlive    = playerAlive,
-                enemyAlive     = enemyAlive,
-                playerHpLeft   = playerHp,
-                enemyHpLeft    = enemyHp,
-                simDurationSec = duration,
+                scenario       = $"Mirror 8v8 Marine vs Marine — серия {Rounds} раундов (винрейт)",
+                winner         = $"{winner} (серия)",
+                playerAlive    = playerWins, // в серии: число побед, не выживших
+                enemyAlive     = enemyWins,
+                playerHpLeft   = draws,
+                enemyHpLeft    = timeouts,
+                simDurationSec = totalDuration / Rounds,
             });
 
-            // Бой обязан состояться: хотя бы одна сторона понесла потери
-            Assert.IsTrue(
-                playerAlive < 8 || enemyAlive < 8,
-                $"За 240 сим-секунд зеркального боя должны быть потери. " +
-                $"Player: {playerAlive}/8, Enemy: {enemyAlive}/8.");
+            // Главная гарантия круга 2: бои сходятся, таймаутов нет
+            Assert.AreEqual(0, timeouts,
+                $"Все {Rounds} раундов обязаны завершиться до {RoundSimLimit} сим-с (фикс ретрита, ADR-016).");
+
+            // Серия не должна быть тотально односторонней: при честной монете
+            // P(6:0) ≈ 3% — допускаем 5:1, но 6:0 сигналит о системном перекосе
+            Assert.IsTrue(playerWins < Rounds && enemyWins < Rounds,
+                $"Серия {Rounds}:0 — системная асимметрия ИИ. Player {playerWins}, Enemy {enemyWins}.");
+        }
+
+        /// <summary>Уничтожает юнитов раунда между раундами серии.</summary>
+        private static void DestroyRoundUnits(List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(Faction.Player, buffer);
+            for (int i = buffer.Count - 1; i >= 0; i--)
+                if (buffer[i] != null) Object.DestroyImmediate(buffer[i].gameObject);
+
+            UnitRegistry.GetUnits(Faction.Enemy, buffer);
+            for (int i = buffer.Count - 1; i >= 0; i--)
+                if (buffer[i] != null) Object.DestroyImmediate(buffer[i].gameObject);
         }
 
         // ----------------------------------------------------------------

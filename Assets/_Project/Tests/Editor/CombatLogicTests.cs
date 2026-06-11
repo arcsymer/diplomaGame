@@ -170,5 +170,84 @@ namespace DiplomaGame.Tests.Editor
 
             Assert.AreEqual(rallyPoint, result, "Без угрозы — всё равно возвращает rallyPoint.");
         }
+
+        // ----------------------------------------------------------------
+        // RandomiseInitialCooldownOffset
+        // ----------------------------------------------------------------
+
+        [Test]
+        public void RandomiseInitialCooldownOffset_ZeroCooldown_ReturnsZero()
+        {
+            float result = CombatLogic.RandomiseInitialCooldownOffset(cooldown: 0f, seed: 12345);
+
+            Assert.AreEqual(0f, result, 0.0001f, "Нулевой кулдаун — смещение всегда 0.");
+        }
+
+        [Test]
+        public void RandomiseInitialCooldownOffset_InRange()
+        {
+            float cooldown = 1.5f;
+            float result   = CombatLogic.RandomiseInitialCooldownOffset(cooldown, seed: 42);
+
+            Assert.GreaterOrEqual(result, 0f,       "Смещение не должно быть отрицательным.");
+            Assert.Less(result,           cooldown,  "Смещение должно быть строго меньше cooldown.");
+        }
+
+        [Test]
+        public void RandomiseInitialCooldownOffset_DifferentSeeds_ProduceDifferentOffsets()
+        {
+            // Вероятность коллизии для двух разных seed пренебрежимо мала — это детерминированная функция.
+            float a = CombatLogic.RandomiseInitialCooldownOffset(1f, seed: 1);
+            float b = CombatLogic.RandomiseInitialCooldownOffset(1f, seed: 2);
+
+            Assert.AreNotEqual(a, b, "Разные seed должны давать разные смещения.");
+        }
+
+        [Test]
+        public void RandomiseInitialCooldownOffset_SameSeed_Deterministic()
+        {
+            float first  = CombatLogic.RandomiseInitialCooldownOffset(2f, seed: 999);
+            float second = CombatLogic.RandomiseInitialCooldownOffset(2f, seed: 999);
+
+            Assert.AreEqual(first, second, 0f, "Одинаковый seed — результат детерминирован.");
+        }
+
+        // ----------------------------------------------------------------
+        // CanRetreatAgain
+        // ----------------------------------------------------------------
+
+        [Test]
+        public void CanRetreatAgain_ZeroCooldown_AlwaysFalse()
+        {
+            // retreatCooldown == 0 означает одноразовое отступление
+            bool result = CombatLogic.CanRetreatAgain(retreatCooldown: 0f, lastRetreatTime: 0f, now: 100f);
+
+            Assert.IsFalse(result, "RetreatCooldown=0 — повторное отступление запрещено навсегда.");
+        }
+
+        [Test]
+        public void CanRetreatAgain_CooldownNotExpired_ReturnsFalse()
+        {
+            bool result = CombatLogic.CanRetreatAgain(retreatCooldown: 30f, lastRetreatTime: 10f, now: 35f);
+
+            Assert.IsFalse(result, "Кулдаун ещё не истёк — повторное отступление запрещено.");
+        }
+
+        [Test]
+        public void CanRetreatAgain_CooldownExpired_ReturnsTrue()
+        {
+            bool result = CombatLogic.CanRetreatAgain(retreatCooldown: 30f, lastRetreatTime: 10f, now: 40f);
+
+            Assert.IsTrue(result, "Кулдаун истёк — повторное отступление разрешено.");
+        }
+
+        [Test]
+        public void CanRetreatAgain_ExactlyAtBoundary_ReturnsTrue()
+        {
+            // now - lastRetreatTime == retreatCooldown → разрешаем (>=)
+            bool result = CombatLogic.CanRetreatAgain(retreatCooldown: 20f, lastRetreatTime: 5f, now: 25f);
+
+            Assert.IsTrue(result, "Точно на границе кулдауна — повторное отступление разрешено (>=).");
+        }
     }
 }
