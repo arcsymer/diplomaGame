@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
 
-// Разрешает PlayMode-тестам обращаться к internal-членам Runtime-сборки.
+// Разрешает PlayMode- и EditMode-тестам обращаться к internal-членам Runtime-сборки.
 [assembly: InternalsVisibleTo("DiplomaGame.Tests.Runtime")]
+[assembly: InternalsVisibleTo("DiplomaGame.Tests.Editor")]

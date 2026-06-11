@@ -10,6 +10,8 @@ namespace DiplomaGame.Runtime.Data
     public sealed class AbilityData : ScriptableObject
     {
         [SerializeField] private string      _displayName  = "Ability";
+        [TextArea(2, 4)]
+        [SerializeField] private string      _description  = "";
         [SerializeField] private float       _cooldown     = 8f;
         [SerializeField] private AbilityType _abilityType  = AbilityType.Shockwave;
 
@@ -36,6 +38,7 @@ namespace DiplomaGame.Runtime.Data
         // ----------------------------------------------------------------
 
         public string      DisplayName        => _displayName;
+        public string      Description        => _description;
         public float       Cooldown           => _cooldown;
         public AbilityType AbilityType        => _abilityType;
         public float       DashDistance       => _dashDistance;
@@ -61,10 +64,12 @@ namespace DiplomaGame.Runtime.Data
             float effectAmount = 40f,
             float buffDuration = 5f,
             float fireRateMultiplier = 2f,
-            float damageMultiplier = 1.5f)
+            float damageMultiplier = 1.5f,
+            string description = "")
         {
             var data                 = CreateInstance<AbilityData>();
             data._displayName        = name;
+            data._description        = description;
             data._cooldown           = cooldown;
             data._abilityType        = type;
             data._dashDistance       = dashDistance;

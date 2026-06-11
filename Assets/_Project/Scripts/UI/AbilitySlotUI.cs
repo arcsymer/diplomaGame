@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Hero;
 using TMPro;
 using UnityEngine;
@@ -34,6 +35,15 @@ namespace DiplomaGame.Runtime.UI
         // ----------------------------------------------------------------
         // Публичный API
         // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Возвращает AbilityData, привязанную к этому слоту.
+        /// Используется AbilityTooltipProvider для получения данных тултипа.
+        /// </summary>
+        public AbilityData GetBoundAbility()
+        {
+            return _abilitySystem != null ? _abilitySystem.GetAbility(_slotIndex) : null;
+        }
 
         /// <summary>
         /// Связывает слот с AbilitySystem и индексом способности (0..3).

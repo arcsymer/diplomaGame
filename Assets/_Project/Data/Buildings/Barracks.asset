@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Barracks
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Data.BuildingData
   _displayName: Barracks
+  _description: "\u041A\u0430\u0437\u0430\u0440\u043C\u0430. \u041F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442
+    \u0431\u043E\u0435\u0432\u044B\u0445 \u044E\u043D\u0438\u0442\u043E\u0432."
   _cost: 100
   _maxHp: 500
   _buildingType: 1

@@ -82,5 +82,40 @@ namespace DiplomaGame.Runtime.Combat
         {
             return rallyPoint;
         }
+
+        /// <summary>
+        /// Вычисляет смещение первого выстрела для рандомизации кулдауна.
+        /// Возвращает случайное значение в диапазоне [0, cooldown), используя
+        /// детерминированный случай на основе <paramref name="seed"/>.
+        /// Нет аллокаций, нет зависимости от UnityEngine.Random — чистая математика.
+        /// </summary>
+        /// <param name="cooldown">Кулдаун атаки юнита.</param>
+        /// <param name="seed">Уникальное число для рандомизации (например, GetInstanceID()).</param>
+        public static float RandomiseInitialCooldownOffset(float cooldown, int seed)
+        {
+            if (cooldown <= 0f) return 0f;
+            // Псевдослучайное значение через хэш-mix без аллокаций
+            uint h = (uint)seed;
+            h ^= h >> 16;
+            h *= 0x45d9f3b;
+            h ^= h >> 16;
+            // Нормализуем в [0, 1)
+            float t = (h & 0x7FFFFFFFu) / (float)0x7FFFFFFF;
+            return t * cooldown;
+        }
+
+        /// <summary>
+        /// Проверяет, можно ли снова отступить.
+        /// Если <paramref name="retreatCooldown"/> == 0 — отступление одноразово (всегда false после первого).
+        /// Если &gt; 0 — разрешает повторное отступление по истечении кулдауна.
+        /// </summary>
+        /// <param name="retreatCooldown">Параметр из UnitData.RetreatCooldown.</param>
+        /// <param name="lastRetreatTime">Time.time в момент последнего ухода в Retreating.</param>
+        /// <param name="now">Текущее Time.time.</param>
+        public static bool CanRetreatAgain(float retreatCooldown, float lastRetreatTime, float now)
+        {
+            if (retreatCooldown <= 0f) return false;
+            return now - lastRetreatTime >= retreatCooldown;
+        }
     }
 }

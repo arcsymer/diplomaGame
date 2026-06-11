@@ -73,7 +73,10 @@ namespace DiplomaGame.Runtime.Units
         private const float ScanInterval = 0.25f;
 
         // Флаг: отступление уже было активировано (для одноразового срабатывания)
-        private bool _retreatTriggered;
+        private bool  _retreatTriggered;
+
+        // Time.time в момент, когда началось последнее отступление (для кулдауна)
+        private float _lastRetreatTime;
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -95,6 +98,26 @@ namespace DiplomaGame.Runtime.Units
             // Применяем UnitData, если задан
             if (_data != null)
                 ApplyData(_data);
+        }
+
+        private void Start()
+        {
+            // Рандомизируем начальный кулдаун атаки, чтобы устранить first-mover advantage
+            // от порядка Update: юниты, созданные первыми, иначе стреляют раньше всех.
+            // Используем GetEntityId() как seed — уникален, нет аллокаций.
+            // Сдвиг на -AttackCooldown: первый выстрел возможен ровно через offset секунд,
+            // иначе CanFire отложил бы его на полный кулдаун + offset.
+            if (_data != null)
+            {
+                float offset = CombatLogic.RandomiseInitialCooldownOffset(
+                    _data.AttackCooldown, (int)gameObject.GetEntityId());
+                _lastAttackTime = Time.time - _data.AttackCooldown + offset;
+
+                // Фаза сканирования тоже рандомизируется: иначе все юниты сканируют
+                // в один кадр, и порядок Update решает, кто захватит цель первым.
+                _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(
+                    ScanInterval, (int)gameObject.GetEntityId() * 31);
+            }
         }
 
         private void OnDestroy()
@@ -122,7 +145,15 @@ namespace DiplomaGame.Runtime.Units
                 return;
             }
 
-            // Проверяем отступление первым делом
+            // Проверяем отступление первым делом.
+            // _retreatTriggered блокирует повторный ретрит до истечения кулдауна.
+            // Если кулдаун > 0 и прошло достаточно времени — разрешаем снова.
+            if (_retreatTriggered && _data != null &&
+                CombatLogic.CanRetreatAgain(_data.RetreatCooldown, _lastRetreatTime, Time.time))
+            {
+                _retreatTriggered = false;
+            }
+
             if (!_retreatTriggered && ShouldStartRetreat())
             {
                 StartRetreat();
@@ -141,12 +172,22 @@ namespace DiplomaGame.Runtime.Units
 
         /// <summary>
         /// Инициализирует UnitData без SerializedObject (доступно в PlayMode-тестах).
+        /// Рандомизирует начальный кулдаун атаки так же, как Start().
         /// </summary>
         internal void InitForTest(UnitData data)
         {
             _data = data;
             if (_health != null)
                 ApplyData(data);
+
+            // Рандомизация кулдауна — применяем сразу, т.к. Start() может вызваться
+            // раньше или позже InitForTest в зависимости от порядка AddComponent/Start.
+            // Сдвиг на -AttackCooldown — как в Start(): первый выстрел через offset секунд.
+            float offset = CombatLogic.RandomiseInitialCooldownOffset(
+                data.AttackCooldown, (int)gameObject.GetEntityId());
+            _lastAttackTime = Time.time - data.AttackCooldown + offset;
+            _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(
+                ScanInterval, (int)gameObject.GetEntityId() * 31);
         }
 
         // ----------------------------------------------------------------
@@ -235,6 +276,13 @@ namespace DiplomaGame.Runtime.Units
             // При обычном Move — юнит игнорирует врагов
             if (cmdType == UnitCommandType.Move)
                 return 0f;
+
+            // После ретрита юнит вернулся на базу в Idle.
+            // Чтобы бой не замирал — сканируем на AggroRadius * 5 (достаточно чтобы
+            // увидеть противника на другом конце поля ≈ 60 ед. при базовом aggro 12).
+            // Это гарантирует возобновление боя без вечного стояния на базах.
+            if (_retreatTriggered && _unit.CurrentState == UnitState.Idle)
+                return _data.AggroRadius * 5f;
 
             // Idle, Patrol — стандартный aggro
             return _data.AggroRadius;
@@ -344,6 +392,7 @@ namespace DiplomaGame.Runtime.Units
         private void StartRetreat()
         {
             _retreatTriggered  = true;
+            _lastRetreatTime   = Time.time;
             CurrentCombatState = CombatState.Retreating;
             _currentTargetHealth    = null;
             _currentTargetTransform = null;

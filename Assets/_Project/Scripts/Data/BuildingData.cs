@@ -10,6 +10,8 @@ namespace DiplomaGame.Runtime.Data
     public sealed class BuildingData : ScriptableObject
     {
         [SerializeField] private string       _displayName      = "Building";
+        [TextArea(2, 4)]
+        [SerializeField] private string       _description      = "";
         [SerializeField] private int          _cost             = 0;
         [SerializeField] private float        _maxHp            = 500f;
         [SerializeField] private BuildingType _buildingType     = BuildingType.Headquarters;
@@ -27,6 +29,7 @@ namespace DiplomaGame.Runtime.Data
         // ----------------------------------------------------------------
 
         public string       DisplayName       => _displayName;
+        public string       Description       => _description;
         public int          Cost              => _cost;
         public float        MaxHp             => _maxHp;
         public BuildingType BuildingType      => _buildingType;
@@ -52,10 +55,12 @@ namespace DiplomaGame.Runtime.Data
             float        incomeTickInterval = 2f,
             UnitData     produces          = null,
             float        productionTime    = 5f,
-            int          productionCost    = 50)
+            int          productionCost    = 50,
+            string       description       = "")
         {
             var data                  = CreateInstance<BuildingData>();
             data._displayName         = displayName;
+            data._description         = description;
             data._cost                = cost;
             data._maxHp               = maxHp;
             data._buildingType        = buildingType;

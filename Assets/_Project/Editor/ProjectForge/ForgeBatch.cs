@@ -79,6 +79,17 @@ namespace DiplomaGame.Editor
         }
 
         /// <summary>
+        /// Сборка системы тултипов: открыть Sandbox → обновить описания ассетов → собрать TooltipCanvas.
+        /// Вызывается как отдельный шаг или включается в полный батч через SetupFull.
+        /// </summary>
+        public static void SetupTooltips()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.UpdateTooltipDescriptions();
+            UITab.BuildTooltipSystem();
+        }
+
+        /// <summary>
         /// Полная настройка M6b: открыть Sandbox → собрать меню паузы и GameOver →
         /// создать/обновить MainMenu-сцену.
         /// Sandbox остаётся последней сохранённой (MainMenu сохраняется внутри CreateOrUpdateMainMenuScene,

@@ -13,6 +13,7 @@ namespace DiplomaGame.Editor
     {
         private const string UnitDataFolder     = "Assets/_Project/Data/Units";
         private const string BuildingDataFolder = "Assets/_Project/Data/Buildings";
+        private const string AbilityDataFolder  = "Assets/_Project/Data/Abilities";
 
         public string Title => "Config";
 
@@ -46,6 +47,18 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Create/Update Building Data (M5)", GUILayout.Height(32)))
                 CreateOrUpdateBuildingDataAssets();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Tooltip Descriptions: проставляет _description (и _supplyCost для юнитов)\n" +
+                "существующим ассетам Unit/Building/Ability Data для системы тултипов.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Update Tooltip Descriptions", GUILayout.Height(32)))
+                UpdateTooltipDescriptions();
         }
 
         // ----------------------------------------------------------------
@@ -62,6 +75,8 @@ namespace DiplomaGame.Editor
             CreateOrUpdateUnitData(
                 assetName:        "Marine",
                 displayName:      "Marine",
+                description:      "Универсальный боец. Атакует наземные цели.",
+                supplyCost:       1,
                 maxHp:            100f,
                 damage:           10f,
                 attackRange:      8f,
@@ -74,6 +89,8 @@ namespace DiplomaGame.Editor
             CreateOrUpdateUnitData(
                 assetName:        "EnemyGrunt",
                 displayName:      "Enemy Grunt",
+                description:      "Базовый враг. Атакует всё.",
+                supplyCost:       1,
                 maxHp:            80f,
                 damage:           8f,
                 attackRange:      7f,
@@ -103,7 +120,9 @@ namespace DiplomaGame.Editor
             float  aggroRadius,
             float  moveSpeed,
             float  retreatFraction,
-            bool   retreatDisabled)
+            bool   retreatDisabled,
+            string description  = "",
+            int    supplyCost   = 0)
         {
             string path     = $"{UnitDataFolder}/{assetName}.asset";
             var    existing = AssetDatabase.LoadAssetAtPath<UnitData>(path);
@@ -121,6 +140,8 @@ namespace DiplomaGame.Editor
 
             var so = new SerializedObject(data);
             so.FindProperty("_displayName").stringValue        = displayName;
+            so.FindProperty("_description").stringValue        = description;
+            so.FindProperty("_supplyCost").intValue            = supplyCost;
             so.FindProperty("_maxHp").floatValue               = maxHp;
             so.FindProperty("_damage").floatValue              = damage;
             so.FindProperty("_attackRange").floatValue         = attackRange;
@@ -156,6 +177,7 @@ namespace DiplomaGame.Editor
             CreateOrUpdateBuildingData(
                 assetName:         "HQ",
                 displayName:       "Headquarters",
+                description:       "Штаб. Генерирует доход кристаллов.",
                 cost:              0,
                 maxHp:             1000f,
                 buildingType:      DiplomaGame.Runtime.Data.BuildingType.Headquarters,
@@ -169,6 +191,7 @@ namespace DiplomaGame.Editor
             CreateOrUpdateBuildingData(
                 assetName:         "Barracks",
                 displayName:       "Barracks",
+                description:       "Казарма. Производит боевых юнитов.",
                 cost:              100,
                 maxHp:             500f,
                 buildingType:      DiplomaGame.Runtime.Data.BuildingType.Barracks,
@@ -182,6 +205,7 @@ namespace DiplomaGame.Editor
             CreateOrUpdateBuildingData(
                 assetName:         "Extractor",
                 displayName:       "Extractor",
+                description:       "Экстрактор. Добывает кристаллы из месторождения.",
                 cost:              75,
                 maxHp:             300f,
                 buildingType:      DiplomaGame.Runtime.Data.BuildingType.Extractor,
@@ -207,7 +231,8 @@ namespace DiplomaGame.Editor
             float        incomeTickInterval,
             DiplomaGame.Runtime.Data.UnitData produces,
             float        productionTime,
-            int          productionCost)
+            int          productionCost,
+            string       description  = "")
         {
             string path     = $"{BuildingDataFolder}/{assetName}.asset";
             var    existing = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.BuildingData>(path);
@@ -225,6 +250,7 @@ namespace DiplomaGame.Editor
 
             var so = new SerializedObject(data);
             so.FindProperty("_displayName").stringValue               = displayName;
+            so.FindProperty("_description").stringValue               = description;
             so.FindProperty("_cost").intValue                         = cost;
             so.FindProperty("_maxHp").floatValue                      = maxHp;
             so.FindProperty("_buildingType").enumValueIndex           = (int)buildingType;
@@ -236,6 +262,83 @@ namespace DiplomaGame.Editor
             so.ApplyModifiedPropertiesWithoutUndo();
 
             return data;
+        }
+
+        // ----------------------------------------------------------------
+        // Tooltip Descriptions — обновить существующие ассеты
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Проставляет _description и _supplyCost существующим ассетам Unit/Building/Ability Data.
+        /// Идемпотентно: безопасно вызывать повторно.
+        /// </summary>
+        internal static void UpdateTooltipDescriptions()
+        {
+            // ---- Units ----
+            SetUnitDescription("Marine",     "Универсальный боец. Атакует наземные цели.", 1);
+            SetUnitDescription("EnemyGrunt", "Базовый враг. Атакует всё.", 1);
+
+            // ---- Buildings ----
+            SetBuildingDescription("HQ",       "Штаб. Генерирует доход кристаллов.");
+            SetBuildingDescription("Barracks", "Казарма. Производит боевых юнитов.");
+            SetBuildingDescription("Extractor","Экстрактор. Добывает кристаллы из месторождения.");
+
+            // ---- Abilities ----
+            SetAbilityDescription("Dash",      "Рывок вперёд. Позволяет уйти из-под огня.");
+            SetAbilityDescription("Ability2",  "Ударная волна. Наносит урон врагам вокруг героя.");
+            SetAbilityDescription("Ability3",  "Ремонтное поле. Восстанавливает HP союзников вокруг.");
+            SetAbilityDescription("Ability4",  "Перегрузка. Временно повышает скорострельность и урон.");
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Tooltip Descriptions обновлены.");
+        }
+
+        private static void SetUnitDescription(string assetName, string description, int supplyCost = 0)
+        {
+            string path = $"{UnitDataFolder}/{assetName}.asset";
+            var    data = AssetDatabase.LoadAssetAtPath<UnitData>(path);
+            if (data == null)
+            {
+                Debug.LogWarning($"[Project Forge] UnitData не найден: {path}");
+                return;
+            }
+
+            var so = new SerializedObject(data);
+            so.FindProperty("_description").stringValue = description;
+            so.FindProperty("_supplyCost").intValue     = supplyCost;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetBuildingDescription(string assetName, string description)
+        {
+            string path = $"{BuildingDataFolder}/{assetName}.asset";
+            var    data = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.BuildingData>(path);
+            if (data == null)
+            {
+                Debug.LogWarning($"[Project Forge] BuildingData не найден: {path}");
+                return;
+            }
+
+            var so = new SerializedObject(data);
+            so.FindProperty("_description").stringValue = description;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetAbilityDescription(string assetName, string description)
+        {
+            string path = $"{AbilityDataFolder}/{assetName}.asset";
+            var    data = AssetDatabase.LoadAssetAtPath<AbilityData>(path);
+            if (data == null)
+            {
+                Debug.LogWarning($"[Project Forge] AbilityData не найден: {path}");
+                return;
+            }
+
+            var so = new SerializedObject(data);
+            so.FindProperty("_description").stringValue = description;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void EnsureFolder(string folderPath)

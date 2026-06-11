@@ -3,6 +3,7 @@ using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Hero;
+using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -55,6 +56,20 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Build Menus (M6b)", GUILayout.Height(32)))
                 BuildMenus();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Tooltip System: создаёт TooltipCanvas + TooltipView-иерархию,\n" +
+                "навешивает триггеры и провайдеры на AbilitySlot_1..4,\n" +
+                "ResourceText (Crystals), MinimapDisplay, hit-area производства.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Build Tooltip System", GUILayout.Height(32)))
+                BuildTooltipSystem();
         }
 
         // ----------------------------------------------------------------
@@ -153,6 +168,236 @@ namespace DiplomaGame.Editor
             AssetDatabase.Refresh();
 
             Debug.Log("[Project Forge] Build Game HUD (M6a) выполнен.");
+        }
+
+        // ----------------------------------------------------------------
+        // Tooltip System
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт TooltipCanvas + TooltipView-иерархию и
+        /// навешивает TooltipTrigger + провайдеры на нужные UI-элементы.
+        /// </summary>
+        internal static void BuildTooltipSystem()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            EnsureTmpEssentials();
+            EnsureEventSystem();
+
+            // --- TooltipCanvas ---
+            var canvasGo = EnsureGameObject("TooltipCanvas");
+            var canvas   = EnsureComponent<Canvas>(canvasGo);
+            canvas.renderMode  = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 100;
+
+            var scaler = EnsureComponent<CanvasScaler>(canvasGo);
+            scaler.uiScaleMode            = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution    = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode        = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight     = 0.5f;
+
+            EnsureComponent<GraphicRaycaster>(canvasGo);
+
+            // --- TooltipSystem-компонент ---
+            var tooltipSystemComp = EnsureComponent<TooltipSystem>(canvasGo);
+
+            // --- TooltipView-иерархия ---
+            var viewGo = EnsureChild(canvasGo, "TooltipView");
+            {
+                // Позиционирование: anchor верхний-левый, pivot верхний-левый
+                var vrt = viewGo.GetComponent<RectTransform>();
+                vrt.anchorMin = Vector2.zero;
+                vrt.anchorMax = Vector2.zero;
+                vrt.pivot     = new Vector2(0f, 1f);
+                vrt.anchoredPosition = new Vector2(100f, -100f);
+
+                // Фон
+                var bg = EnsureComponent<Image>(viewGo);
+                bg.color = new Color(0.05f, 0.05f, 0.08f, 0.92f);
+
+                // ContentSizeFitter
+                var csf = EnsureComponent<ContentSizeFitter>(viewGo);
+                csf.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+                csf.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
+
+                // LayoutElement — ограничивает ширину
+                var le = EnsureComponent<LayoutElement>(viewGo);
+                le.preferredWidth = TooltipLogic.TooltipMaxWidth;
+
+                // VerticalLayoutGroup
+                var vlg = EnsureComponent<VerticalLayoutGroup>(viewGo);
+                vlg.padding               = new RectOffset(12, 12, 10, 10);
+                vlg.spacing               = 4f;
+                vlg.childAlignment        = TextAnchor.UpperLeft;
+                vlg.childControlWidth     = true;
+                vlg.childControlHeight    = true;
+                vlg.childForceExpandWidth  = true;
+                vlg.childForceExpandHeight = false;
+
+                // CanvasGroup для fade-in
+                var cg = EnsureComponent<CanvasGroup>(viewGo);
+                cg.alpha          = 0f;
+                cg.interactable   = false;
+                cg.blocksRaycasts = false;
+
+                // TitleText
+                var titleGo  = EnsureChild(viewGo, "TitleText");
+                var titleTmp = EnsureComponent<TextMeshProUGUI>(titleGo);
+                titleTmp.text      = "Название";
+                titleTmp.fontSize  = 16f;
+                titleTmp.fontStyle = FontStyles.Bold;
+                titleTmp.color     = Color.white;
+                titleTmp.enableWordWrapping = true;
+
+                // Separator
+                var sepGo = EnsureChild(viewGo, "Separator");
+                var sepI  = EnsureComponent<Image>(sepGo);
+                sepI.color = new Color(0.4f, 0.4f, 0.5f, 0.6f);
+                {
+                    var sepLe = EnsureComponent<LayoutElement>(sepGo);
+                    sepLe.preferredHeight = 1f;
+                    sepLe.flexibleWidth   = 1f;
+                }
+
+                // DescriptionText
+                var descGo  = EnsureChild(viewGo, "DescriptionText");
+                var descTmp = EnsureComponent<TextMeshProUGUI>(descGo);
+                descTmp.text      = "Описание.";
+                descTmp.fontSize  = 13f;
+                descTmp.color     = new Color(0.8f, 0.85f, 0.8f, 1f);
+                descTmp.enableWordWrapping = true;
+
+                // StatsText
+                var statsGo  = EnsureChild(viewGo, "StatsText");
+                var statsTmp = EnsureComponent<TextMeshProUGUI>(statsGo);
+                statsTmp.text      = "Статы";
+                statsTmp.fontSize  = 12f;
+                statsTmp.color     = new Color(0.6f, 0.8f, 1.0f, 1f);
+                statsTmp.enableWordWrapping = false;
+
+                // TooltipView-компонент
+                var tooltipView = EnsureComponent<TooltipView>(viewGo);
+                {
+                    var so = new SerializedObject(tooltipView);
+                    so.FindProperty("titleText").objectReferenceValue       = titleTmp;
+                    so.FindProperty("separator").objectReferenceValue       = sepGo;
+                    so.FindProperty("descriptionText").objectReferenceValue = descTmp;
+                    so.FindProperty("statsText").objectReferenceValue       = statsTmp;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                // Связываем TooltipSystem → TooltipView
+                {
+                    var so = new SerializedObject(tooltipSystemComp);
+                    so.FindProperty("tooltipView").objectReferenceValue = tooltipView;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                // По умолчанию скрыт
+                viewGo.SetActive(false);
+            }
+
+            // --- Навешиваем триггеры + провайдеры на HUD-элементы ---
+            AttachTooltipTriggers();
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Build Tooltip System выполнен.");
+        }
+
+        private static void AttachTooltipTriggers()
+        {
+            // AbilitySlot_1..4 в TPS_Block
+            var gameHud  = GameObject.Find("GameHUD");
+            var tpsBlock = gameHud != null ? FindDescendantByName(gameHud, "TPS_Block") : null;
+            var rtsBlock = gameHud != null ? FindDescendantByName(gameHud, "RTS_Block") : null;
+
+            if (tpsBlock != null)
+            {
+                for (int i = 1; i <= 4; i++)
+                {
+                    var slotGo = FindDescendantByName(tpsBlock, "AbilitySlot_" + i.ToString());
+                    if (slotGo == null) continue;
+
+                    // Нужен Graphic-компонент для работы EventSystem raycast
+                    var img = slotGo.GetComponent<Image>();
+                    if (img != null) img.raycastTarget = true;
+
+                    EnsureComponent<TooltipTrigger>(slotGo);
+                    EnsureComponent<AbilityTooltipProvider>(slotGo);
+                }
+            }
+
+            if (rtsBlock != null)
+            {
+                // ResourceText (Crystals)
+                var resourceGo = FindDescendantByName(rtsBlock, "ResourceText");
+                if (resourceGo != null)
+                {
+                    // На ResourceText уже есть TMP_Text (Graphic) — второй Graphic (Image)
+                    // добавить нельзя, да и не нужно: текст сам является raycast-целью.
+                    var graphic = resourceGo.GetComponent<UnityEngine.UI.Graphic>();
+                    if (graphic != null) graphic.raycastTarget = true;
+
+                    EnsureComponent<TooltipTrigger>(resourceGo);
+                    EnsureComponent<ResourceTooltipProvider>(resourceGo);
+                }
+
+                // MinimapDisplay
+                var minimapGo = FindDescendantByName(rtsBlock, "MinimapDisplay");
+                if (minimapGo != null)
+                {
+                    var rawImg = minimapGo.GetComponent<UnityEngine.UI.RawImage>();
+                    if (rawImg != null) rawImg.raycastTarget = true;
+
+                    EnsureComponent<TooltipTrigger>(minimapGo);
+                    EnsureComponent<MinimapTooltipProvider>(minimapGo);
+                }
+
+                // Hit-area производства поверх хинта [T] в SelectionPanel
+                var selPanelGo = FindDescendantByName(rtsBlock, "SelectionPanel");
+                if (selPanelGo != null)
+                {
+                    var hintGo = FindDescendantByName(selPanelGo, "HintText");
+                    if (hintGo != null)
+                    {
+                        // Прозрачный Image поверх хинта — hit-area для тултипа производства
+                        var hitAreaGo = EnsureChild(hintGo, "ProductionTooltipHitArea");
+                        var hitImg    = EnsureComponent<Image>(hitAreaGo);
+                        hitImg.color        = new Color(0f, 0f, 0f, 0f);
+                        hitImg.raycastTarget = true;
+
+                        var hitRt = hitAreaGo.GetComponent<RectTransform>();
+                        hitRt.anchorMin = Vector2.zero;
+                        hitRt.anchorMax = Vector2.one;
+                        hitRt.offsetMin = Vector2.zero;
+                        hitRt.offsetMax = Vector2.zero;
+
+                        EnsureComponent<TooltipTrigger>(hitAreaGo);
+
+                        var provider = EnsureComponent<UnitProductionTooltipProvider>(hitAreaGo);
+                        {
+                            var managersGo      = GameObject.Find("GameManagers");
+                            var selectionSystem = managersGo != null
+                                ? managersGo.GetComponent<SelectionSystem>()
+                                : null;
+
+                            var so = new SerializedObject(provider);
+                            so.FindProperty("selectionSystem").objectReferenceValue = selectionSystem;
+                            so.ApplyModifiedPropertiesWithoutUndo();
+                        }
+                    }
+                }
+            }
         }
 
         // ----------------------------------------------------------------
