@@ -105,6 +105,22 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Create/Update Tank Prefabs (v3)", GUILayout.Height(32)))
                 CreateOrUpdateTankPrefabs();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "v5 Animated Units:\n" +
+                "• Marine (TestUnit) → Mike.fbx, PlayerBlue материал\n" +
+                "• EnemyGrunt (EnemyUnit) → George.fbx, EnemyRed материал\n" +
+                "Создаёт AnimatorController, добавляет Animator + UnitAnimator.\n" +
+                "Prerequisite: FBX скопированы в Assets/_Project/Art/Models/Units/Animated/.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Animated Units (v5)", GUILayout.Height(32)))
+                AnimatedUnitsSetup.SetupAnimatedUnits();
         }
 
         // ----------------------------------------------------------------

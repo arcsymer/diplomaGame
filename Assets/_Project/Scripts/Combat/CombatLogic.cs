@@ -94,10 +94,14 @@ namespace DiplomaGame.Runtime.Combat
         public static float RandomiseInitialCooldownOffset(float cooldown, int seed)
         {
             if (cooldown <= 0f) return 0f;
-            // Псевдослучайное значение через хэш-mix без аллокаций
+            // MurmurHash3 finalizer — avalanche-функция с хорошими статистическими свойствами.
+            // Seed перед вызовом должен быть уже «desym»-ован (XOR с faction-salt в UnitCombat),
+            // чтобы гарантировать независимость хэш-пространств двух команд.
             uint h = (uint)seed;
             h ^= h >> 16;
-            h *= 0x45d9f3b;
+            h *= 0x85ebca6bu;
+            h ^= h >> 13;
+            h *= 0xc2b2ae35u;
             h ^= h >> 16;
             // Нормализуем в [0, 1)
             float t = (h & 0x7FFFFFFFu) / (float)0x7FFFFFFF;

@@ -44,6 +44,7 @@ namespace DiplomaGame.Tests.Runtime
             enemyBase.transform.position = new Vector3(30f, 0f, 30f);
 
             Physics.SyncTransforms();
+            UnitCombat.InvalidateRallyCache();
         }
 
         [TearDown]

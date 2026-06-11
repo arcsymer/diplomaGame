@@ -201,6 +201,17 @@ namespace DiplomaGame.Editor
             UITab.BuildMatchStatsPanel();
         }
 
+        /// <summary>
+        /// v5 Animated Units: настраивает импорт FBX, создаёт AnimatorController'ы,
+        /// заменяет Visual в TestUnit/EnemyUnit на анимированные мехи Quaternius,
+        /// добавляет Animator + UnitAnimator.
+        /// Не требует открытой сцены — работает только с префабами и ассетами.
+        /// </summary>
+        public static void SetupAnimatedUnits()
+        {
+            AnimatedUnitsSetup.SetupAnimatedUnits();
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {
