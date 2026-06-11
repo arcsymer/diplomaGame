@@ -36,6 +36,20 @@ namespace DiplomaGame.Runtime.Units
         }
 
         /// <summary>
+        /// Кэшированный UnitCombat-компонент (GetComponent в Awake). Используется EnemyCommander
+        /// и AudioManager для проверки боевого состояния без аллокаций в горячих путях.
+        /// </summary>
+        public UnitCombat CachedCombat
+        {
+            // Ленивый кэш: в тестах UnitCombat может добавляться после Unit.Awake
+            get
+            {
+                if (_cachedCombat == null) _cachedCombat = GetComponent<UnitCombat>();
+                return _cachedCombat;
+            }
+        }
+
+        /// <summary>
         /// Тип последнего приказа игрока. null — если приказов ещё не было.
         /// </summary>
         public UnitCommandType? CurrentCommandType { get; private set; }
@@ -53,6 +67,7 @@ namespace DiplomaGame.Runtime.Units
         private NavMeshAgent _agent;
         private GameObject   _selectionRing;
         private Health       _cachedHealth;
+        private UnitCombat   _cachedCombat;
 
         // ----------------------------------------------------------------
         // Состояние патруля

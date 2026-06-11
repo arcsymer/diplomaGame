@@ -190,6 +190,17 @@ namespace DiplomaGame.Editor
             ManagersTab.SetupTank();
         }
 
+        /// <summary>
+        /// Сборка экрана статистики матча: открывает Sandbox → строит StatsPanel в Victory/Defeat
+        /// → добавляет MatchStatsCollector на GameManagers → сохраняет сцену.
+        /// Prerequisite: SetupM6Menus (BuildMenus) уже выполнен.
+        /// </summary>
+        public static void SetupMatchStats()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.BuildMatchStatsPanel();
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {

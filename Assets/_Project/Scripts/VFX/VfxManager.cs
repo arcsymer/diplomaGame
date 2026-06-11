@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
@@ -12,6 +11,7 @@ namespace DiplomaGame.Runtime.VFX
     /// Управляет пулами VFX-эффектов. Подписывается на игровые события и воспроизводит
     /// соответствующие эффекты.
     ///
+    /// Деактивация эффектов — через массивы таймеров float[] в Update() без корутин и GC.
     /// Используйте InitForTest() для тестового сценария (фейковые ParticleSystem).
     /// </summary>
     public sealed class VfxManager : MonoBehaviour
@@ -42,15 +42,22 @@ namespace DiplomaGame.Runtime.VFX
         private int _explosionIndex = -1;
         private int _buildIndex     = -1;
 
+        // ----------------------------------------------------------------
+        // Таймеры деактивации — массивы float по размеру пула.
+        // Значение > 0: оставшееся время до SetActive(false).
+        // Инициализируются после финального заполнения пулов.
+        // ----------------------------------------------------------------
+
+        private float[] _muzzleTimers;
+        private float[] _hitTimers;
+        private float[] _explosionTimers;
+        private float[] _buildTimers;
+
         // Флаг: тестовый режим (пул уже инициализирован снаружи)
         private bool _testMode;
 
         // Кэш AbilitySystem (находим один раз в Start)
         private AbilitySystem _abilitySystem;
-
-        // Кэш WaitForSeconds по длительности (избегаем new на каждой корутине)
-        private readonly Dictionary<float, WaitForSeconds> _waitCache =
-            new Dictionary<float, WaitForSeconds>(8);
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -65,6 +72,14 @@ namespace DiplomaGame.Runtime.VFX
         private void Start()
         {
             SubscribeToEvents();
+        }
+
+        private void Update()
+        {
+            TickTimers(_muzzlePool,    _muzzleTimers);
+            TickTimers(_hitPool,       _hitTimers);
+            TickTimers(_explosionPool, _explosionTimers);
+            TickTimers(_buildPool,     _buildTimers);
         }
 
         private void OnDestroy()
@@ -171,6 +186,7 @@ namespace DiplomaGame.Runtime.VFX
 
         /// <summary>
         /// Воспроизводит следующий по кругу эффект из пула в заданной позиции.
+        /// Деактивация выполняется через массив таймеров в Update() — без корутин и GC-аллокаций.
         /// </summary>
         public void Play(List<ParticleSystem> pool, ref int currentIndex, Vector3 position)
         {
@@ -186,7 +202,13 @@ namespace DiplomaGame.Runtime.VFX
             ps.gameObject.SetActive(true);
             ps.Play();
 
-            StartCoroutine(DeactivateAfterPlay(ps));
+            // Записываем время жизни в таймер-массив нужного пула
+            float[] timers = GetTimersForPool(pool);
+            if (timers != null && currentIndex < timers.Length)
+            {
+                var main     = ps.main;
+                timers[currentIndex] = main.duration + main.startLifetime.constantMax;
+            }
         }
 
         // ----------------------------------------------------------------
@@ -215,6 +237,9 @@ namespace DiplomaGame.Runtime.VFX
 
             _buildPool.Clear();
             _buildPool.AddRange(build);
+
+            // Инициализируем массивы таймеров под фактический размер тестовых пулов
+            InitTimerArrays();
         }
 
         /// <summary>
@@ -232,6 +257,17 @@ namespace DiplomaGame.Runtime.VFX
             FillPool(_hitImpactPrefab,    _hitPool,       PoolSize);
             FillPool(_explosionPrefab,    _explosionPool, PoolSize);
             FillPool(_buildEffectPrefab,  _buildPool,     PoolSize);
+
+            // Массивы таймеров — после финального заполнения пулов
+            InitTimerArrays();
+        }
+
+        private void InitTimerArrays()
+        {
+            _muzzleTimers    = new float[_muzzlePool.Count];
+            _hitTimers       = new float[_hitPool.Count];
+            _explosionTimers = new float[_explosionPool.Count];
+            _buildTimers     = new float[_buildPool.Count];
         }
 
         private void FillPool(GameObject prefab, List<ParticleSystem> pool, int count)
@@ -252,30 +288,42 @@ namespace DiplomaGame.Runtime.VFX
         }
 
         // ----------------------------------------------------------------
-        // Корутина деактивации
+        // Тик таймеров деактивации (вызывается из Update)
         // ----------------------------------------------------------------
 
-        private IEnumerator DeactivateAfterPlay(ParticleSystem ps)
+        private void TickTimers(List<ParticleSystem> pool, float[] timers)
         {
-            if (ps == null) yield break;
-
-            var main = ps.main;
-            float duration = main.duration + main.startLifetime.constantMax;
-
-            // Переиспользуем WaitForSeconds с одинаковой длительностью — без аллокаций
-            if (!_waitCache.TryGetValue(duration, out WaitForSeconds wait))
+            if (timers == null) return;
+            float dt = Time.deltaTime;
+            int count = pool.Count < timers.Length ? pool.Count : timers.Length;
+            for (int i = 0; i < count; i++)
             {
-                wait = new WaitForSeconds(duration);
-                _waitCache[duration] = wait;
+                if (timers[i] <= 0f) continue;
+                timers[i] -= dt;
+                if (timers[i] <= 0f)
+                {
+                    timers[i] = 0f;
+                    var ps = pool[i];
+                    if (ps != null && ps.gameObject != null)
+                    {
+                        ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                        ps.gameObject.SetActive(false);
+                    }
+                }
             }
+        }
 
-            yield return wait;
+        // ----------------------------------------------------------------
+        // Получение массива таймеров по ссылке на пул
+        // ----------------------------------------------------------------
 
-            if (ps != null && ps.gameObject != null)
-            {
-                ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-                ps.gameObject.SetActive(false);
-            }
+        private float[] GetTimersForPool(List<ParticleSystem> pool)
+        {
+            if (pool == _muzzlePool)    return _muzzleTimers;
+            if (pool == _hitPool)       return _hitTimers;
+            if (pool == _explosionPool) return _explosionTimers;
+            if (pool == _buildPool)     return _buildTimers;
+            return null;
         }
     }
 }

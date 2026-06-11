@@ -14,8 +14,11 @@ namespace DiplomaGame.Runtime.UI
         [SerializeField] private Image fill;
 
         private Health  _health;
-        private Camera  _cam;
         private bool    _everDamaged;
+
+        // Статический кэш главной камеры, разделяемый всеми экземплярами HealthBar.
+        // При null — обновляется через Camera.main (один вызов на обнаружение, не каждый кадр).
+        private static Camera _sharedCam;
 
         // ----------------------------------------------------------------
         // Unity lifecycle
@@ -50,15 +53,16 @@ namespace DiplomaGame.Runtime.UI
 
         private void LateUpdate()
         {
-            // Кэшируем камеру (может смениться)
-            if (_cam == null)
-                _cam = Camera.main;
+            // Статический кэш камеры: один Camera.main на всех HealthBar.
+            // При null (камера уничтожена или не инициализирована) — обновляем.
+            if (_sharedCam == null)
+                _sharedCam = Camera.main;
 
-            if (_cam == null) return;
+            if (_sharedCam == null) return;
 
             // Билборд: поворот к камере (только Y-ось не вращаем, чтобы UI читался горизонтально)
             transform.rotation = Quaternion.LookRotation(
-                transform.position - _cam.transform.position,
+                transform.position - _sharedCam.transform.position,
                 Vector3.up);
         }
 

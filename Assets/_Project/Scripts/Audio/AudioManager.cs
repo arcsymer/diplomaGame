@@ -161,6 +161,9 @@ namespace DiplomaGame.Runtime.Audio
         // Кэш последнего значения AudioListener.volume (избегаем лишнего присвоения в Update)
         private float _lastAppliedListenerVolume = -1f;
 
+        // Кэш: является ли текущая сцена MainMenu (вычисляется в Start, не каждые 0.5с)
+        private bool _isMainMenuScene;
+
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
@@ -175,9 +178,10 @@ namespace DiplomaGame.Runtime.Audio
             BuildSources();
             SubscribeToEvents();
 
-            // Определяем начальное состояние по активной сцене
-            string sceneName = SceneManager.GetActiveScene().name;
-            if (sceneName == "MainMenu")
+            // Кэшируем имя сцены один раз — используется в UpdateCombatState каждые 0.5с
+            _isMainMenuScene = SceneManager.GetActiveScene().name == "MainMenu";
+
+            if (_isMainMenuScene)
                 SetMusicState(MusicState.Menu);
             else
                 SetMusicState(MusicState.Ambient);
@@ -561,8 +565,8 @@ namespace DiplomaGame.Runtime.Audio
 
         private void UpdateCombatState()
         {
-            string sceneName = SceneManager.GetActiveScene().name;
-            if (sceneName == "MainMenu")
+            // Используем кэшированный bool — без GetActiveScene().name каждые 0.5с
+            if (_isMainMenuScene)
             {
                 SetMusicState(MusicState.Menu);
                 return;
@@ -579,13 +583,14 @@ namespace DiplomaGame.Runtime.Audio
                 return true;
 
             // Есть ли юнит игрока, который атакует или преследует?
+            // Используем кэшированный CachedCombat — без GetComponent в горячем пути
             var allUnits = UnitRegistry.AllUnits;
             for (int i = 0; i < allUnits.Count; i++)
             {
                 var u = allUnits[i];
                 if (u == null || u.Faction != Faction.Player) continue;
 
-                var combat = u.GetComponent<UnitCombat>();
+                var combat = u.CachedCombat;
                 if (combat == null) continue;
 
                 if (combat.CurrentCombatState == CombatState.Attacking ||
