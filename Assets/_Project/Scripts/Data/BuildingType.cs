@@ -8,5 +8,6 @@ namespace DiplomaGame.Runtime.Data
         Headquarters,
         Barracks,
         Extractor,
+        WarFactory,
     }
 }

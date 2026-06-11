@@ -177,6 +177,19 @@ namespace DiplomaGame.Editor
             BuildTab.BuildWindows();
         }
 
+        /// <summary>
+        /// v3 Tank: открывает Sandbox → создаёт Tank-ассеты данных →
+        /// создаёт Tank-префабы → размещает WarFactory в сцене → сохраняет.
+        /// Prerequisite: M9 (SetupScenario) уже выполнен.
+        /// </summary>
+        public static void SetupTank()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.CreateOrUpdateTankDataAssets();
+            PrefabsTab.CreateOrUpdateTankPrefabs();
+            ManagersTab.SetupTank();
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {

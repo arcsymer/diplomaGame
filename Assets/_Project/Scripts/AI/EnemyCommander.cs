@@ -21,6 +21,7 @@ namespace DiplomaGame.Runtime.AI
 
         [SerializeField] private ResourceBank       _bank;
         [SerializeField] private ProductionBuilding _enemyBarracks;
+        [SerializeField] private ProductionBuilding _enemyWarFactory;
         [SerializeField] private float              _decisionInterval = 2f;
 
         // Лимит юнитов противника
@@ -78,10 +79,15 @@ namespace DiplomaGame.Runtime.AI
         /// <summary>
         /// Инициализирует компонент для PlayMode-тестов без SerializedObject.
         /// </summary>
-        internal void InitForTest(ResourceBank bank, ProductionBuilding barracks, float decisionInterval = 0.5f)
+        internal void InitForTest(
+            ResourceBank       bank,
+            ProductionBuilding barracks,
+            float              decisionInterval = 0.5f,
+            ProductionBuilding warFactory       = null)
         {
             _bank              = bank;
             _enemyBarracks     = barracks;
+            _enemyWarFactory   = warFactory;
             _decisionInterval  = decisionInterval;
         }
 
@@ -97,20 +103,29 @@ namespace DiplomaGame.Runtime.AI
 
         private void DecideProduction()
         {
-            if (_bank == null || _enemyBarracks == null) return;
-
-            var buildingComp = _enemyBarracks.GetComponent<Building>();
-            if (buildingComp == null || buildingComp.Data == null) return;
-
-            int balance   = _bank.GetBalance(Faction.Enemy);
-            int unitCost  = buildingComp.Data.ProductionCost;
-
-            // Считаем живых юнитов противника
+            // Считаем живых юнитов противника один раз для обоих зданий
             UnitRegistry.GetUnits(Faction.Enemy, _enemyUnitBuffer);
             int currentUnits = _enemyUnitBuffer.Count;
 
+            // Казарма — пехота
+            TryProduceFrom(_enemyBarracks, currentUnits);
+
+            // Военный завод — танки (если проставлен)
+            TryProduceFrom(_enemyWarFactory, currentUnits);
+        }
+
+        private void TryProduceFrom(ProductionBuilding building, int currentUnits)
+        {
+            if (_bank == null || building == null) return;
+
+            var buildingComp = building.GetComponent<Building>();
+            if (buildingComp == null || buildingComp.Data == null) return;
+
+            int balance  = _bank.GetBalance(Faction.Enemy);
+            int unitCost = buildingComp.Data.ProductionCost;
+
             if (EnemyWaveLogic.ShouldProduce(balance, unitCost, currentUnits, MaxUnits))
-                _enemyBarracks.TryEnqueue();
+                building.TryEnqueue();
         }
 
         private void DecideWave()

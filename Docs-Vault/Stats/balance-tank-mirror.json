@@ -1,0 +1,9 @@
+{
+    "scenario": "Mirror 2v2 Tank vs Tank",
+    "winner": "Enemy",
+    "playerAlive": 0,
+    "enemyAlive": 2,
+    "playerHpLeft": 0.0,
+    "enemyHpLeft": 10.0,
+    "simDurationSec": 12.512451171875
+}

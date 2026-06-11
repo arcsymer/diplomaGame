@@ -48,6 +48,11 @@ namespace DiplomaGame.Editor
         // M9 пути
         private const string GameOverCanvasName = "GameOver";
 
+        // v3 Tank пути
+        private const string WarFactoryPrefabPath    = "Assets/_Project/Prefabs/Buildings/WarFactory.prefab";
+        private const string WarFactoryDataPath      = "Assets/_Project/Data/Buildings/WarFactory.asset";
+        private const string EnemyTankUnitPrefabPath = "Assets/_Project/Prefabs/Units/EnemyTankUnit.prefab";
+
         public string Title => "Managers";
 
         public void OnGUI()
@@ -132,6 +137,19 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Scenario (M9)", GUILayout.Height(32)))
                 SetupScenario();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "v3 Tank: размещает WarFactory_Player у базы игрока и WarFactory_Enemy у базы врага. " +
+                "Проставляет EnemyCommander._enemyWarFactory.\n" +
+                "Требует выполненного Setup Scenario (M9).",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Tank (v3)", GUILayout.Height(32)))
+                SetupTank();
         }
 
         // ----------------------------------------------------------------
@@ -743,6 +761,115 @@ namespace DiplomaGame.Editor
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[Project Forge] Setup Scenario (M9) выполнен.");
+        }
+
+        // ----------------------------------------------------------------
+        // v3: Setup Tank
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Размещает WarFactory_Player и WarFactory_Enemy в открытой сцене,
+        /// проставляет EnemyCommander._enemyWarFactory.
+        /// Идемпотентно.
+        /// </summary>
+        internal static void SetupTank()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            var warFactoryPrefab   = AssetDatabase.LoadAssetAtPath<GameObject>(WarFactoryPrefabPath);
+            var warFactoryData     = AssetDatabase.LoadAssetAtPath<BuildingData>(WarFactoryDataPath);
+            var enemyTankPrefab    = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyTankUnitPrefabPath);
+
+            if (warFactoryPrefab == null)
+            {
+                Debug.LogWarning("[Project Forge] WarFactory.prefab не найден — сначала 'Create/Update Tank Prefabs (v3)'.");
+                return;
+            }
+
+            var managersGo = EnsureGameObject("GameManagers");
+            var bank       = EnsureComponent<ResourceBank>(managersGo);
+
+            Vector3 playerBase = GetBasePosition("PlayerBaseSpawn");
+            Vector3 enemyBase  = GetBasePosition("EnemyBaseSpawn");
+
+            // ---- WarFactory_Player ----
+            GameObject playerWF = GameObject.Find("WarFactory_Player");
+            if (playerWF == null)
+            {
+                playerWF = (GameObject)PrefabUtility.InstantiatePrefab(warFactoryPrefab, scene);
+                playerWF.name = "WarFactory_Player";
+            }
+            playerWF.transform.position = playerBase + new Vector3(10f, 0f, 4f);
+
+            var playerWFBuilding = playerWF.GetComponent<Building>();
+            if (playerWFBuilding != null)
+            {
+                var so = new SerializedObject(playerWFBuilding);
+                so.FindProperty("_faction").enumValueIndex    = (int)Faction.Player;
+                so.FindProperty("_bank").objectReferenceValue = bank;
+                if (warFactoryData != null)
+                    so.FindProperty("_data").objectReferenceValue = warFactoryData;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // ---- WarFactory_Enemy ----
+            GameObject enemyWF = GameObject.Find("WarFactory_Enemy");
+            if (enemyWF == null)
+            {
+                enemyWF = (GameObject)PrefabUtility.InstantiatePrefab(warFactoryPrefab, scene);
+                enemyWF.name = "WarFactory_Enemy";
+            }
+            enemyWF.transform.position = enemyBase + new Vector3(10f, 0f, -4f);
+
+            var enemyWFBuilding = enemyWF.GetComponent<Building>();
+            if (enemyWFBuilding != null)
+            {
+                var so = new SerializedObject(enemyWFBuilding);
+                so.FindProperty("_faction").enumValueIndex    = (int)Faction.Enemy;
+                so.FindProperty("_bank").objectReferenceValue = bank;
+                if (warFactoryData != null)
+                    so.FindProperty("_data").objectReferenceValue = warFactoryData;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // Проставляем EnemyTankUnit.prefab как _unitPrefab врагу
+            var enemyWFProd = enemyWF.GetComponent<ProductionBuilding>();
+            if (enemyWFProd != null && enemyTankPrefab != null)
+            {
+                var pso = new SerializedObject(enemyWFProd);
+                pso.FindProperty("_unitPrefab").objectReferenceValue = enemyTankPrefab;
+                pso.ApplyModifiedPropertiesWithoutUndo();
+
+                // Rally point к центру карты
+                enemyWFProd.SetRallyPoint(Vector3.zero);
+            }
+
+            // ---- EnemyCommander: _enemyWarFactory ----
+            var commander = managersGo.GetComponent<EnemyCommander>();
+            if (commander == null)
+            {
+                Debug.LogWarning("[Project Forge] EnemyCommander не найден на GameManagers — сначала запустите Setup Scenario (M9).");
+            }
+            else
+            {
+                var cmdSo = new SerializedObject(commander);
+                var enemyWFProdForCommander = enemyWF.GetComponent<ProductionBuilding>();
+                cmdSo.FindProperty("_enemyWarFactory").objectReferenceValue = enemyWFProdForCommander;
+                cmdSo.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // Перезапекаем NavMesh (новые здания-препятствия)
+            NavMeshTab.BakeNavMesh();
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] Setup Tank (v3) выполнен.");
         }
 
         private static GameObject SetupEnemyBarracks(

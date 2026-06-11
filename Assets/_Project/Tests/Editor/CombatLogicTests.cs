@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using DiplomaGame.Runtime.Combat;
 using NUnit.Framework;
 using UnityEngine;
+// FindTargetsInRadius — добавлено v3 (AoE-атака Танка)
 
 namespace DiplomaGame.Tests.Editor
 {
@@ -248,6 +249,64 @@ namespace DiplomaGame.Tests.Editor
             bool result = CombatLogic.CanRetreatAgain(retreatCooldown: 20f, lastRetreatTime: 5f, now: 25f);
 
             Assert.IsTrue(result, "Точно на границе кулдауна — повторное отступление разрешено (>=).");
+        }
+
+        // ----------------------------------------------------------------
+        // FindTargetsInRadius (v3 AoE)
+        // ----------------------------------------------------------------
+
+        [Test]
+        public void AoeFindTargets_ReturnsAllInRadius()
+        {
+            var from = Vector3.zero;
+            var positions = new List<Vector3>
+            {
+                new Vector3(1f,  0f, 0f),  // index 0 — в радиусе
+                new Vector3(2f,  0f, 0f),  // index 1 — в радиусе
+                new Vector3(10f, 0f, 0f),  // index 2 — вне радиуса
+            };
+            var result = new List<int>();
+
+            CombatLogic.FindTargetsInRadius(from, positions, radius: 3f, result);
+
+            Assert.AreEqual(2, result.Count, "Два кандидата в радиусе 3 — должны оба попасть.");
+            Assert.Contains(0, result);
+            Assert.Contains(1, result);
+            Assert.IsFalse(result.Contains(2), "Индекс 2 (dist=10) не должен попасть в результат.");
+        }
+
+        [Test]
+        public void AoeFindTargets_EmptyList_ResultIsEmpty()
+        {
+            var from      = Vector3.zero;
+            var positions = new List<Vector3>();
+            var result    = new List<int> { 99 }; // предварительно замусоренный буфер
+
+            CombatLogic.FindTargetsInRadius(from, positions, radius: 100f, result);
+
+            Assert.AreEqual(0, result.Count, "Пустой список позиций — результат должен быть пустым.");
+        }
+
+        [Test]
+        public void AoeFindTargets_NullList_ResultIsEmpty()
+        {
+            var result = new List<int> { 5 };
+
+            CombatLogic.FindTargetsInRadius(Vector3.zero, null, radius: 100f, result);
+
+            Assert.AreEqual(0, result.Count, "Null список — результат должен быть пустым.");
+        }
+
+        [Test]
+        public void AoeFindTargets_ExactlyOnBoundary_IsIncluded()
+        {
+            var from      = Vector3.zero;
+            var positions = new List<Vector3> { new Vector3(5f, 0f, 0f) };
+            var result    = new List<int>();
+
+            CombatLogic.FindTargetsInRadius(from, positions, radius: 5f, result);
+
+            Assert.AreEqual(1, result.Count, "Цель точно на границе радиуса должна быть включена.");
         }
     }
 }

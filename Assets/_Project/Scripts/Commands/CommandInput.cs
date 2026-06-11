@@ -155,12 +155,16 @@ namespace DiplomaGame.Runtime.Commands
                                       : pressP  ? UnitCommandType.Patrol
                                       :            UnitCommandType.Move;
 
+            // v3 crowd-avoidance: при больших группах увеличиваем расстояние
+            // между ячейками формации, чтобы юниты не давились у цели.
+            float formationSpacing = selected.Count > 6 ? 2.5f : 2.0f;
+
             for (int i = 0; i < selected.Count; i++)
             {
                 var unit = selected[i];
                 if (unit == null) continue;
 
-                Vector3 offset = UnitCommandLogic.GetFormationOffset(i);
+                Vector3 offset = UnitCommandLogic.GetFormationOffset(i, formationSpacing);
                 Vector3 point  = targetPoint + offset;
 
                 UnitCommand cmd;

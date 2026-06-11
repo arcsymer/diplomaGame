@@ -51,10 +51,11 @@ namespace DiplomaGame.Runtime.Units
         /// <summary>
         /// Возвращает смещение для i-го юнита в строевом порядке (простая сетка).
         /// Индекс 0 — центр (Vector3.zero). Без аллокаций, чистая математика.
+        /// Spacing увеличен до 2.0 в рамках v3-улучшения crowd avoidance (ADR-018).
         /// </summary>
         /// <param name="index">Порядковый номер юнита в группе (0-based).</param>
         /// <param name="spacing">Расстояние между ячейками сетки.</param>
-        public static Vector3 GetFormationOffset(int index, float spacing = 1.5f)
+        public static Vector3 GetFormationOffset(int index, float spacing = 2.0f)
         {
             if (index == 0) return Vector3.zero;
 
