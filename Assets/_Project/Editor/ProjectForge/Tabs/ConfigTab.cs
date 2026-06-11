@@ -73,6 +73,21 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Create/Update Tank Data (v3)", GUILayout.Height(32)))
                 CreateOrUpdateTankDataAssets();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Migrate Production Entries (v6):\n" +
+                "• Создаёт HeavyMarine.asset (HP 150, Damage 14, AttackRange 8, Cooldown 1.1, Supply 2)\n" +
+                "• Barracks._productionEntries: [T] Marine cost 50 time 5 · [Y] HeavyMarine cost 90 time 8\n" +
+                "• WarFactory._productionEntries: [T] Tank cost 150 time 12\n" +
+                "• Legacy-поля зданий не изменяются. Иконки = null (заглушки).",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Migrate Production Entries (v6)", GUILayout.Height(32)))
+                MigrateProductionEntriesV6();
         }
 
         // ----------------------------------------------------------------
@@ -434,6 +449,128 @@ namespace DiplomaGame.Editor
             var so = new SerializedObject(data);
             so.FindProperty("_description").stringValue = description;
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // ----------------------------------------------------------------
+        // v6: Migrate Production Entries
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно:
+        ///   (а) создаёт HeavyMarine.asset;
+        ///   (б) заполняет _productionEntries для Barracks и WarFactory;
+        ///   (в) не трогает legacy-поля.
+        /// </summary>
+        internal static void MigrateProductionEntriesV6()
+        {
+            EnsureFolder(UnitDataFolder);
+            EnsureFolder(BuildingDataFolder);
+
+            // ----- (а) Создаём HeavyMarine.asset -----
+            var heavyMarine = CreateOrUpdateUnitData(
+                assetName:          "HeavyMarine",
+                displayName:        "Heavy Marine",
+                description:        "Тяжёлый пехотинец. Медленнее, но крепче и больнее.",
+                supplyCost:         2,
+                maxHp:              150f,
+                damage:             14f,
+                attackRange:        8f,
+                attackCooldown:     1.1f,
+                aggroRadius:        12f,
+                moveSpeed:          4.2f,
+                retreatFraction:    0.25f,
+                retreatDisabled:    false);
+
+            // Проставляем fireWhileRetreating = true (SerializedObject — поле уже есть в UnitData)
+            {
+                string hmPath = $"{UnitDataFolder}/HeavyMarine.asset";
+                var    hmData = AssetDatabase.LoadAssetAtPath<UnitData>(hmPath);
+                if (hmData != null)
+                {
+                    var so = new SerializedObject(hmData);
+                    var prop = so.FindProperty("_fireWhileRetreating");
+                    if (prop != null)
+                    {
+                        prop.boolValue = true;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                    }
+                }
+            }
+
+            // ----- (б) Загружаем ассеты -----
+            var marineData = AssetDatabase.LoadAssetAtPath<UnitData>($"{UnitDataFolder}/Marine.asset");
+            var tankData   = AssetDatabase.LoadAssetAtPath<UnitData>($"{UnitDataFolder}/Tank.asset");
+
+            if (marineData == null)
+                Debug.LogWarning("[Project Forge v6] Marine.asset не найден — запустите Create/Update Unit Data Assets (M4) сначала.");
+            if (heavyMarine == null)
+                Debug.LogWarning("[Project Forge v6] HeavyMarine.asset не был создан.");
+            if (tankData == null)
+                Debug.LogWarning("[Project Forge v6] Tank.asset не найден — запустите Create/Update Tank Data (v3) сначала.");
+
+            // ----- Barracks._productionEntries -----
+            {
+                string path = $"{BuildingDataFolder}/Barracks.asset";
+                var    data = AssetDatabase.LoadAssetAtPath<BuildingData>(path);
+                if (data == null)
+                {
+                    Debug.LogWarning("[Project Forge v6] Barracks.asset не найден.");
+                }
+                else
+                {
+                    var so      = new SerializedObject(data);
+                    var entries = so.FindProperty("_productionEntries");
+                    entries.arraySize = 2;
+
+                    // entries[0] — Marine
+                    SetProductionEntry(entries.GetArrayElementAtIndex(0), marineData, cost: 50, productionTime: 5f, hotkeyLabel: "T");
+                    // entries[1] — HeavyMarine
+                    SetProductionEntry(entries.GetArrayElementAtIndex(1), heavyMarine, cost: 90, productionTime: 8f, hotkeyLabel: "Y");
+
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
+            // ----- WarFactory._productionEntries -----
+            {
+                string path = $"{BuildingDataFolder}/WarFactory.asset";
+                var    data = AssetDatabase.LoadAssetAtPath<BuildingData>(path);
+                if (data == null)
+                {
+                    Debug.LogWarning("[Project Forge v6] WarFactory.asset не найден. Запустите Create/Update Tank Data (v3) сначала.");
+                }
+                else
+                {
+                    var so      = new SerializedObject(data);
+                    var entries = so.FindProperty("_productionEntries");
+                    entries.arraySize = 1;
+
+                    // entries[0] — Tank
+                    SetProductionEntry(entries.GetArrayElementAtIndex(0), tankData, cost: 150, productionTime: 12f, hotkeyLabel: "T");
+
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Production Entries (v6) перенесены успешно.");
+        }
+
+        /// <summary>Заполняет элемент SerializedProperty ProductionEntry через SerializedProperty.</summary>
+        private static void SetProductionEntry(
+            SerializedProperty entryProp,
+            UnitData           unitData,
+            int                cost,
+            float              productionTime,
+            string             hotkeyLabel)
+        {
+            entryProp.FindPropertyRelative("unitData").objectReferenceValue = unitData;
+            entryProp.FindPropertyRelative("cost").intValue                 = cost;
+            entryProp.FindPropertyRelative("productionTime").floatValue     = productionTime;
+            entryProp.FindPropertyRelative("icon").objectReferenceValue     = null;
+            entryProp.FindPropertyRelative("hotkeyLabel").stringValue       = hotkeyLabel;
         }
 
         private static void EnsureFolder(string folderPath)

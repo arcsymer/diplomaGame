@@ -23,3 +23,9 @@ MonoBehaviour:
   _produces: {fileID: 11400000, guid: 648217ed035e50e4caf30efae42c15fe, type: 2}
   _productionTime: 12
   _productionCost: 150
+  _productionEntries:
+  - unitData: {fileID: 11400000, guid: 648217ed035e50e4caf30efae42c15fe, type: 2}
+    cost: 150
+    productionTime: 12
+    icon: {fileID: 0}
+    hotkeyLabel: T

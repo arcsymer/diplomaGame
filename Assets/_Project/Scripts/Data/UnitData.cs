@@ -47,6 +47,9 @@ namespace DiplomaGame.Runtime.Data
         [Tooltip("Приоритет выбора цели при сканировании.")]
         [SerializeField] private TargetPriority _targetPriority = TargetPriority.Units;
 
+        [Tooltip("Если true — юнит стреляет по врагам в AttackRange во время отступления (без преследования).")]
+        [SerializeField] private bool   _fireWhileRetreating = true;
+
         // ----------------------------------------------------------------
         // Публичный API (read-only)
         // ----------------------------------------------------------------
@@ -77,6 +80,11 @@ namespace DiplomaGame.Runtime.Data
         /// </summary>
         public float  AoeRadius         => _aoeRadius;
 
+        /// <summary>
+        /// Если true — юнит стреляет по врагам в AttackRange во время отступления (без преследования).
+        /// </summary>
+        public bool   FireWhileRetreating => _fireWhileRetreating;
+
         // ----------------------------------------------------------------
         // Internal — для PlayMode-тестов (без SerializedObject)
         // ----------------------------------------------------------------
@@ -86,36 +94,38 @@ namespace DiplomaGame.Runtime.Data
         /// Параметры aoeRadius и targetPriority опциональны для обратной совместимости.
         /// </summary>
         internal static UnitData CreateForTest(
-            string         displayName       = "TestUnit",
-            float          maxHp             = 100f,
-            float          damage            = 10f,
-            float          attackRange       = 8f,
-            float          attackCooldown    = 1f,
-            float          aggroRadius       = 12f,
-            float          moveSpeed         = 5f,
-            float          retreatHpFraction = 0.25f,
-            bool           retreatDisabled   = false,
-            float          retreatCooldown   = 0f,
-            string         description       = "",
-            int            supplyCost        = 0,
-            float          aoeRadius         = 0f,
-            TargetPriority targetPriority    = TargetPriority.Units)
+            string         displayName          = "TestUnit",
+            float          maxHp                = 100f,
+            float          damage               = 10f,
+            float          attackRange          = 8f,
+            float          attackCooldown       = 1f,
+            float          aggroRadius          = 12f,
+            float          moveSpeed            = 5f,
+            float          retreatHpFraction    = 0.25f,
+            bool           retreatDisabled      = false,
+            float          retreatCooldown      = 0f,
+            string         description          = "",
+            int            supplyCost           = 0,
+            float          aoeRadius            = 0f,
+            TargetPriority targetPriority       = TargetPriority.Units,
+            bool           fireWhileRetreating  = true)
         {
-            var data                 = CreateInstance<UnitData>();
-            data._displayName        = displayName;
-            data._description        = description;
-            data._supplyCost         = supplyCost;
-            data._maxHp              = maxHp;
-            data._damage             = damage;
-            data._attackRange        = attackRange;
-            data._attackCooldown     = attackCooldown;
-            data._aggroRadius        = aggroRadius;
-            data._moveSpeed          = moveSpeed;
-            data._retreatHpFraction  = retreatHpFraction;
-            data._retreatDisabled    = retreatDisabled;
-            data._retreatCooldown    = retreatCooldown;
-            data._aoeRadius          = aoeRadius;
-            data._targetPriority     = targetPriority;
+            var data                      = CreateInstance<UnitData>();
+            data._displayName             = displayName;
+            data._description             = description;
+            data._supplyCost              = supplyCost;
+            data._maxHp                   = maxHp;
+            data._damage                  = damage;
+            data._attackRange             = attackRange;
+            data._attackCooldown          = attackCooldown;
+            data._aggroRadius             = aggroRadius;
+            data._moveSpeed               = moveSpeed;
+            data._retreatHpFraction       = retreatHpFraction;
+            data._retreatDisabled         = retreatDisabled;
+            data._retreatCooldown         = retreatCooldown;
+            data._aoeRadius               = aoeRadius;
+            data._targetPriority          = targetPriority;
+            data._fireWhileRetreating     = fireWhileRetreating;
             return data;
         }
     }

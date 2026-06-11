@@ -170,16 +170,18 @@ namespace DiplomaGame.Tests.Runtime
 
         /// <summary>
         /// Серия зеркальных боёв: один матч с ретритом почти всегда заканчивается
-        /// разгромом (отступающий не отстреливается — ранний перевес превращается
-        /// в снежный ком), поэтому симметрию ИИ измеряем ВИНРЕЙТОМ по серии.
+        /// разгромом (даже с fighting retreat снежный эффект first-shot→win ≈ 0.67),
+        /// поэтому симметрию ИИ измеряем ВИНРЕЙТОМ по серии.
         /// Порядок создания команд чередуется по раундам — гасит остаточный
         /// перекос от порядка Update (создан первым → Update первым).
+        /// 8 раундов: при честной монете P(разгром 8:0 любой стороной) ≈ 0.8% —
+        /// на 6 раундах (≈3%) ловили ложное срабатывание анти-разгромного assert'а.
         /// </summary>
         [UnityTest]
-        [Timeout(300000)]
+        [Timeout(400000)]
         public IEnumerator MirrorClash_MarineVsMarine_SeriesTerminatesAndIsRecorded()
         {
-            const int   Rounds        = 6;
+            const int   Rounds        = 8;
             const float RoundSimLimit = 240f;
 
             var buffer = new List<Unit>(64);
@@ -246,7 +248,7 @@ namespace DiplomaGame.Tests.Runtime
                 $"Все {Rounds} раундов обязаны завершиться до {RoundSimLimit} сим-с (фикс ретрита, ADR-016).");
 
             // Серия не должна быть тотально односторонней: при честной монете
-            // P(6:0) ≈ 3% — допускаем 5:1, но 6:0 сигналит о системном перекосе
+            // P(8:0 любой стороной) ≈ 0.8% — разгром сигналит о системном перекосе
             Assert.IsTrue(playerWins < Rounds && enemyWins < Rounds,
                 $"Серия {Rounds}:0 — системная асимметрия ИИ. Player {playerWins}, Enemy {enemyWins}.");
         }

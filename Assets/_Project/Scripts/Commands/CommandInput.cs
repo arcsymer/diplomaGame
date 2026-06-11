@@ -1,5 +1,6 @@
 using System;
 using DiplomaGame.Runtime.Buildings;
+using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
@@ -97,12 +98,38 @@ namespace DiplomaGame.Runtime.Commands
             var building = selectionSystem.SelectedBuilding;
             if (building == null) return;
 
-            // T → TryEnqueue у Barracks
-            if (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame)
+            if (Keyboard.current != null)
             {
                 var prod = building.GetComponent<ProductionBuilding>();
                 if (prod != null)
-                    prod.TryEnqueue();
+                {
+                    var bData = building.GetComponent<Building>()?.Data;
+
+                    // T (index 0) — первый слот или legacy
+                    if (Keyboard.current.tKey.wasPressedThisFrame)
+                    {
+                        if (bData != null && bData.HasMultiProduction)
+                            prod.TryEnqueue(bData.ProductionEntries[0]);
+                        else
+                            prod.TryEnqueue();
+                    }
+
+                    // Y (index 1)
+                    if (Keyboard.current.yKey.wasPressedThisFrame &&
+                        bData != null && bData.HasMultiProduction &&
+                        bData.ProductionEntries.Length > 1)
+                    {
+                        prod.TryEnqueue(bData.ProductionEntries[1]);
+                    }
+
+                    // U (index 2)
+                    if (Keyboard.current.uKey.wasPressedThisFrame &&
+                        bData != null && bData.HasMultiProduction &&
+                        bData.ProductionEntries.Length > 2)
+                    {
+                        prod.TryEnqueue(bData.ProductionEntries[2]);
+                    }
+                }
             }
 
             // RMB → SetRallyPoint

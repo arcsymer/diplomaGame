@@ -1,14 +1,21 @@
+using DiplomaGame.Runtime.Audio;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Commands;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.UI;
+using DiplomaGame.Runtime.Units;
+using System;
+using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
@@ -22,9 +29,26 @@ namespace DiplomaGame.Editor
     /// </summary>
     internal sealed class UITab : IForgeTab
     {
-        private const string MinimapRTPath         = "Assets/_Project/UI/MinimapRT.renderTexture";
-        private const string OrderMoveMatPath      = "Assets/_Project/Art/Materials/OrderMove.mat";
-        private const string OrderAttackMatPath    = "Assets/_Project/Art/Materials/OrderAttack.mat";
+        private const string MinimapRTPath            = "Assets/_Project/UI/MinimapRT.renderTexture";
+        private const string OrderMoveMatPath         = "Assets/_Project/Art/Materials/OrderMove.mat";
+        private const string OrderAttackMatPath       = "Assets/_Project/Art/Materials/OrderAttack.mat";
+
+        // v6 Command Card
+        private const string StanFbxPath             = "Assets/_Project/Art/Models/Units/Animated/Stan.fbx";
+        private const string HeavyMarinePrefabPath   = "Assets/_Project/Prefabs/Units/HeavyMarineUnit.prefab";
+        private const string HeavyMarineControllerPath = "Assets/_Project/Art/Animations/HeavyMarine_Controller.controller";
+        private const string PlayerBluePath           = "Assets/_Project/Art/Materials/PlayerBlue.mat";
+        private const string HeavyMarineDataPath      = "Assets/_Project/Data/Units/HeavyMarine.asset";
+        private const string MarineDataPath           = "Assets/_Project/Data/Units/Marine.asset";
+        private const string TankDataPath             = "Assets/_Project/Data/Units/Tank.asset";
+        private const string MarinePrefabPath         = "Assets/_Project/Prefabs/Units/TestUnit.prefab";
+        private const string TankPrefabPath           = "Assets/_Project/Prefabs/Units/TankUnit.prefab";
+        private const string BarracksPrefabPath       = "Assets/_Project/Prefabs/Buildings/Barracks.prefab";
+        private const string WarFactoryPrefabPath     = "Assets/_Project/Prefabs/Buildings/WarFactory.prefab";
+        private const string ExtractorPrefabPath      = "Assets/_Project/Prefabs/Buildings/Extractor.prefab";
+        private const string FightOggPath             = "Assets/_Project/Audio/Voice/fight.ogg";
+        // Целевая высота HeavyMarine (примерно в 1.35x больше Marine 1.2f)
+        private const float  HeavyMarineTargetHeight  = 1.62f;
 
         public string Title => "UI";
 
@@ -84,6 +108,25 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Build Match Stats Panel", GUILayout.Height(32)))
                 BuildMatchStatsPanel();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Setup Command Card (v6):\n" +
+                "• Миграция ProductionEntries (HeavyMarine.asset, Barracks/WarFactory entries)\n" +
+                "• Создаёт HeavyMarineUnit.prefab (Stan.fbx, PlayerBlue, NavMeshAgent, анимации)\n" +
+                "• CommandCardRoot (3 кнопки) + QueueSlotsRoot (5 слотов) в SelectionPanel\n" +
+                "• Проставляет _unitPrefabs у Barracks и WarFactory\n" +
+                "• BuildingSpawnEffect на Barracks/WarFactory/Extractor\n" +
+                "• _waveStingerClip = fight.ogg на AudioManager сцены\n" +
+                "• TooltipTrigger на кнопки карты\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Command Card (v6)", GUILayout.Height(32)))
+                SetupCommandCardV6();
         }
 
         // ----------------------------------------------------------------
@@ -1299,6 +1342,675 @@ namespace DiplomaGame.Editor
         }
 
         // ----------------------------------------------------------------
+        // v6 Command Card
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Полная идемпотентная сборка CommandCard v6.
+        /// Вызывается кнопкой и ForgeBatch.SetupCircle6().
+        /// </summary>
+        internal static void SetupCommandCardV6()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            EnsureTmpEssentials();
+
+            // 1. Миграция данных производства
+            ConfigTab.MigrateProductionEntriesV6();
+
+            // 2. Создать HeavyMarine-префаб
+            BuildHeavyMarinePrefab();
+
+            // 3. Построить CommandCardRoot + QueueSlotsRoot в SelectionPanel
+            BuildCommandCardHierarchy();
+
+            // 4. Заполнить _unitPrefabs у Barracks и WarFactory
+            WireUnitPrefabsOnBuildings();
+
+            // 5. BuildingSpawnEffect на Barracks/WarFactory/Extractor
+            EnsureBuildingSpawnEffect(BarracksPrefabPath);
+            EnsureBuildingSpawnEffect(WarFactoryPrefabPath);
+            EnsureBuildingSpawnEffect(ExtractorPrefabPath);
+
+            // 6. _waveStingerClip на AudioManager в сцене
+            WireWaveStingerClip();
+
+            // 7. Сохранить сцену
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Setup Command Card (v6) завершён.");
+        }
+
+        // ----------------------------------------------------------------
+        // v6 — HeavyMarine префаб
+        // ----------------------------------------------------------------
+
+        private static void BuildHeavyMarinePrefab()
+        {
+            EnsureFolder("Assets/_Project/Prefabs/Units");
+            EnsureFolder("Assets/_Project/Art/Animations");
+
+            var stanFbx = AssetDatabase.LoadAssetAtPath<GameObject>(StanFbxPath);
+            if (stanFbx == null)
+            {
+                Debug.LogWarning($"[Project Forge v6] Stan.fbx не найден по пути: {StanFbxPath}. " +
+                                 "HeavyMarine-префаб не будет иметь анимированной модели.");
+            }
+
+            // Настроить импорт Stan.fbx
+            if (stanFbx != null)
+                ConfigureHeavyMarineImporter(StanFbxPath);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            // Загрузить клипы и создать контроллер
+            var clips      = LoadAnimClips(StanFbxPath);
+            var controller = BuildHeavyMarineController(HeavyMarineControllerPath, clips);
+
+            // Если префаб уже есть — обновляем через EditPrefabContentsScope
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(HeavyMarinePrefabPath);
+            if (existing != null)
+            {
+                ApplyHeavyMarineVisual(HeavyMarinePrefabPath, stanFbx, controller);
+            }
+            else
+            {
+                // Создаём новый префаб из capsule (как в PrefabsTab)
+                var root = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                root.name = "HeavyMarineUnit";
+
+                // NavMeshAgent
+                var agent = EnsureComponent<NavMeshAgent>(root);
+                agent.speed                 = 4.2f;
+                agent.angularSpeed          = 360f;
+                agent.acceleration          = 12f;
+                agent.radius                = 0.5f;
+                agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+                agent.avoidancePriority     = 45;
+                agent.stoppingDistance      = 0.5f;
+
+                // Unit (Player)
+                var unit   = EnsureComponent<Unit>(root);
+                var unitSo = new SerializedObject(unit);
+                unitSo.FindProperty("_faction").enumValueIndex = (int)Faction.Player;
+                unitSo.ApplyModifiedPropertiesWithoutUndo();
+
+                // Health
+                EnsureComponent<Health>(root);
+
+                // UnitCombat (HeavyMarine.asset)
+                var combat     = EnsureComponent<UnitCombat>(root);
+                var heavyData  = AssetDatabase.LoadAssetAtPath<UnitData>(HeavyMarineDataPath);
+                if (heavyData != null)
+                {
+                    var combatSo = new SerializedObject(combat);
+                    combatSo.FindProperty("_data").objectReferenceValue = heavyData;
+                    combatSo.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                // Сохраняем как префаб
+                var prefab = PrefabUtility.SaveAsPrefabAsset(root, HeavyMarinePrefabPath);
+                UnityEngine.Object.DestroyImmediate(root);
+
+                if (prefab == null)
+                {
+                    Debug.LogError($"[Project Forge v6] Не удалось сохранить HeavyMarineUnit.prefab: {HeavyMarinePrefabPath}");
+                    return;
+                }
+
+                // Применяем анимированный визуал
+                ApplyHeavyMarineVisual(HeavyMarinePrefabPath, stanFbx, controller);
+            }
+
+            Debug.Log($"[Project Forge v6] HeavyMarineUnit.prefab готов: {HeavyMarinePrefabPath}");
+        }
+
+        private static void ConfigureHeavyMarineImporter(string fbxPath)
+        {
+            var importer = AssetImporter.GetAtPath(fbxPath) as ModelImporter;
+            if (importer == null) return;
+
+            bool changed = false;
+
+            if (importer.animationType != ModelImporterAnimationType.Generic)
+            { importer.animationType = ModelImporterAnimationType.Generic; changed = true; }
+
+            if (!importer.importAnimation)
+            { importer.importAnimation = true; changed = true; }
+
+            if (importer.importCameras) { importer.importCameras = false; changed = true; }
+            if (importer.importLights)  { importer.importLights  = false; changed = true; }
+
+            if (importer.materialImportMode != ModelImporterMaterialImportMode.ImportViaMaterialDescription)
+            { importer.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription; changed = true; }
+
+            if (changed)
+            {
+                importer.SaveAndReimport();
+                Debug.Log($"[Project Forge v6] Импорт Stan.fbx обновлён.");
+            }
+        }
+
+        private static AnimationClip[] LoadAnimClips(string fbxPath)
+        {
+            var allAssets = AssetDatabase.LoadAllAssetsAtPath(fbxPath);
+            var clips     = new List<AnimationClip>();
+            foreach (var asset in allAssets)
+            {
+                if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__"))
+                    clips.Add(clip);
+            }
+            return clips.ToArray();
+        }
+
+        private static AnimatorController BuildHeavyMarineController(string controllerPath, AnimationClip[] clips)
+        {
+            AnimationClip FindClip(params string[] keywords)
+            {
+                foreach (var clip in clips)
+                {
+                    string lower = clip.name.ToLowerInvariant();
+                    foreach (var kw in keywords)
+                        if (lower.Contains(kw.ToLowerInvariant()))
+                            return clip;
+                }
+                return null;
+            }
+
+            var idleClip   = FindClip("idle");
+            // Stan FBX: Walk_Holding — это ходьба
+            var runClip    = FindClip("walk_holding", "walk", "run");
+            var attackClip = FindClip("shoot", "fire", "attack", "punch", "kick");
+            var deathClip  = FindClip("death", "die", "dead");
+
+            if (idleClip == null && clips.Length > 0) idleClip = clips[0];
+
+            // Удалить старый контроллер (идемпотентность)
+            var existing = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+            if (existing != null) AssetDatabase.DeleteAsset(controllerPath);
+
+            var controller = AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
+
+            controller.AddParameter("IsMoving", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("Attack",   AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Die",      AnimatorControllerParameterType.Trigger);
+
+            var sm = controller.layers[0].stateMachine;
+
+            var idleState   = sm.AddState("Idle");   idleState.motion   = idleClip;
+            var runState    = sm.AddState("Run");     runState.motion    = runClip;
+            var attackState = sm.AddState("Attack");  attackState.motion = attackClip;
+            var deathState  = sm.AddState("Death");   deathState.motion  = deathClip;
+            sm.defaultState = idleState;
+
+            // Idle → Run
+            var i2r = idleState.AddTransition(runState);
+            i2r.AddCondition(AnimatorConditionMode.If, 0, "IsMoving");
+            i2r.hasExitTime = false; i2r.duration = 0.1f;
+
+            // Run → Idle
+            var r2i = runState.AddTransition(idleState);
+            r2i.AddCondition(AnimatorConditionMode.IfNot, 0, "IsMoving");
+            r2i.hasExitTime = false; r2i.duration = 0.1f;
+
+            // Any → Attack
+            var a2atk = sm.AddAnyStateTransition(attackState);
+            a2atk.AddCondition(AnimatorConditionMode.If, 0, "Attack");
+            a2atk.hasExitTime = false; a2atk.duration = 0.05f; a2atk.canTransitionToSelf = false;
+
+            // Attack → Idle
+            var atk2i = attackState.AddTransition(idleState);
+            atk2i.hasExitTime = true; atk2i.exitTime = 0.9f; atk2i.duration = 0.1f;
+
+            // Any → Death
+            var a2d = sm.AddAnyStateTransition(deathState);
+            a2d.AddCondition(AnimatorConditionMode.If, 0, "Die");
+            a2d.hasExitTime = false; a2d.duration = 0.05f; a2d.canTransitionToSelf = false;
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log($"[Project Forge v6] HeavyMarine AnimatorController создан: {controllerPath} " +
+                      $"[Idle={idleClip?.name ?? "null"}, Run={runClip?.name ?? "null"}, " +
+                      $"Attack={attackClip?.name ?? "null"}, Death={deathClip?.name ?? "null"}]");
+
+            return controller;
+        }
+
+        private static void ApplyHeavyMarineVisual(string prefabPath, GameObject fbxAsset, AnimatorController controller)
+        {
+            if (fbxAsset == null) return;
+
+            var playerMat = AssetDatabase.LoadAssetAtPath<Material>(PlayerBluePath);
+
+            using (var scope = new PrefabUtility.EditPrefabContentsScope(prefabPath))
+            {
+                var root = scope.prefabContentsRoot;
+
+                // Скрыть MeshRenderer капсулы
+                var capsuleMr = root.GetComponent<MeshRenderer>();
+                if (capsuleMr != null) capsuleMr.enabled = false;
+
+                // Удалить старый Visual
+                var oldVisual = root.transform.Find("Visual");
+                if (oldVisual != null) UnityEngine.Object.DestroyImmediate(oldVisual.gameObject);
+
+                // Создать Visual из Stan.fbx
+                var visual = (GameObject)PrefabUtility.InstantiatePrefab(fbxAsset, root.transform);
+                visual.name = "Visual";
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                visual.transform.localScale    = Vector3.one;
+
+                // Нормализация по баундам
+                NormalizeVisualByBounds(visual, HeavyMarineTargetHeight);
+
+                // Team-color материал
+                if (playerMat != null)
+                {
+                    foreach (var mr  in visual.GetComponentsInChildren<MeshRenderer>(true))
+                        mr.sharedMaterial = playerMat;
+                    foreach (var smr in visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                        smr.sharedMaterial = playerMat;
+                }
+
+                // Animator на Visual («??» не работает с Unity-объектами — fake-null)
+                var animator = visual.GetComponent<Animator>();
+                if (animator == null) animator = visual.AddComponent<Animator>();
+                animator.runtimeAnimatorController = controller;
+                animator.applyRootMotion = false;
+
+                // UnitAnimator на корне
+                if (root.GetComponent<UnitAnimator>() == null)
+                    root.AddComponent<UnitAnimator>();
+            }
+        }
+
+        private static void NormalizeVisualByBounds(GameObject visual, float targetSize)
+        {
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) return;
+
+            var bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                bounds.Encapsulate(renderers[i].bounds);
+
+            float maxDim = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+            if (maxDim < 0.0001f) return;
+
+            float factor = targetSize / maxDim;
+            visual.transform.localScale = Vector3.one * factor;
+        }
+
+        // ----------------------------------------------------------------
+        // v6 — CommandCard иерархия в SelectionPanel
+        // ----------------------------------------------------------------
+
+        private static void BuildCommandCardHierarchy()
+        {
+            var gameHud = GameObject.Find("GameHUD");
+            if (gameHud == null)
+            {
+                Debug.LogWarning("[Project Forge v6] GameHUD не найден. Сначала запустите Build Game HUD (M6a).");
+                return;
+            }
+
+            var selPanelGo = FindDescendantByName(gameHud, "SelectionPanel");
+            if (selPanelGo == null)
+            {
+                Debug.LogWarning("[Project Forge v6] SelectionPanel не найден в GameHUD.");
+                return;
+            }
+
+            // --- CommandCardRoot ---
+            var commandCardRoot = EnsureChild(selPanelGo, "CommandCardRoot");
+            {
+                var rt = commandCardRoot.GetComponent<RectTransform>();
+                // Правая часть панели: anchorMin/Max справа
+                rt.anchorMin = new Vector2(0.6f, 0f);
+                rt.anchorMax = new Vector2(1f, 1f);
+                rt.offsetMin = new Vector2(8f,  4f);
+                rt.offsetMax = new Vector2(-4f, -4f);
+
+                // Горизонтальный layout для кнопок
+                var layout = EnsureComponent<HorizontalLayoutGroup>(commandCardRoot);
+                layout.spacing               = 4f;
+                layout.childAlignment        = TextAnchor.MiddleLeft;
+                layout.childControlWidth     = false;
+                layout.childControlHeight    = false;
+                layout.childForceExpandWidth  = false;
+                layout.childForceExpandHeight = false;
+            }
+
+            // --- Три CommandCardButton слота ---
+            var commandCardButtons = new CommandCardButton[3];
+
+            for (int i = 0; i < 3; i++)
+            {
+                string slotName = "CommandSlot_" + i.ToString();
+                var slotGo = EnsureChild(commandCardRoot, slotName);
+
+                var slotRt = slotGo.GetComponent<RectTransform>();
+                slotRt.sizeDelta = new Vector2(64f, 64f);
+
+                // Фон
+                var bgImg = EnsureComponent<Image>(slotGo);
+                bgImg.color = new Color(0.15f, 0.20f, 0.30f, 0.9f);
+
+                // Кнопка
+                EnsureComponent<Button>(slotGo);
+
+                // Иконка (дочерний Image)
+                var iconGo  = EnsureChild(slotGo, "Icon");
+                var iconImg = EnsureComponent<Image>(iconGo);
+                iconImg.color = Color.white;
+                {
+                    var irt = iconGo.GetComponent<RectTransform>();
+                    irt.anchorMin = new Vector2(0.1f, 0.25f);
+                    irt.anchorMax = new Vector2(0.9f, 0.95f);
+                    irt.offsetMin = Vector2.zero;
+                    irt.offsetMax = Vector2.zero;
+                }
+
+                // Название (UnitNameText)
+                var nameGo  = EnsureChild(slotGo, "UnitNameText");
+                var nameTmp = EnsureComponent<TextMeshProUGUI>(nameGo);
+                nameTmp.text      = "";
+                nameTmp.fontSize  = 9f;
+                nameTmp.color     = Color.white;
+                nameTmp.alignment = TextAlignmentOptions.Center;
+                nameTmp.enableWordWrapping = false;
+                {
+                    var nrt = nameGo.GetComponent<RectTransform>();
+                    nrt.anchorMin = new Vector2(0f, 0.02f);
+                    nrt.anchorMax = new Vector2(1f, 0.28f);
+                    nrt.offsetMin = Vector2.zero;
+                    nrt.offsetMax = Vector2.zero;
+                }
+
+                // Стоимость (левый нижний)
+                var costGo  = EnsureChild(slotGo, "CostText");
+                var costTmp = EnsureComponent<TextMeshProUGUI>(costGo);
+                costTmp.text      = "";
+                costTmp.fontSize  = 9f;
+                costTmp.color     = new Color(0.9f, 0.85f, 0.2f, 1f);
+                costTmp.alignment = TextAlignmentOptions.BottomLeft;
+                {
+                    var crt = costGo.GetComponent<RectTransform>();
+                    crt.anchorMin = new Vector2(0f, 0f);
+                    crt.anchorMax = new Vector2(0.5f, 0.28f);
+                    crt.offsetMin = new Vector2(2f, 0f);
+                    crt.offsetMax = Vector2.zero;
+                }
+
+                // Хоткей (правый нижний)
+                var keyGo  = EnsureChild(slotGo, "HotkeyText");
+                var keyTmp = EnsureComponent<TextMeshProUGUI>(keyGo);
+                keyTmp.text      = "";
+                keyTmp.fontSize  = 9f;
+                keyTmp.color     = new Color(0.7f, 0.9f, 0.7f, 1f);
+                keyTmp.alignment = TextAlignmentOptions.BottomRight;
+                {
+                    var krt = keyGo.GetComponent<RectTransform>();
+                    krt.anchorMin = new Vector2(0.5f, 0f);
+                    krt.anchorMax = new Vector2(1f, 0.28f);
+                    krt.offsetMin = Vector2.zero;
+                    krt.offsetMax = new Vector2(-2f, 0f);
+                }
+
+                // CommandCardButton компонент
+                var btn = EnsureComponent<CommandCardButton>(slotGo);
+                {
+                    var so = new SerializedObject(btn);
+                    so.FindProperty("iconImage").objectReferenceValue    = iconImg;
+                    so.FindProperty("button").objectReferenceValue       = slotGo.GetComponent<Button>();
+                    so.FindProperty("unitNameText").objectReferenceValue = nameTmp;
+                    so.FindProperty("costText").objectReferenceValue     = costTmp;
+                    so.FindProperty("hotkeyText").objectReferenceValue   = keyTmp;
+                    so.FindProperty("slotIndex").intValue                = i;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                // TooltipTrigger (CommandCardButton сам реализует ITooltipProvider)
+                EnsureComponent<TooltipTrigger>(slotGo);
+
+                commandCardButtons[i] = btn;
+
+                // По умолчанию скрыт (SelectionPanel.Hide() включит/выключит)
+                slotGo.SetActive(false);
+            }
+
+            // --- QueueSlotsRoot ---
+            var queueSlotsRoot = EnsureChild(selPanelGo, "QueueSlotsRoot");
+            {
+                var rt = queueSlotsRoot.GetComponent<RectTransform>();
+                // Тонкая полоска над командной картой
+                rt.anchorMin = new Vector2(0.6f, 0f);
+                rt.anchorMax = new Vector2(1f, 0f);
+                rt.pivot     = new Vector2(0f, 1f);
+                // Позиционируем над CommandCardRoot
+                rt.anchoredPosition = new Vector2(0f, -4f); // relative to anchor bottom
+                rt.offsetMin = new Vector2(8f, 4f);
+                rt.offsetMax = new Vector2(-4f, -4f);
+
+                // Горизонтальный layout для слотов очереди
+                var layout = EnsureComponent<HorizontalLayoutGroup>(queueSlotsRoot);
+                layout.spacing               = 3f;
+                layout.childAlignment        = TextAnchor.MiddleLeft;
+                layout.childControlWidth     = false;
+                layout.childControlHeight    = false;
+                layout.childForceExpandWidth  = false;
+                layout.childForceExpandHeight = false;
+            }
+
+            // --- Пять QueueSlot слотов ---
+            var queueSlotComponents = new QueueSlotUI[5];
+
+            for (int i = 0; i < 5; i++)
+            {
+                string slotName = "QueueSlot_" + i.ToString();
+                var slotGo = EnsureChild(queueSlotsRoot, slotName);
+
+                var slotRt = slotGo.GetComponent<RectTransform>();
+                slotRt.sizeDelta = new Vector2(26f, 26f);
+
+                // Иконка-фон
+                var iconImg = EnsureComponent<Image>(slotGo);
+                iconImg.color = new Color(0.25f, 0.30f, 0.40f, 0.9f);
+
+                Image progressOverlay = null;
+
+                // Overlay прогресса — только у слота 0
+                if (i == 0)
+                {
+                    var overlayGo = EnsureChild(slotGo, "ProgressOverlay");
+                    progressOverlay = EnsureComponent<Image>(overlayGo);
+                    progressOverlay.color      = new Color(1f, 1f, 1f, 0.35f);
+                    progressOverlay.type       = Image.Type.Filled;
+                    progressOverlay.fillMethod = Image.FillMethod.Vertical;
+                    progressOverlay.fillOrigin = (int)Image.OriginVertical.Bottom;
+                    progressOverlay.fillAmount = 0f;
+
+                    var overlayRt = overlayGo.GetComponent<RectTransform>();
+                    overlayRt.anchorMin = Vector2.zero;
+                    overlayRt.anchorMax = Vector2.one;
+                    overlayRt.offsetMin = Vector2.zero;
+                    overlayRt.offsetMax = Vector2.zero;
+                }
+
+                // QueueSlotUI компонент
+                var qSlot = EnsureComponent<QueueSlotUI>(slotGo);
+                {
+                    var so = new SerializedObject(qSlot);
+                    so.FindProperty("iconImage").objectReferenceValue      = iconImg;
+                    so.FindProperty("progressOverlay").objectReferenceValue = progressOverlay;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                queueSlotComponents[i] = qSlot;
+
+                // По умолчанию скрыт
+                slotGo.SetActive(false);
+            }
+
+            // --- Проставить ссылки в SelectionPanel ---
+            var selPanel = selPanelGo.GetComponent<SelectionPanel>();
+            if (selPanel != null)
+            {
+                var so = new SerializedObject(selPanel);
+
+                so.FindProperty("commandCardRoot").objectReferenceValue = commandCardRoot;
+
+                // commandCardSlots — массив из 3 элементов
+                var slotsProp = so.FindProperty("commandCardSlots");
+                slotsProp.arraySize = 3;
+                for (int i = 0; i < 3; i++)
+                    slotsProp.GetArrayElementAtIndex(i).objectReferenceValue = commandCardButtons[i];
+
+                // queueSlots — массив из 5 элементов
+                var queueProp = so.FindProperty("queueSlots");
+                queueProp.arraySize = 5;
+                for (int i = 0; i < 5; i++)
+                    queueProp.GetArrayElementAtIndex(i).objectReferenceValue = queueSlotComponents[i];
+
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            else
+            {
+                Debug.LogWarning("[Project Forge v6] SelectionPanel компонент не найден на GameObject 'SelectionPanel'.");
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // v6 — _unitPrefabs у Building-префабов
+        // ----------------------------------------------------------------
+
+        private static void WireUnitPrefabsOnBuildings()
+        {
+            // Barracks: Marine → TestUnit.prefab, HeavyMarine → HeavyMarineUnit.prefab
+            WireUnitPrefabsOnPrefab(BarracksPrefabPath, new[]
+            {
+                (MarineDataPath,      MarinePrefabPath),
+                (HeavyMarineDataPath, HeavyMarinePrefabPath),
+            });
+
+            // WarFactory: Tank → TankUnit.prefab
+            WireUnitPrefabsOnPrefab(WarFactoryPrefabPath, new[]
+            {
+                (TankDataPath, TankPrefabPath),
+            });
+        }
+
+        private static void WireUnitPrefabsOnPrefab(string prefabPath, (string dataPath, string prefabRef)[] mappings)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Project Forge v6] Префаб не найден: {prefabPath}");
+                return;
+            }
+
+            using (var scope = new PrefabUtility.EditPrefabContentsScope(prefabPath))
+            {
+                var root = scope.prefabContentsRoot;
+                var prod = root.GetComponent<ProductionBuilding>();
+                if (prod == null)
+                {
+                    Debug.LogWarning($"[Project Forge v6] ProductionBuilding не найден на: {prefabPath}");
+                    return;
+                }
+
+                var so          = new SerializedObject(prod);
+                var unitPrefabs = so.FindProperty("_unitPrefabs");
+
+                unitPrefabs.arraySize = mappings.Length;
+
+                for (int i = 0; i < mappings.Length; i++)
+                {
+                    var (dataPath, prefabRef) = mappings[i];
+                    var unitData    = AssetDatabase.LoadAssetAtPath<UnitData>(dataPath);
+                    var unitPrefab  = AssetDatabase.LoadAssetAtPath<GameObject>(prefabRef);
+
+                    var element = unitPrefabs.GetArrayElementAtIndex(i);
+                    element.FindPropertyRelative("unitData").objectReferenceValue = unitData;
+                    element.FindPropertyRelative("prefab").objectReferenceValue   = unitPrefab;
+                }
+
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            Debug.Log($"[Project Forge v6] _unitPrefabs настроен: {prefabPath}");
+        }
+
+        // ----------------------------------------------------------------
+        // v6 — BuildingSpawnEffect на префабах
+        // ----------------------------------------------------------------
+
+        private static void EnsureBuildingSpawnEffect(string prefabPath)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Project Forge v6] Префаб не найден: {prefabPath}");
+                return;
+            }
+
+            using (var scope = new PrefabUtility.EditPrefabContentsScope(prefabPath))
+            {
+                var root = scope.prefabContentsRoot;
+                // Идемпотентно — EnsureComponent не дублирует
+                if (root.GetComponent<BuildingSpawnEffect>() == null)
+                    root.AddComponent<BuildingSpawnEffect>();
+            }
+
+            Debug.Log($"[Project Forge v6] BuildingSpawnEffect добавлен/проверен: {prefabPath}");
+        }
+
+        // ----------------------------------------------------------------
+        // v6 — _waveStingerClip на AudioManager в сцене
+        // ----------------------------------------------------------------
+
+        private static void WireWaveStingerClip()
+        {
+            var audioClip = AssetDatabase.LoadAssetAtPath<AudioClip>(FightOggPath);
+            if (audioClip == null)
+            {
+                Debug.LogWarning($"[Project Forge v6] fight.ogg не найден: {FightOggPath}");
+                return;
+            }
+
+            var audioManager = UnityEngine.Object.FindFirstObjectByType<AudioManager>();
+            if (audioManager == null)
+            {
+                Debug.LogWarning("[Project Forge v6] AudioManager не найден в сцене. " +
+                                 "Запустите Setup Audio (M7) сначала.");
+                return;
+            }
+
+            var so = new SerializedObject(audioManager);
+            var prop = so.FindProperty("_waveStingerClip");
+            if (prop != null)
+            {
+                prop.objectReferenceValue = audioClip;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                Debug.Log("[Project Forge v6] _waveStingerClip = fight.ogg проставлен.");
+            }
+            else
+            {
+                Debug.LogWarning("[Project Forge v6] Свойство _waveStingerClip не найдено на AudioManager.");
+            }
+        }
+
+        // ----------------------------------------------------------------
         // RTS-блок
         // ----------------------------------------------------------------
 
@@ -1828,7 +2540,7 @@ namespace DiplomaGame.Editor
 
         private static void EnsureEventSystem()
         {
-            var existing = Object.FindFirstObjectByType<EventSystem>();
+            var existing = UnityEngine.Object.FindAnyObjectByType<EventSystem>();
             if (existing != null)
             {
                 // Убеждаемся, что на EventSystem стоит InputSystemUIInputModule

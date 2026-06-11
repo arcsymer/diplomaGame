@@ -332,3 +332,34 @@
 **Реализация:** Marine → Mike.fbx, EnemyGrunt → George.fbx (Stan — резерв); `UnitAnimator` (мост FSM→Animator: IsMoving по скорости агента без аллокаций, триггеры Attack/Die от instance-событий UnitCombat.Attacked и Health.Died); Forge-кнопка «Setup Animated Units (v5)» — импорт-настройки, программная генерация AnimatorController (Idle/Run/Attack/Death) с поиском клипов по ключевым словам (приоритет Shoot над Punch — юниты стреляют), замена Visual в префабах с нормализацией масштаба (ADR-012) и team-color материалами; батч `ForgeBatch.SetupAnimatedUnits`.
 
 **Верификация:** EditMode 232 (+4 UnitAnimatorLogicTests), PlayMode 99 — зелёные; лицензия в `Licenses & Attribution.md`.
+
+---
+
+## ADR-023 — Мульти-производство и command card: ProductionEntry[] с legacy-fallback
+**Дата:** 2026-06-11 (Сессия 03, круг 6) · **Статус:** принято
+
+**Проблема:** `ProductionBuilding` нёс один `_unitPrefab` — новый тип юнита требовал нового здания (так появилась WarFactory, ADR-017); P3-долг «мульти-производство». UX-эталон SC2 — command card с кнопками юнитов, хоткеями и очередью.
+
+**Решение:** `BuildingData.ProductionEntries[]` (юнит, цена, время, иконка, хоткей) с правилом «пустой массив = legacy-режим» — ни один существующий ассет/тест не ломается; очередь `Queue<ProductionEntry>` со снапшотом для UI без аллокаций; маппинг префабов `UnitPrefabEntry[]`; хоткеи T/Y/U таблицей в CommandInput; событие `UnitProduced(Unit, ProductionEntry)` (оба подписчика обновлены). Command card в SelectionPanel: 3 кнопки CommandCardButton (ITooltipProvider — тултипы через существующую систему) + 5 слотов очереди QueueSlotUI с прогрессом первого слота — как в SC2. ИИ выбирает тип юнита эвристикой `EnemyWaveLogic.PickProductionEntryIndex` (пехота:танки 3:1, чистая статика — EditMode-тесты).
+
+**Доказательство data-driven тезиса:** новый юнит **HeavyMarine** (HP 150, dmg 14, supply 2, cost 90) добавлен «данными»: ассет + entry в Barracks + префаб из резервного Stan.fbx — ядро не тронуто.
+
+**Грабли:** `GetComponent<T>() ?? AddComponent<T>()` не работает с Unity-объектами (fake-null не триггерит `??`) — MissingComponentException в batch; заменено явной проверкой.
+
+---
+
+## ADR-024 — Fighting retreat: отстрел при отступлении (data-driven)
+**Дата:** 2026-06-11 (Сессия 03, круг 6) · **Статус:** принято
+
+**Проблема:** отступающий юнит не отстреливается → первый выстрел решает ~92% зеркальных раундов (снежный эффект, зафиксирован в ADR-021).
+
+**Решение:** `UnitData.FireWhileRetreating` (дефолт true — пехота получает поведение без миграции ассетов): в состоянии Retreating юнит сканирует цели ТОЛЬКО в радиусе атаки (по существующему скан-ритму, без преследования и без остановки движения к rally) и стреляет. Альтернативы: глобальный флаг (не data-driven), полный разворот к цели (ломает смысл ретрита).
+
+**Верификация:** Balance-серия — ожидание снижения first-shot→win корреляции и сохранения завершаемости боёв; цифры в Improvements/06.
+
+---
+
+## ADR-025 — Quick wins: scale-in зданий и стингер волны без новых ассетов
+**Дата:** 2026-06-11 (Сессия 03, круг 6) · **Статус:** принято
+
+`BuildingSpawnEffect` — корутина scale-in 0→1.15→1.0 за 0.35 с (overshoot, 12 принципов анимации) на префабах зданий; без аллокаций в кадре. Стингер начала волны ИИ — статическое событие `EnemyCommander.WaveLaunched` + `AudioManager.PlayOneShot(fight.ogg)` через voice-источник: переиспользован существующий CC0-клип, новых ассетов ноль (нулевой бюджет).

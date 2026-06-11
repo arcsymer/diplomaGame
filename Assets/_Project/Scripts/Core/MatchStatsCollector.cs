@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
+using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Units;
@@ -136,7 +137,7 @@ namespace DiplomaGame.Runtime.Core
             _stats.RecordMined(faction, amount);
         }
 
-        private void OnUnitProduced(Unit unit)
+        private void OnUnitProduced(Unit unit, DiplomaGame.Runtime.Data.ProductionEntry entry)
         {
             if (unit == null) return;
             _stats.RecordProduced(unit.Faction);

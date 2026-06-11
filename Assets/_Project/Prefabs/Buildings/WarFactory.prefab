@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 3968357588125320955}
   - component: {fileID: 4798791103661981269}
   - component: {fileID: 5306586353469573053}
+  - component: {fileID: 469551827147288300}
   m_Layer: 0
   m_Name: WarFactory
   m_TagString: Untagged
@@ -158,6 +159,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Buildings.ProductionBuilding
   _unitPrefab: {fileID: 4498736660521432924, guid: 84a442ec2ba553d4abe7b5de48fc14ff, type: 3}
+  _unitPrefabs:
+  - unitData: {fileID: 11400000, guid: 648217ed035e50e4caf30efae42c15fe, type: 2}
+    prefab: {fileID: 4498736660521432924, guid: 84a442ec2ba553d4abe7b5de48fc14ff, type: 3}
 --- !u!208 &5306586353469573053
 NavMeshObstacle:
   m_ObjectHideFlags: 0
@@ -174,6 +178,18 @@ NavMeshObstacle:
   m_CarveOnlyStationary: 1
   m_Center: {x: 0, y: 1.5, z: 0}
   m_TimeToStationary: 0.5
+--- !u!114 &469551827147288300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5269493416912401918}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8848231a7ebbbbf479950550a1c3fa63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Buildings.BuildingSpawnEffect
 --- !u!1001 &7889555653022036993
 PrefabInstance:
   m_ObjectHideFlags: 0
