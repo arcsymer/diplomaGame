@@ -26,6 +26,33 @@ namespace DiplomaGame.Runtime.Units
         /// <summary>Вызывается при атаке любого UnitCombat. Параметр — мировая позиция атакующего.</summary>
         public static event Action<Vector3> AnyAttacked;
 
+        // ----------------------------------------------------------------
+        // Инстанс-событие (v5 — UnitAnimator)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Вызывается при каждой успешной атаке данного юнита.
+        /// UnitAnimator подписывается на это событие для запуска trigger Attack.
+        /// Намеренно отдельное от AnyAttacked: избегает ненужных вызовов у всех юнитов.
+        /// </summary>
+        public event Action Attacked;
+
+        // ----------------------------------------------------------------
+        // Диагностические события (BalanceDiag)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Вызывается при первом выстреле любого UnitCombat за сессию.
+        /// Параметры: фракция атакующего, мировая позиция, EntityId.
+        /// </summary>
+        public static event Action<Faction, Vector3, int> AnyAttackedWithFaction;
+
+        /// <summary>
+        /// Вызывается при начале отступления любого UnitCombat.
+        /// Параметры: фракция отступающего, мировая позиция.
+        /// </summary>
+        public static event Action<Faction, Vector3> AnyRetreatStarted;
+
         [SerializeField] private UnitData _data;
 
         // Дополнительный буфер к attackRange при атаке здания (здания крупные).
@@ -121,19 +148,19 @@ namespace DiplomaGame.Runtime.Units
         {
             // Рандомизируем начальный кулдаун атаки, чтобы устранить first-mover advantage
             // от порядка Update: юниты, созданные первыми, иначе стреляют раньше всех.
-            // Используем GetEntityId() как seed — уникален, нет аллокаций.
-            // Сдвиг на -AttackCooldown: первый выстрел возможен ровно через offset секунд,
-            // иначе CanFire отложил бы его на полный кулдаун + offset.
+            // Используем GetEntityId() XOR фракционную соль как seed — это разрывает
+            // корреляцию между двумя командами, которые получают последовательные блоки ID:
+            // без соли соседние ID двух команд давали похожие hash-значения → системный перекос.
             if (_data != null)
             {
-                float offset = CombatLogic.RandomiseInitialCooldownOffset(
-                    _data.AttackCooldown, (int)gameObject.GetEntityId());
+                int factionSalt = _unit.Faction == Faction.Player ? 0x27D4EB2F : unchecked((int)0x9B2257E5u);
+                int seed = (int)gameObject.GetEntityId() ^ factionSalt;
+                float offset = CombatLogic.RandomiseInitialCooldownOffset(_data.AttackCooldown, seed);
                 _lastAttackTime = Time.time - _data.AttackCooldown + offset;
 
                 // Фаза сканирования тоже рандомизируется: иначе все юниты сканируют
                 // в один кадр, и порядок Update решает, кто захватит цель первым.
-                _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(
-                    ScanInterval, (int)gameObject.GetEntityId() * 31);
+                _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(ScanInterval, seed * 31);
             }
         }
 
@@ -200,11 +227,14 @@ namespace DiplomaGame.Runtime.Units
             // Рандомизация кулдауна — применяем сразу, т.к. Start() может вызваться
             // раньше или позже InitForTest в зависимости от порядка AddComponent/Start.
             // Сдвиг на -AttackCooldown — как в Start(): первый выстрел через offset секунд.
-            float offset = CombatLogic.RandomiseInitialCooldownOffset(
-                data.AttackCooldown, (int)gameObject.GetEntityId());
+            // Используем ту же логику seed (EntityId ^ factionSalt), что и Start().
+            int factionSalt = _unit != null && _unit.Faction == Faction.Player
+                ? 0x27D4EB2F
+                : unchecked((int)0x9B2257E5u);
+            int seed = (int)gameObject.GetEntityId() ^ factionSalt;
+            float offset = CombatLogic.RandomiseInitialCooldownOffset(data.AttackCooldown, seed);
             _lastAttackTime = Time.time - data.AttackCooldown + offset;
-            _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(
-                ScanInterval, (int)gameObject.GetEntityId() * 31);
+            _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(ScanInterval, seed * 31);
         }
 
         // ----------------------------------------------------------------
@@ -419,6 +449,8 @@ namespace DiplomaGame.Runtime.Units
                 _currentTargetHealth.TakeDamage(_data.Damage);
                 _lastAttackTime = Time.time;
                 AnyAttacked?.Invoke(transform.position);
+                AnyAttackedWithFaction?.Invoke(_unit.Faction, transform.position, (int)gameObject.GetEntityId());
+                Attacked?.Invoke();
 
                 // Если цель умерла — сбрасываем
                 if (_currentTargetHealth.IsDead)
@@ -470,6 +502,8 @@ namespace DiplomaGame.Runtime.Units
             }
 
             AnyAttacked?.Invoke(transform.position);
+            AnyAttackedWithFaction?.Invoke(_unit.Faction, transform.position, (int)gameObject.GetEntityId());
+            Attacked?.Invoke();
 
             if (_aoeVfx != null)
             {
@@ -502,6 +536,7 @@ namespace DiplomaGame.Runtime.Units
             _lastRetreatTime   = Time.time;
             CurrentCombatState = CombatState.Retreating;
             SetCurrentTarget(null, null);
+            AnyRetreatStarted?.Invoke(_unit.Faction, transform.position);
 
             // Находим ближайшего врага (только юниты) для расчёта точки отступления
             Vector3 threatPos    = Vector3.zero;

@@ -4,6 +4,6 @@
     "playerAlive": 0,
     "enemyAlive": 2,
     "playerHpLeft": 0.0,
-    "enemyHpLeft": 10.0,
-    "simDurationSec": 12.517257690429688
+    "enemyHpLeft": 60.0,
+    "simDurationSec": 12.50982666015625
 }

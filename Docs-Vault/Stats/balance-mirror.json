@@ -1,9 +1,9 @@
 {
     "scenario": "Mirror 8v8 Marine vs Marine — серия 6 раундов (винрейт)",
-    "winner": "Enemy (серия)",
-    "playerAlive": 1,
-    "enemyAlive": 5,
+    "winner": "Player (серия)",
+    "playerAlive": 4,
+    "enemyAlive": 2,
     "playerHpLeft": 0.0,
     "enemyHpLeft": 0.0,
-    "simDurationSec": 31.308317184448243
+    "simDurationSec": 27.528295516967775
 }

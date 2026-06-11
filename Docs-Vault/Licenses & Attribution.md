@@ -62,3 +62,10 @@
   game-icons.net, Lorc, Delapouite и другие авторы
   Licensed under Creative Commons Attribution 3.0
 ```
+
+## Animated Mech Pack (Quaternius)
+- **Источник:** https://opengameart.org/content/animated-mech-pack (зеркало; оригинал quaternius.com)
+- **Автор:** Quaternius
+- **Лицензия:** CC0 1.0 Universal (Public Domain) — подтверждена License.txt внутри архива
+- **Файлы:** `Assets/_Project/Art/Models/Units/Animated/Mike.fbx, George.fbx, Stan.fbx`
+- **Использование:** анимированные модели юнитов (пехота/мехи) с встроенными анимациями (Idle/Walk/Run/Death и боевые)
