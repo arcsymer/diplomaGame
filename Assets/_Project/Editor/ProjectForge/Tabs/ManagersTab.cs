@@ -406,12 +406,22 @@ namespace DiplomaGame.Editor
                 modeController = EnsureComponent<GameModeController>(managersGo);
             }
 
-            // --- SO-ассеты способностей (идемпотентно) ---
+            // --- SO-ассеты способностей (идемпотентно; баланс — ADR-013) ---
             EnsureFolder(AbilitiesFolder);
-            var dashAsset   = EnsureAbilityAsset("Dash",     AbilityType.Dash,         4f,  6f);
-            var ab2Asset    = EnsureAbilityAsset("Ability2", AbilityType.Placeholder2,  8f,  0f);
-            var ab3Asset    = EnsureAbilityAsset("Ability3", AbilityType.Placeholder3,  8f,  0f);
-            var ab4Asset    = EnsureAbilityAsset("Ability4", AbilityType.Placeholder4,  8f,  0f);
+            var dashAsset = EnsureAbilityAsset(
+                "Dash", "Рывок", AbilityType.Dash, cooldown: 4f, dashDistance: 6f);
+
+            var ab2Asset = EnsureAbilityAsset(
+                "Ability2", "Ударная волна", AbilityType.Shockwave,
+                cooldown: 10f, effectRadius: 6f, effectAmount: 40f);
+
+            var ab3Asset = EnsureAbilityAsset(
+                "Ability3", "Ремонтное поле", AbilityType.RepairField,
+                cooldown: 12f, effectRadius: 8f, effectAmount: 30f);
+
+            var ab4Asset = EnsureAbilityAsset(
+                "Ability4", "Перегрузка", AbilityType.Overcharge,
+                cooldown: 15f, buffDuration: 5f, fireRateMultiplier: 2f, damageMultiplier: 1.5f);
 
             // --- Проставляем ссылки через SerializedObject ---
 
@@ -443,6 +453,7 @@ namespace DiplomaGame.Editor
                 so.FindProperty("modeController").objectReferenceValue       = modeController;
                 so.FindProperty("actions").objectReferenceValue              = inputAsset;
                 so.FindProperty("heroController").objectReferenceValue       = heroCtrl;
+                so.FindProperty("heroShooter").objectReferenceValue          = heroShooter;
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
 
@@ -880,24 +891,44 @@ namespace DiplomaGame.Editor
         // ----------------------------------------------------------------
 
         /// <summary>
-        /// Идемпотентно создаёт AbilityData ScriptableObject или загружает существующий.
+        /// Идемпотентно создаёт или обновляет AbilityData ScriptableObject.
+        /// Поля перезаписываются всегда — Forge является источником истины конфигурации
+        /// (как ConfigTab для UnitData/BuildingData).
         /// </summary>
-        private static AbilityData EnsureAbilityAsset(string assetName, AbilityType type, float cooldown, float dashDistance)
+        private static AbilityData EnsureAbilityAsset(
+            string assetName,
+            string displayName,
+            AbilityType type,
+            float cooldown,
+            float dashDistance       = 0f,
+            float effectRadius       = 6f,
+            float effectAmount       = 40f,
+            float buffDuration       = 5f,
+            float fireRateMultiplier = 2f,
+            float damageMultiplier   = 1.5f)
         {
-            var path     = $"{AbilitiesFolder}/{assetName}.asset";
-            var existing = AssetDatabase.LoadAssetAtPath<AbilityData>(path);
-            if (existing != null)
-                return existing;
+            var path = $"{AbilitiesFolder}/{assetName}.asset";
+            var data = AssetDatabase.LoadAssetAtPath<AbilityData>(path);
 
-            var data = ScriptableObject.CreateInstance<AbilityData>();
-            var so   = new SerializedObject(data);
-            so.FindProperty("_displayName").stringValue       = assetName;
-            so.FindProperty("_cooldown").floatValue           = cooldown;
-            so.FindProperty("_abilityType").enumValueIndex    = (int)type;
-            so.FindProperty("_dashDistance").floatValue       = dashDistance;
+            bool created = data == null;
+            if (created)
+                data = ScriptableObject.CreateInstance<AbilityData>();
+
+            var so = new SerializedObject(data);
+            so.FindProperty("_displayName").stringValue          = displayName;
+            so.FindProperty("_cooldown").floatValue              = cooldown;
+            so.FindProperty("_abilityType").enumValueIndex       = (int)type;
+            so.FindProperty("_dashDistance").floatValue          = dashDistance;
+            so.FindProperty("_effectRadius").floatValue          = effectRadius;
+            so.FindProperty("_effectAmount").floatValue          = effectAmount;
+            so.FindProperty("_buffDuration").floatValue          = buffDuration;
+            so.FindProperty("_fireRateMultiplier").floatValue    = fireRateMultiplier;
+            so.FindProperty("_damageMultiplier").floatValue      = damageMultiplier;
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            AssetDatabase.CreateAsset(data, path);
+            if (created)
+                AssetDatabase.CreateAsset(data, path);
+
             AssetDatabase.SaveAssets();
             return data;
         }

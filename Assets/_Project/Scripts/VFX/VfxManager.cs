@@ -45,6 +45,9 @@ namespace DiplomaGame.Runtime.VFX
         // Флаг: тестовый режим (пул уже инициализирован снаружи)
         private bool _testMode;
 
+        // Кэш AbilitySystem (находим один раз в Start)
+        private AbilitySystem _abilitySystem;
+
         // Кэш WaitForSeconds по длительности (избегаем new на каждой корутине)
         private readonly Dictionary<float, WaitForSeconds> _waitCache =
             new Dictionary<float, WaitForSeconds>(8);
@@ -80,6 +83,11 @@ namespace DiplomaGame.Runtime.VFX
             if (heroShooter != null)
                 heroShooter.ShotFired += OnHeroShotFired;
 
+            // AbilitySystem.AbilityCast — визуальный отклик на способности героя
+            _abilitySystem = UnityEngine.Object.FindFirstObjectByType<AbilitySystem>();
+            if (_abilitySystem != null)
+                _abilitySystem.AbilityCast += OnAbilityCast;
+
             // Статические события шины
             UnitCombat.AnyAttacked   += OnUnitAttacked;
             Health.AnyDied           += OnAnyDied;
@@ -95,6 +103,9 @@ namespace DiplomaGame.Runtime.VFX
             var heroShooter = UnityEngine.Object.FindFirstObjectByType<HeroShooter>();
             if (heroShooter != null)
                 heroShooter.ShotFired -= OnHeroShotFired;
+
+            if (_abilitySystem != null)
+                _abilitySystem.AbilityCast -= OnAbilityCast;
 
             UnitCombat.AnyAttacked   -= OnUnitAttacked;
             Health.AnyDied           -= OnAnyDied;
@@ -129,6 +140,29 @@ namespace DiplomaGame.Runtime.VFX
         private void OnBuildingPlaced(Vector3 position)
         {
             Play(_buildPool, ref _buildIndex, position);
+        }
+
+        private void OnAbilityCast(int slot, DiplomaGame.Runtime.Data.AbilityData data)
+        {
+            if (_abilitySystem == null || data == null)
+                return;
+
+            Vector3 heroPos = _abilitySystem.transform.position;
+
+            switch (data.AbilityType)
+            {
+                case DiplomaGame.Runtime.Data.AbilityType.Shockwave:
+                    Play(_explosionPool, ref _explosionIndex, heroPos);
+                    break;
+
+                case DiplomaGame.Runtime.Data.AbilityType.RepairField:
+                    Play(_buildPool, ref _buildIndex, heroPos);
+                    break;
+
+                case DiplomaGame.Runtime.Data.AbilityType.Overcharge:
+                    Play(_muzzlePool, ref _muzzleIndex, heroPos);
+                    break;
+            }
         }
 
         // ----------------------------------------------------------------

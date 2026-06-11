@@ -42,6 +42,7 @@ namespace DiplomaGame.Editor
                 new UITab(),
                 new AudioTab(),
                 new VFXTab(),
+                new ImproveTab(),
             };
         }
 

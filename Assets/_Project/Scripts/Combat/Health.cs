@@ -75,6 +75,20 @@ namespace DiplomaGame.Runtime.Combat
         // IDamageable
         // ----------------------------------------------------------------
 
+        /// <summary>
+        /// Восстанавливает HP (не выше максимума). Мёртвых не лечит.
+        /// Возвращает фактически восстановленное количество.
+        /// </summary>
+        public float Heal(float amount)
+        {
+            float applied = CombatLogic.ClampHeal(amount, _currentHp, _maxHp, _isDead);
+            if (applied <= 0f)
+                return 0f;
+
+            _currentHp += applied;
+            return applied;
+        }
+
         /// <summary>Наносит урон. Повторный урон после смерти игнорируется.</summary>
         public void TakeDamage(float amount)
         {

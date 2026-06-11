@@ -12,7 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 269f1292030b56f4d8f50e272e4216d7, type: 3}
   m_Name: Ability2
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Data.AbilityData
-  _displayName: Ability2
-  _cooldown: 8
+  _displayName: "\u0423\u0434\u0430\u0440\u043D\u0430\u044F \u0432\u043E\u043B\u043D\u0430"
+  _cooldown: 10
   _abilityType: 1
   _dashDistance: 0
+  _effectRadius: 6
+  _effectAmount: 40
+  _buffDuration: 5
+  _fireRateMultiplier: 2
+  _damageMultiplier: 1.5

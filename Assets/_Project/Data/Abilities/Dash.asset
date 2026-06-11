@@ -12,7 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 269f1292030b56f4d8f50e272e4216d7, type: 3}
   m_Name: Dash
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Data.AbilityData
-  _displayName: Dash
+  _displayName: "\u0420\u044B\u0432\u043E\u043A"
   _cooldown: 4
   _abilityType: 0
   _dashDistance: 6
+  _effectRadius: 6
+  _effectAmount: 40
+  _buffDuration: 5
+  _fireRateMultiplier: 2
+  _damageMultiplier: 1.5

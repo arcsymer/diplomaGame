@@ -150,6 +150,16 @@ namespace DiplomaGame.Editor
             ManagersTab.SetupScenario();
         }
 
+        /// <summary>
+        /// Фаза улучшения: дописывает строку метрик (билд, код, перф, баланс) в
+        /// Docs-Vault/Improvements/Metrics.md. Перф/баланс берутся из JSON-результатов
+        /// последнего прогона Balance-плейтестов (-testCategory Balance).
+        /// </summary>
+        public static void ExportImprovementMetrics()
+        {
+            ImproveTab.AppendMetricsRow();
+        }
+
         /// <summary>Сборка Windows x64 билда (та же логика, что кнопка Build).</summary>
         public static void BuildWindows()
         {

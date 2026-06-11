@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
+using DiplomaGame.Runtime.Units;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -16,6 +19,10 @@ namespace DiplomaGame.Runtime.Hero
         [SerializeField] private GameModeController modeController;
         [SerializeField] private InputActionAsset   actions;
         [SerializeField] private HeroController     heroController;
+        [SerializeField] private HeroShooter        heroShooter;
+
+        // Преаллоцированные буферы для AoE-эффектов (без аллокаций при касте)
+        private readonly List<Unit> _unitBuffer = new List<Unit>(64);
 
         // ----------------------------------------------------------------
         // Событие (HUD-шина — M6)
@@ -43,6 +50,9 @@ namespace DiplomaGame.Runtime.Hero
 
         private void Awake()
         {
+            if (heroShooter == null)
+                heroShooter = GetComponent<HeroShooter>();
+
             // Создаём делегаты один раз — для корректной отписки в OnDisable
             for (int i = 0; i < 4; i++)
             {
@@ -123,10 +133,11 @@ namespace DiplomaGame.Runtime.Hero
         /// <summary>
         /// Инициализация для тестов: подставляет зависимости без InputActionAsset.
         /// </summary>
-        internal void InitForTest(GameModeController controller, HeroController hero, AbilityData[] testAbilities)
+        internal void InitForTest(GameModeController controller, HeroController hero, AbilityData[] testAbilities, HeroShooter shooter = null)
         {
             modeController = controller;
             heroController = hero;
+            heroShooter    = shooter;
             actions        = null;
 
             if (testAbilities != null)
@@ -184,9 +195,62 @@ namespace DiplomaGame.Runtime.Hero
                         heroController.Dash(data.DashDistance);
                     break;
 
-                default:
-                    Debug.Log($"[AbilitySystem] Способность '{data.DisplayName}' (слот {index}) применена — placeholder.");
+                case AbilityType.Shockwave:
+                    ApplyShockwave(data);
                     break;
+
+                case AbilityType.RepairField:
+                    ApplyRepairField(data);
+                    break;
+
+                case AbilityType.Overcharge:
+                    if (heroShooter != null)
+                        heroShooter.ApplyOvercharge(data.BuffDuration, data.FireRateMultiplier, data.DamageMultiplier);
+                    break;
+            }
+        }
+
+        /// <summary>AoE-урон по вражеским юнитам в радиусе вокруг героя.</summary>
+        private void ApplyShockwave(AbilityData data)
+        {
+            UnitRegistry.GetUnits(Faction.Enemy, _unitBuffer);
+
+            Vector3 center    = transform.position;
+            float   radiusSqr = data.EffectRadius * data.EffectRadius;
+
+            for (int i = 0; i < _unitBuffer.Count; i++)
+            {
+                var unit = _unitBuffer[i];
+                if (unit == null) continue;
+
+                if ((unit.transform.position - center).sqrMagnitude > radiusSqr)
+                    continue;
+
+                var health = unit.CachedHealth;
+                if (health != null && !health.IsDead)
+                    health.TakeDamage(data.EffectAmount);
+            }
+        }
+
+        /// <summary>Лечение союзных юнитов (включая героя) в радиусе вокруг героя.</summary>
+        private void ApplyRepairField(AbilityData data)
+        {
+            UnitRegistry.GetUnits(Faction.Player, _unitBuffer);
+
+            Vector3 center    = transform.position;
+            float   radiusSqr = data.EffectRadius * data.EffectRadius;
+
+            for (int i = 0; i < _unitBuffer.Count; i++)
+            {
+                var unit = _unitBuffer[i];
+                if (unit == null) continue;
+
+                if ((unit.transform.position - center).sqrMagnitude > radiusSqr)
+                    continue;
+
+                var health = unit.CachedHealth;
+                if (health != null)
+                    health.Heal(data.EffectAmount);
             }
         }
     }

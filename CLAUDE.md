@@ -30,6 +30,8 @@
 - Релизы: `gh release create vX.Y.Z <zip>` — билд прикладывается к GitHub Release.
 
 ## Текущее состояние
-- **M0 (инфраструктура) — в работе**: репо, LFS, CI, скелет Project Forge, песочница-сцена.
-- Дальше по роадмапу: M1 режимы/камеры → M2 RTS-управление → M3 TPS-герой → M4 бой/ИИ → M5 экономика → M6 UX/UI → M7 аудио → M8 визуал → M9 сценарий → M10 полировка → M11 релиз → M12 документация.
-- CI: GitHub Actions + GameCI v4; требуются секреты `UNITY_LICENSE`/`UNITY_EMAIL`/`UNITY_PASSWORD` (действие пользователя).
+- **M0–M12 завершены**, релиз v1.0.0 с Windows-билдом опубликован (GitHub Releases).
+- **Фаза улучшения (v3)**: бесконечный цикл Measure → Benchmark (vs SC2) → … → Commit по сферам, до команды «СТОП». Гэп-анализ и приоритеты — `Docs-Vault/Improvements/`.
+- Измерительные харнессы: PlayMode-тесты категории `Balance` (армия vs армия, стресс+перф) пишут JSON в `Docs-Vault/Stats/`; вкладка **Improve** в Forge (`ForgeBatch.ExportImprovementMetrics`) дописывает строку в `Improvements/Metrics.md`.
+- Тесты локально: `Unity.exe -batchmode -runTests -testPlatform EditMode|PlayMode -testResults <xml> -logFile <log>` (Unity 6000.4.9f1).
+- CI: GitHub Actions + GameCI v4 (образ запинен на 6000.4.10f1, ADR-008); секреты настроены.

@@ -36,6 +36,28 @@ namespace DiplomaGame.Runtime.Hero
         private float       _lastFireTime;
 
         // ----------------------------------------------------------------
+        // Бафф Overcharge (способность героя, слот 4)
+        // ----------------------------------------------------------------
+
+        private float _overchargeUntil = float.NegativeInfinity;
+        private float _overchargeFireRateMult = 1f;
+        private float _overchargeDamageMult   = 1f;
+
+        /// <summary>Активна ли сейчас перегрузка.</summary>
+        public bool IsOvercharged => AbilityEffectLogic.IsBuffActive(Time.time, _overchargeUntil);
+
+        /// <summary>
+        /// Включает временный бафф скорострельности и урона (способность Overcharge).
+        /// Повторное применение перезапускает таймер.
+        /// </summary>
+        public void ApplyOvercharge(float duration, float fireRateMultiplier, float damageMultiplier)
+        {
+            _overchargeUntil        = Time.time + duration;
+            _overchargeFireRateMult = fireRateMultiplier;
+            _overchargeDamageMult   = damageMultiplier;
+        }
+
+        // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
 
@@ -108,7 +130,13 @@ namespace DiplomaGame.Runtime.Hero
         private void PerformShot()
         {
             float now = Time.time;
-            if (!FireRateLogic.CanFire(_lastFireTime, fireCooldown, now))
+
+            bool  overcharged       = AbilityEffectLogic.IsBuffActive(now, _overchargeUntil);
+            float effectiveCooldown = overcharged
+                ? AbilityEffectLogic.EffectiveFireCooldown(fireCooldown, _overchargeFireRateMult)
+                : fireCooldown;
+
+            if (!FireRateLogic.CanFire(_lastFireTime, effectiveCooldown, now))
                 return;
 
             _lastFireTime = now;
@@ -129,7 +157,7 @@ namespace DiplomaGame.Runtime.Hero
                 hit      = true;
 
                 var damageable = hitInfo.collider.GetComponentInParent<IDamageable>();
-                damageable?.TakeDamage(damage);
+                damageable?.TakeDamage(overcharged ? damage * _overchargeDamageMult : damage);
             }
             else
             {

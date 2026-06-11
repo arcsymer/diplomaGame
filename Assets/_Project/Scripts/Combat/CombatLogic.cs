@@ -58,6 +58,19 @@ namespace DiplomaGame.Runtime.Combat
         }
 
         /// <summary>
+        /// Сколько HP реально восстановится при лечении: не выше недостающего,
+        /// 0 — для мёртвых и при неположительном лечении.
+        /// </summary>
+        public static float ClampHeal(float healAmount, float currentHp, float maxHp, bool isDead)
+        {
+            if (isDead || healAmount <= 0f || currentHp >= maxHp)
+                return 0f;
+
+            float missing = maxHp - currentHp;
+            return healAmount < missing ? healAmount : missing;
+        }
+
+        /// <summary>
         /// Возвращает точку отступления.
         /// Движется к <paramref name="rallyPoint"/> базы; если угрозы нет (threatPos == Vector3.zero
         /// или совпадает с позицией юнита) — просто к rallyPoint.
