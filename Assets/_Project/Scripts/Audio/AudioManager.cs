@@ -1,8 +1,10 @@
 using System.Collections;
 using System.Collections.Generic;
+using DiplomaGame.Runtime.AI;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Commands;
+using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.Units;
@@ -76,6 +78,9 @@ namespace DiplomaGame.Runtime.Audio
 
         [Header("Голоса — Match Start (M9)")]
         [SerializeField] private AudioClip _matchStartClip;
+
+        [Header("Голоса — Вражеская волна (M6)")]
+        [SerializeField] private AudioClip _waveStingerClip;
 
         // ----------------------------------------------------------------
         // Fallback-громкости (когда mixer == null)
@@ -457,6 +462,9 @@ namespace DiplomaGame.Runtime.Audio
 
             // Новые здания через BuildingRegistry
             BuildingRegistry.BuildingRegistered += OnBuildingRegistered;
+
+            // Вражеская волна — статическое событие
+            EnemyCommander.WaveLaunched += OnWaveLaunched;
         }
 
         private void UnsubscribeFromEvents()
@@ -481,6 +489,9 @@ namespace DiplomaGame.Runtime.Audio
             UnitCombat.AnyAttacked -= OnAnyUnitAttacked;
 
             BuildingRegistry.BuildingRegistered -= OnBuildingRegistered;
+
+            // Вражеская волна
+            EnemyCommander.WaveLaunched -= OnWaveLaunched;
 
             // Отписываемся от ProductionBuilding
             UnsubscribeFromAllProductionBuildings();
@@ -546,9 +557,17 @@ namespace DiplomaGame.Runtime.Audio
             PlaySfxVariant(_unitShot, ref _prevUnitShot, pos);
         }
 
-        private void OnUnitProduced(Unit unit)
+        private void OnUnitProduced(Unit unit, DiplomaGame.Runtime.Data.ProductionEntry entry)
         {
             PlayUiConfirm();
+        }
+
+        private void OnWaveLaunched()
+        {
+            if (_waveStingerClip == null || _voiceSource == null) return;
+            _voiceSource.outputAudioMixerGroup = _voiceGroup;
+            _voiceSource.volume = _mixer == null ? _voiceVol * _masterVol : 1f;
+            _voiceSource.PlayOneShot(_waveStingerClip);
         }
 
         private void OnBuildingRegistered(Building building)

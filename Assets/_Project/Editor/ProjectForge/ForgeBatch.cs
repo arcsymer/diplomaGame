@@ -212,6 +212,22 @@ namespace DiplomaGame.Editor
             AnimatedUnitsSetup.SetupAnimatedUnits();
         }
 
+        /// <summary>
+        /// Полный пакет улучшений circle-6:
+        /// открывает Sandbox → мигрирует ProductionEntries (HeavyMarine.asset) →
+        /// создаёт HeavyMarineUnit.prefab → строит CommandCardRoot + QueueSlotsRoot в SelectionPanel →
+        /// проставляет _unitPrefabs у Barracks/WarFactory →
+        /// добавляет BuildingSpawnEffect на Barracks/WarFactory/Extractor →
+        /// устанавливает _waveStingerClip = fight.ogg на AudioManager сцены →
+        /// сохраняет сцену и ассеты.
+        /// </summary>
+        public static void SetupCircle6()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.MigrateProductionEntriesV6();
+            UITab.SetupCommandCardV6();
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {

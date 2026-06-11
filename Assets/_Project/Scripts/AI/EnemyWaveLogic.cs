@@ -49,5 +49,26 @@ namespace DiplomaGame.Runtime.AI
             if (matchTime < 420f) return 5;   // 3–7 мин
             return 7;                          // 7+ мин
         }
+
+        /// <summary>
+        /// Выбирает индекс записи в таблице производства здания (ProductionEntries).
+        /// infantryCount — количество пехотных юнитов (AoeRadius == 0).
+        /// tankCount     — количество танков (AoeRadius &gt; 0).
+        /// infantryRatio — соотношение пехота/всё: если пехоты меньше infantryRatio на каждого танка → index 0 (пехота).
+        /// Если пехоты уже достаточно → index 1 (вариант с AoE / танк).
+        /// </summary>
+        public static int PickProductionEntryIndex(int infantryCount, int tankCount, int infantryRatio = 3)
+        {
+            int total = infantryCount + tankCount;
+            if (total == 0) return 0;   // нет юнитов — берём пехоту
+
+            // Если у нас меньше infantryRatio пехотинцев на каждого танка — докупаем пехоту
+            // Граница: infantry < infantryRatio * (tankCount + 1)
+            // т.е. хотим infantry / (tankCount + 1) >= infantryRatio
+            if (infantryCount < infantryRatio * (tankCount + 1))
+                return 0;
+
+            return 1;
+        }
     }
 }

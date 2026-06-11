@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Data;
@@ -15,6 +16,15 @@ namespace DiplomaGame.Runtime.AI
     /// </summary>
     public sealed class EnemyCommander : MonoBehaviour
     {
+        // ----------------------------------------------------------------
+        // Статическое событие
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Вызывается при старте каждой волны атаки.
+        /// Статическое — не требует ссылки на конкретный инстанс.
+        /// </summary>
+        public static event Action WaveLaunched;
         // ----------------------------------------------------------------
         // Сериализованные поля
         // ----------------------------------------------------------------
@@ -122,21 +132,56 @@ namespace DiplomaGame.Runtime.AI
             UnitRegistry.GetUnits(Faction.Enemy, _enemyUnitBuffer);
             int currentUnits = _enemyUnitBuffer.Count;
 
+            // Считаем пехоту (AoeRadius == 0) и танки (AoeRadius > 0) для выбора entry
+            int infantryCount = 0;
+            int tankCount     = 0;
+            for (int i = 0; i < _enemyUnitBuffer.Count; i++)
+            {
+                var u = _enemyUnitBuffer[i];
+                if (u == null) continue;
+                var combat = u.CachedCombat;
+                if (combat == null) continue;
+
+                // UnitCombat.Data теперь открыт (read-only) — без GetComponent в горячем пути
+                var unitData = combat.Data;
+                if (unitData != null && unitData.AoeRadius > 0f)
+                    tankCount++;
+                else
+                    infantryCount++;
+            }
+
             // Building кэшируем один раз в Start — передаём готовую ссылку
-            TryProduceFrom(_enemyBarracks, _cachedBarracksBuilding, currentUnits);
-            TryProduceFrom(_enemyWarFactory, _cachedWarFactoryBuilding, currentUnits);
+            TryProduceFrom(_enemyBarracks,   _cachedBarracksBuilding,   currentUnits, infantryCount, tankCount);
+            TryProduceFrom(_enemyWarFactory, _cachedWarFactoryBuilding,  currentUnits, infantryCount, tankCount);
         }
 
-        private void TryProduceFrom(ProductionBuilding building, Building buildingComp, int currentUnits)
+        private void TryProduceFrom(ProductionBuilding building, Building buildingComp, int currentUnits,
+                                     int infantryCount, int tankCount)
         {
             if (_bank == null || building == null || buildingComp == null) return;
             if (buildingComp.Data == null) return;
 
-            int balance  = _bank.GetBalance(Faction.Enemy);
-            int unitCost = buildingComp.Data.ProductionCost;
+            int balance = _bank.GetBalance(Faction.Enemy);
 
-            if (EnemyWaveLogic.ShouldProduce(balance, unitCost, currentUnits, MaxUnits))
-                building.TryEnqueue();
+            if (buildingComp.Data.HasMultiProduction)
+            {
+                // Multi-production: выбираем entry по соотношению пехоты/танков
+                var entries  = buildingComp.Data.ProductionEntries;
+                int entryIdx = EnemyWaveLogic.PickProductionEntryIndex(infantryCount, tankCount);
+                // Клипуем индекс в допустимый диапазон
+                entryIdx = Mathf.Clamp(entryIdx, 0, entries.Length - 1);
+                var entry = entries[entryIdx];
+
+                if (EnemyWaveLogic.ShouldProduce(balance, entry.cost, currentUnits, MaxUnits))
+                    building.TryEnqueue(entry);
+            }
+            else
+            {
+                // Legacy
+                int unitCost = buildingComp.Data.ProductionCost;
+                if (EnemyWaveLogic.ShouldProduce(balance, unitCost, currentUnits, MaxUnits))
+                    building.TryEnqueue();
+            }
         }
 
         private void DecideWave()
@@ -188,6 +233,9 @@ namespace DiplomaGame.Runtime.AI
             }
 
             TimeSinceLastWave = 0f;
+
+            // Уведомляем подписчиков (AudioManager и другие) о старте волны
+            WaveLaunched?.Invoke();
         }
 
         private void CachePlayerHQ()

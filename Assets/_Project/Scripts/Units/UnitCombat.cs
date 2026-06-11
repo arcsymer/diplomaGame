@@ -65,6 +65,9 @@ namespace DiplomaGame.Runtime.Units
         /// <summary>Текущее состояние боевого ИИ.</summary>
         public CombatState CurrentCombatState { get; private set; } = CombatState.None;
 
+        /// <summary>UnitData этого юнита (read-only). Null если не задан.</summary>
+        public UnitData Data => _data;
+
         // ----------------------------------------------------------------
         // Кэшированные ссылки
         // ----------------------------------------------------------------
@@ -185,7 +188,7 @@ namespace DiplomaGame.Runtime.Units
             // --- Логика состояний ---
             if (CurrentCombatState == CombatState.Retreating)
             {
-                UpdateRetreating();
+                UpdateRetreating(doScan);
                 return;
             }
 
@@ -341,11 +344,15 @@ namespace DiplomaGame.Runtime.Units
             if (cmdType == UnitCommandType.Move)
                 return 0f;
 
-            // После ретрита юнит вернулся на базу в Idle.
+            // После ретрита юнит вернулся на базу.
             // Чтобы бой не замирал — сканируем на AggroRadius * 10 (120 ед. при базовом
             // aggro 12 — больше диагонали между базами ~85). При ×5 (60) ловился стейлмейт:
             // обе стороны целиком отступали на свои базы и не видели друг друга.
-            if (_retreatTriggered && _unit.CurrentState == UnitState.Idle)
+            // Широкий скан действует НЕ только в Idle: пока юнит идёт к далёкой цели,
+            // обычный радиус (12) сбрасывал бы её каждый скан-тик — юнит осциллировал
+            // «шаг-стоп» у базы и бой зависал (проявилось с fighting retreat, когда
+            // ретрит-выживших стало много).
+            if (_retreatTriggered && CurrentCombatState != CombatState.Retreating)
                 return _data.AggroRadius * 10f;
 
             // Idle, Patrol — стандартный aggro
@@ -555,15 +562,62 @@ namespace DiplomaGame.Runtime.Units
             _unit.MoveToInternal(retreatPoint);
         }
 
-        private void UpdateRetreating()
+        private void UpdateRetreating(bool doScan)
         {
-            // Когда добрались до базы — переходим в None
+            // Стрельба на ходу во время отступления (без преследования, движение не прерываем)
+            if (_data != null && _data.FireWhileRetreating)
+            {
+                if (doScan)
+                    ScanForRetreatTarget();
+
+                if (_currentTargetHealth != null && !_currentTargetHealth.IsDead)
+                    TryAttack();
+            }
+
+            // Когда добрались до базы — переходим в None и сбрасываем цель
             if (_agent.pathPending) return;
 
             if (_agent.remainingDistance <= _agent.stoppingDistance + 0.1f)
             {
+                SetCurrentTarget(null, null);
                 CurrentCombatState = CombatState.None;
                 _unit.StopInternal();
+            }
+        }
+
+        /// <summary>
+        /// Сканирует только врагов в AttackRange во время отступления.
+        /// Не меняет направление движения (движение задаётся MoveToInternal в StartRetreat).
+        /// </summary>
+        private void ScanForRetreatTarget()
+        {
+            if (_data == null) return;
+
+            float range = _data.AttackRange + GetTargetRangeBuffer();
+            if (range <= 0f)
+            {
+                SetCurrentTarget(null, null);
+                return;
+            }
+
+            Faction enemyFaction = _unit.Faction == Faction.Player ? Faction.Enemy : Faction.Player;
+
+            _candidateHealths.Clear();
+            _candidatePositions.Clear();
+
+            // При отступлении пехота приоритет: Units (стандарт)
+            AddUnitCandidates(enemyFaction);
+            AddBuildingCandidates(enemyFaction);
+
+            int idx = CombatLogic.FindNearestTargetIndex(transform.position, _candidatePositions, range);
+            if (idx >= 0)
+            {
+                var targetHealth = _candidateHealths[idx];
+                SetCurrentTarget(targetHealth, targetHealth.transform);
+            }
+            else
+            {
+                SetCurrentTarget(null, null);
             }
         }
 

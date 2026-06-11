@@ -3,6 +3,19 @@ using UnityEngine;
 namespace DiplomaGame.Runtime.Data
 {
     /// <summary>
+    /// Запись таблицы производства здания: тип юнита, стоимость, время, иконка и хоткей.
+    /// </summary>
+    [System.Serializable]
+    public sealed class ProductionEntry
+    {
+        [SerializeField] public UnitData unitData;
+        [SerializeField] public int      cost;
+        [SerializeField] public float    productionTime;
+        [SerializeField] public Sprite   icon;
+        [SerializeField] public string   hotkeyLabel;
+    }
+
+    /// <summary>
     /// ScriptableObject с характеристиками здания.
     /// Один ассет — один тип здания.
     /// </summary>
@@ -24,6 +37,9 @@ namespace DiplomaGame.Runtime.Data
         [SerializeField] private float _productionTime = 5f;
         [SerializeField] private int   _productionCost = 50;
 
+        [Tooltip("Список производимых юнитов (multi-production). Пустой массив — legacy-режим.")]
+        [SerializeField] private ProductionEntry[] _productionEntries = new ProductionEntry[0];
+
         // ----------------------------------------------------------------
         // Публичный API (read-only)
         // ----------------------------------------------------------------
@@ -39,6 +55,12 @@ namespace DiplomaGame.Runtime.Data
         public float        ProductionTime    => _productionTime;
         public int          ProductionCost    => _productionCost;
 
+        /// <summary>Таблица производства (multi-production). Может быть пустой.</summary>
+        public ProductionEntry[] ProductionEntries => _productionEntries;
+
+        /// <summary>True, если задана таблица производства с хотя бы одной записью.</summary>
+        public bool HasMultiProduction => _productionEntries != null && _productionEntries.Length > 0;
+
         // ----------------------------------------------------------------
         // Internal — для тестов
         // ----------------------------------------------------------------
@@ -47,16 +69,17 @@ namespace DiplomaGame.Runtime.Data
         /// Создаёт BuildingData с произвольными значениями без SerializedObject (для PlayMode-тестов).
         /// </summary>
         internal static BuildingData CreateForTest(
-            string       displayName       = "TestBuilding",
-            int          cost              = 0,
-            float        maxHp             = 500f,
-            BuildingType buildingType      = BuildingType.Headquarters,
-            int          incomePerTick     = 0,
-            float        incomeTickInterval = 2f,
-            UnitData     produces          = null,
-            float        productionTime    = 5f,
-            int          productionCost    = 50,
-            string       description       = "")
+            string            displayName        = "TestBuilding",
+            int               cost               = 0,
+            float             maxHp              = 500f,
+            BuildingType      buildingType        = BuildingType.Headquarters,
+            int               incomePerTick       = 0,
+            float             incomeTickInterval  = 2f,
+            UnitData          produces            = null,
+            float             productionTime      = 5f,
+            int               productionCost      = 50,
+            string            description         = "",
+            ProductionEntry[] productionEntries   = null)
         {
             var data                  = CreateInstance<BuildingData>();
             data._displayName         = displayName;
@@ -69,6 +92,7 @@ namespace DiplomaGame.Runtime.Data
             data._produces            = produces;
             data._productionTime      = productionTime;
             data._productionCost      = productionCost;
+            data._productionEntries   = productionEntries ?? new ProductionEntry[0];
             return data;
         }
     }

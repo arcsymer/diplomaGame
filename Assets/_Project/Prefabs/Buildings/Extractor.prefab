@@ -264,6 +264,7 @@ GameObject:
   - component: {fileID: 5003743913389825345}
   - component: {fileID: 3596485946258357395}
   - component: {fileID: 121067450638790357}
+  - component: {fileID: 8099353034076950428}
   m_Layer: 0
   m_Name: Extractor
   m_TagString: Untagged
@@ -396,6 +397,18 @@ MonoBehaviour:
   _data: {fileID: 11400000, guid: 4fc6c5cee6caa3a4d883bbea59ffa66a, type: 2}
   _bank: {fileID: 0}
   _faction: 0
+--- !u!114 &8099353034076950428
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5861291573488964305}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8848231a7ebbbbf479950550a1c3fa63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Buildings.BuildingSpawnEffect
 --- !u!1001 &5610376516322764846
 PrefabInstance:
   m_ObjectHideFlags: 0

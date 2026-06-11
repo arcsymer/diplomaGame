@@ -432,6 +432,10 @@ namespace DiplomaGame.Tests.Runtime
 
         private static void WriteJson(List<RoundData> rounds, CorrelationSummary summary)
         {
+            // Инвариантная культура на весь блок: иначе F-форматы дают «0,5» — невалидный JSON
+            var prevCulture = System.Threading.Thread.CurrentThread.CurrentCulture;
+            System.Threading.Thread.CurrentThread.CurrentCulture =
+                System.Globalization.CultureInfo.InvariantCulture;
             try
             {
                 string dir = Path.GetFullPath(Path.Combine(
@@ -512,6 +516,10 @@ namespace DiplomaGame.Tests.Runtime
             catch (Exception e)
             {
                 Debug.LogWarning($"[BalanceDiag] Failed to write JSON: {e.Message}");
+            }
+            finally
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture = prevCulture;
             }
         }
 
