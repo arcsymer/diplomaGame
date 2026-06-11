@@ -1,0 +1,9 @@
+{
+    "scenario": "CrowdAvoidance: 4 Marines vs 1 Tank, spread after 2 sim-s",
+    "winner": "N/A",
+    "playerAlive": 4,
+    "enemyAlive": 1,
+    "playerHpLeft": 4.038117408752441,
+    "enemyHpLeft": 0.0,
+    "simDurationSec": 2.0
+}

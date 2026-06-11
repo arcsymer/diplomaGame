@@ -156,6 +156,13 @@ namespace DiplomaGame.Tests.Runtime
             attackCooldown: 1.2f, aggroRadius: 12f, moveSpeed: 4.5f,
             retreatHpFraction: 0.25f, retreatDisabled: false);
 
+        /// <summary>v3 Tank — зеркало балансовых данных из спеки (HP 280, DMG 25, AoE 3.0).</summary>
+        private static UnitData TankData() => UnitData.CreateForTest(
+            displayName: "Tank", maxHp: 280f, damage: 25f, attackRange: 5f,
+            attackCooldown: 2.0f, aggroRadius: 12f, moveSpeed: 3.0f,
+            retreatDisabled: true, supplyCost: 3,
+            aoeRadius: 3.0f, targetPriority: TargetPriority.Buildings);
+
         // ----------------------------------------------------------------
         // Тест 1: зеркальный бой Marine vs Marine — проверка симметрии
         // ----------------------------------------------------------------
@@ -241,6 +248,106 @@ namespace DiplomaGame.Tests.Runtime
             // P(6:0) ≈ 3% — допускаем 5:1, но 6:0 сигналит о системном перекосе
             Assert.IsTrue(playerWins < Rounds && enemyWins < Rounds,
                 $"Серия {Rounds}:0 — системная асимметрия ИИ. Player {playerWins}, Enemy {enemyWins}.");
+        }
+
+        // ----------------------------------------------------------------
+        // Тест 4 (v3 Tank): 4 Tank Player vs 8 Marine Enemy
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Балансовый тест круга 3: 4 Танка игрока против 8 Пехотинцев врага.
+        /// Бой должен завершиться в пределах 240 сим-с; результат пишется в
+        /// Docs-Vault/Stats/balance-tank-vs-marine.json.
+        /// </summary>
+        [UnityTest]
+        [Timeout(180000)]
+        public IEnumerator TankVsMarine_ResolvesAndIsRecorded()
+        {
+            var buffer = new List<Unit>(32);
+
+            SpawnLine(Faction.Player, TankData(),   x: -5f, count: 4, namePrefix: "BalanceP");
+            SpawnLine(Faction.Enemy,  MarineData(), x: +5f, count: 8, namePrefix: "BalanceE");
+
+            Time.timeScale = 10f;
+            yield return null;
+
+            float simStart = Time.time;
+            yield return WaitForBattleEnd(simLimitSeconds: 240f, buffer);
+            float duration = Time.time - simStart;
+
+            Time.timeScale = 1f;
+
+            int   playerAlive = CountAlive(Faction.Player, buffer);
+            int   enemyAlive  = CountAlive(Faction.Enemy, buffer);
+            float playerHp    = SumHp(Faction.Player, buffer);
+            float enemyHp     = SumHp(Faction.Enemy, buffer);
+
+            string winner = enemyAlive == 0  ? "Player (Tank)" :
+                            playerAlive == 0 ? "Enemy (Marine)" :
+                            playerHp >= enemyHp ? "Player (Tank, по HP)" : "Enemy (Marine, по HP)";
+
+            BalanceReport.Write("balance-tank-vs-marine.json", new BalanceReport.ClashResult
+            {
+                scenario       = "4 Tank (Player) vs 8 Marine (Enemy)",
+                winner         = winner,
+                playerAlive    = playerAlive,
+                enemyAlive     = enemyAlive,
+                playerHpLeft   = playerHp,
+                enemyHpLeft    = enemyHp,
+                simDurationSec = duration,
+            });
+
+            // Бой должен сойтись — не должно быть таймаута
+            Assert.IsTrue(duration < 240f || playerAlive == 0 || enemyAlive == 0,
+                "Tank vs Marine: бой обязан завершиться в пределах 240 сим-с.");
+        }
+
+        // ----------------------------------------------------------------
+        // Тест 5 (v3 Tank): зеркальный Tank vs Tank 2v2
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Зеркальный бой 2v2 Танков: убеждаемся, что боевая FSM корректно
+        /// обрабатывает AoE-урон и TargetPriority=Buildings при отсутствии зданий.
+        /// Бой должен завершиться (один отряд уничтожен).
+        /// </summary>
+        [UnityTest]
+        [Timeout(120000)]
+        public IEnumerator TankMirror_Resolves()
+        {
+            var buffer = new List<Unit>(16);
+
+            SpawnLine(Faction.Player, TankData(), x: -5f, count: 2, namePrefix: "BalancePT");
+            SpawnLine(Faction.Enemy,  TankData(), x: +5f, count: 2, namePrefix: "BalanceET");
+
+            Time.timeScale = 10f;
+            yield return null;
+
+            float simStart = Time.time;
+            yield return WaitForBattleEnd(simLimitSeconds: 240f, buffer);
+            float duration = Time.time - simStart;
+
+            Time.timeScale = 1f;
+
+            int playerAlive = CountAlive(Faction.Player, buffer);
+            int enemyAlive  = CountAlive(Faction.Enemy, buffer);
+
+            BalanceReport.Write("balance-tank-mirror.json", new BalanceReport.ClashResult
+            {
+                scenario       = "Mirror 2v2 Tank vs Tank",
+                winner         = playerAlive > 0 && enemyAlive == 0 ? "Player" :
+                                 enemyAlive  > 0 && playerAlive == 0 ? "Enemy" : "Draw/Timeout",
+                playerAlive    = playerAlive,
+                enemyAlive     = enemyAlive,
+                playerHpLeft   = SumHp(Faction.Player, buffer),
+                enemyHpLeft    = SumHp(Faction.Enemy, buffer),
+                simDurationSec = duration,
+            });
+
+            // Хотя бы одна сторона обязана потерять всех юнитов
+            Assert.IsTrue(playerAlive == 0 || enemyAlive == 0,
+                $"Tank Mirror 2v2: бой обязан завершиться (кто-то погибнет). " +
+                $"Player alive: {playerAlive}, Enemy alive: {enemyAlive}.");
         }
 
         /// <summary>Уничтожает юнитов раунда между раундами серии.</summary>

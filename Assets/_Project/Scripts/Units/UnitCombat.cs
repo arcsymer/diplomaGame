@@ -59,6 +59,12 @@ namespace DiplomaGame.Runtime.Units
         private readonly List<Unit>     _unitBuffer     = new List<Unit>(32);
         private readonly List<Building> _buildingBuffer = new List<Building>(32);
 
+        // Переиспользуемый буфер для AoE-индексов (без аллокаций в Update-пути)
+        private readonly List<int> _aoeIndexBuffer = new List<int>(16);
+
+        [Tooltip("Опциональный эффект AoE-атаки. Воспроизводится при каждом AoE-ударе.")]
+        [SerializeField] private ParticleSystem _aoeVfx;
+
         // ----------------------------------------------------------------
         // Внутреннее состояние
         // ----------------------------------------------------------------
@@ -218,32 +224,23 @@ namespace DiplomaGame.Runtime.Units
 
             Faction enemyFaction = _unit.Faction == Faction.Player ? Faction.Enemy : Faction.Player;
 
-            // Собираем всех кандидатов: сначала юниты, затем здания
+            // Собираем всех кандидатов в порядке, определяемом TargetPriority.
+            // Buildings → сначала здания, потом юниты (танк ломает здания).
+            // Units     → сначала юниты, потом здания (стандартный порядок).
             _candidateHealths.Clear();
             _candidatePositions.Clear();
 
-            // Юниты вражеской фракции
-            UnitRegistry.GetUnits(enemyFaction, _unitBuffer);
-            for (int i = 0; i < _unitBuffer.Count; i++)
-            {
-                var u = _unitBuffer[i];
-                if (u == null) continue;
-                var h = u.CachedHealth;
-                if (h == null || h.IsDead) continue;
-                _candidateHealths.Add(h);
-                _candidatePositions.Add(u.transform.position);
-            }
+            bool buildingsFirst = _data.TargetPriority == DiplomaGame.Runtime.Data.TargetPriority.Buildings;
 
-            // Здания вражеской фракции
-            BuildingRegistry.GetBuildings(enemyFaction, _buildingBuffer);
-            for (int i = 0; i < _buildingBuffer.Count; i++)
+            if (buildingsFirst)
             {
-                var b = _buildingBuffer[i];
-                if (b == null) continue;
-                var h = b.CachedHealth;
-                if (h == null || h.IsDead) continue;
-                _candidateHealths.Add(h);
-                _candidatePositions.Add(b.transform.position);
+                AddBuildingCandidates(enemyFaction);
+                AddUnitCandidates(enemyFaction);
+            }
+            else
+            {
+                AddUnitCandidates(enemyFaction);
+                AddBuildingCandidates(enemyFaction);
             }
 
             int idx = CombatLogic.FindNearestTargetIndex(transform.position, _candidatePositions, scanRange);
@@ -256,6 +253,34 @@ namespace DiplomaGame.Runtime.Units
             {
                 _currentTargetHealth    = null;
                 _currentTargetTransform = null;
+            }
+        }
+
+        private void AddUnitCandidates(Faction enemyFaction)
+        {
+            UnitRegistry.GetUnits(enemyFaction, _unitBuffer);
+            for (int i = 0; i < _unitBuffer.Count; i++)
+            {
+                var u = _unitBuffer[i];
+                if (u == null) continue;
+                var h = u.CachedHealth;
+                if (h == null || h.IsDead) continue;
+                _candidateHealths.Add(h);
+                _candidatePositions.Add(u.transform.position);
+            }
+        }
+
+        private void AddBuildingCandidates(Faction enemyFaction)
+        {
+            BuildingRegistry.GetBuildings(enemyFaction, _buildingBuffer);
+            for (int i = 0; i < _buildingBuffer.Count; i++)
+            {
+                var b = _buildingBuffer[i];
+                if (b == null) continue;
+                var h = b.CachedHealth;
+                if (h == null || h.IsDead) continue;
+                _candidateHealths.Add(h);
+                _candidatePositions.Add(b.transform.position);
             }
         }
 
@@ -366,12 +391,78 @@ namespace DiplomaGame.Runtime.Units
             if (!FireRateLogic.CanFire(_lastAttackTime, _data.AttackCooldown, Time.time))
                 return;
 
-            _currentTargetHealth.TakeDamage(_data.Damage);
+            if (_data.AoeRadius > 0f)
+            {
+                TryAttackAoe();
+            }
+            else
+            {
+                // Одиночная атака — старый путь без изменений
+                _currentTargetHealth.TakeDamage(_data.Damage);
+                _lastAttackTime = Time.time;
+                AnyAttacked?.Invoke(transform.position);
+
+                // Если цель умерла — сбрасываем
+                if (_currentTargetHealth.IsDead)
+                {
+                    _currentTargetHealth    = null;
+                    _currentTargetTransform = null;
+                    CurrentCombatState      = CombatState.None;
+                }
+            }
+        }
+
+        /// <summary>
+        /// AoE-ветка атаки: сплеш вокруг ТОЧКИ ПОПАДАНИЯ (позиции текущей цели, как в SC2),
+        /// а не вокруг танка — иначе при AttackRange (5) > AoeRadius (3) выстрел с дистанции
+        /// никогда не достал бы неподвижное здание. Бьёт юнитов И здания в радиусе.
+        /// BuildingAttackBuffer не применяется — AoE площадная атака, не прицельная.
+        /// </summary>
+        private void TryAttackAoe()
+        {
+            // Центр сплеша — цель; без цели TryAttack сюда не доходит, но страхуемся
+            Vector3 splashCenter = _currentTargetTransform != null
+                ? _currentTargetTransform.position
+                : transform.position;
+
+            Faction enemyFaction = _unit.Faction == Faction.Player ? Faction.Enemy : Faction.Player;
+
+            // Собираем позиции всех вражеских целей (юниты + здания) во временный список
+            _candidateHealths.Clear();
+            _candidatePositions.Clear();
+            AddUnitCandidates(enemyFaction);
+            AddBuildingCandidates(enemyFaction);
+
+            CombatLogic.FindTargetsInRadius(
+                splashCenter,
+                _candidatePositions,
+                _data.AoeRadius,
+                _aoeIndexBuffer);
+
+            // Основная цель гарантированно в сплеше (центр — она сама), но при
+            // пустом списке кулдаун не сжигаем
+            if (_aoeIndexBuffer.Count == 0) return;
+
             _lastAttackTime = Time.time;
+
+            for (int i = 0; i < _aoeIndexBuffer.Count; i++)
+            {
+                var target = _candidateHealths[_aoeIndexBuffer[i]];
+                if (target != null && !target.IsDead)
+                    target.TakeDamage(_data.Damage);
+            }
+
             AnyAttacked?.Invoke(transform.position);
 
-            // Если цель умерла — сбрасываем
-            if (_currentTargetHealth.IsDead)
+            if (_aoeVfx != null)
+            {
+                // Взрыв рисуем в точке сплеша (у цели), а не на танке
+                _aoeVfx.transform.position = splashCenter;
+                _aoeVfx.Play();
+            }
+
+            // Если основная цель погибла — сбрасываем
+            if (_currentTargetHealth != null && _currentTargetHealth.IsDead)
             {
                 _currentTargetHealth    = null;
                 _currentTargetTransform = null;

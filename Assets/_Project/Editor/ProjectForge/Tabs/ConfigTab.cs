@@ -59,6 +59,20 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Update Tooltip Descriptions", GUILayout.Height(32)))
                 UpdateTooltipDescriptions();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "v3 Tank:\n" +
+                "• Tank.asset      — HP 280, Damage 25, AoE 3.0, AttackRange 5, TargetPriority Buildings\n" +
+                "• EnemyTank.asset — то же (вражеская версия)\n" +
+                "• WarFactory.asset — HP 600, productionCost 150, productionTime 12",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Create/Update Tank Data (v3)", GUILayout.Height(32)))
+                CreateOrUpdateTankDataAssets();
         }
 
         // ----------------------------------------------------------------
@@ -111,18 +125,20 @@ namespace DiplomaGame.Editor
         // ----------------------------------------------------------------
 
         private static UnitData CreateOrUpdateUnitData(
-            string assetName,
-            string displayName,
-            float  maxHp,
-            float  damage,
-            float  attackRange,
-            float  attackCooldown,
-            float  aggroRadius,
-            float  moveSpeed,
-            float  retreatFraction,
-            bool   retreatDisabled,
-            string description  = "",
-            int    supplyCost   = 0)
+            string         assetName,
+            string         displayName,
+            float          maxHp,
+            float          damage,
+            float          attackRange,
+            float          attackCooldown,
+            float          aggroRadius,
+            float          moveSpeed,
+            float          retreatFraction,
+            bool           retreatDisabled,
+            string         description     = "",
+            int            supplyCost      = 0,
+            float          aoeRadius       = 0f,
+            DiplomaGame.Runtime.Data.TargetPriority targetPriority = DiplomaGame.Runtime.Data.TargetPriority.Units)
         {
             string path     = $"{UnitDataFolder}/{assetName}.asset";
             var    existing = AssetDatabase.LoadAssetAtPath<UnitData>(path);
@@ -150,9 +166,85 @@ namespace DiplomaGame.Editor
             so.FindProperty("_moveSpeed").floatValue           = moveSpeed;
             so.FindProperty("_retreatHpFraction").floatValue   = retreatFraction;
             so.FindProperty("_retreatDisabled").boolValue      = retreatDisabled;
+            so.FindProperty("_aoeRadius").floatValue           = aoeRadius;
+            so.FindProperty("_targetPriority").enumValueIndex  = (int)targetPriority;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             return data;
+        }
+
+        // ----------------------------------------------------------------
+        // v3: Tank UnitData + WarFactory BuildingData
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт/обновляет Tank.asset, EnemyTank.asset, WarFactory.asset.
+        /// </summary>
+        internal static void CreateOrUpdateTankDataAssets()
+        {
+            EnsureFolder(UnitDataFolder);
+            EnsureFolder(BuildingDataFolder);
+
+            const string tankDesc = "Тяжёлый танк. Урон по площади, ломает здания.";
+
+            // Tank (Player)
+            CreateOrUpdateUnitData(
+                assetName:       "Tank",
+                displayName:     "Tank",
+                description:     tankDesc,
+                supplyCost:      3,
+                maxHp:           280f,
+                damage:          25f,
+                attackRange:     5f,
+                attackCooldown:  2.0f,
+                aggroRadius:     12f,
+                moveSpeed:       3.0f,
+                retreatFraction: 0f,
+                retreatDisabled: true,
+                aoeRadius:       3.0f,
+                targetPriority:  DiplomaGame.Runtime.Data.TargetPriority.Buildings);
+
+            // EnemyTank
+            CreateOrUpdateUnitData(
+                assetName:       "EnemyTank",
+                displayName:     "Enemy Tank",
+                description:     tankDesc,
+                supplyCost:      3,
+                maxHp:           280f,
+                damage:          25f,
+                attackRange:     5f,
+                attackCooldown:  2.0f,
+                aggroRadius:     12f,
+                moveSpeed:       3.0f,
+                retreatFraction: 0f,
+                retreatDisabled: true,
+                aoeRadius:       3.0f,
+                targetPriority:  DiplomaGame.Runtime.Data.TargetPriority.Buildings);
+
+            // WarFactory BuildingData
+            var tankData = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.UnitData>(
+                $"{UnitDataFolder}/Tank.asset");
+
+            if (tankData == null)
+                Debug.LogWarning("[Project Forge] Tank.asset не найден при создании WarFactory — поле produces будет пустым.");
+
+            CreateOrUpdateBuildingData(
+                assetName:          "WarFactory",
+                displayName:        "War Factory",
+                description:        "Военный завод. Производит танки.",
+                cost:               200,
+                maxHp:              600f,
+                buildingType:       DiplomaGame.Runtime.Data.BuildingType.WarFactory,
+                incomePerTick:      0,
+                incomeTickInterval: 2f,
+                produces:           tankData,
+                productionTime:     12f,
+                productionCost:     150);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Tank Data ассеты (v3) созданы/обновлены.");
         }
 
         // ----------------------------------------------------------------
@@ -277,11 +369,14 @@ namespace DiplomaGame.Editor
             // ---- Units ----
             SetUnitDescription("Marine",     "Универсальный боец. Атакует наземные цели.", 1);
             SetUnitDescription("EnemyGrunt", "Базовый враг. Атакует всё.", 1);
+            SetUnitDescription("Tank",       "Тяжёлый танк. Урон по площади, ломает здания.", 3);
+            SetUnitDescription("EnemyTank",  "Тяжёлый танк. Урон по площади, ломает здания.", 3);
 
             // ---- Buildings ----
-            SetBuildingDescription("HQ",       "Штаб. Генерирует доход кристаллов.");
-            SetBuildingDescription("Barracks", "Казарма. Производит боевых юнитов.");
-            SetBuildingDescription("Extractor","Экстрактор. Добывает кристаллы из месторождения.");
+            SetBuildingDescription("HQ",         "Штаб. Генерирует доход кристаллов.");
+            SetBuildingDescription("Barracks",   "Казарма. Производит боевых юнитов.");
+            SetBuildingDescription("Extractor",  "Экстрактор. Добывает кристаллы из месторождения.");
+            SetBuildingDescription("WarFactory", "Военный завод. Производит танки.");
 
             // ---- Abilities ----
             SetAbilityDescription("Dash",      "Рывок вперёд. Позволяет уйти из-под огня.");

@@ -165,7 +165,7 @@ namespace DiplomaGame.Tests.Editor
         [Test]
         public void GetFormationOffset_Ring1_HasCorrectRadius()
         {
-            // Кольцо 1 — радиус равен spacing = 1.5f (по умолчанию)
+            // Кольцо 1 — радиус равен spacing = 1.5f (явно передан для обратной совместимости теста)
             const float spacing  = 1.5f;
             const float expected = 1 * spacing; // ring=1
 
@@ -175,6 +175,35 @@ namespace DiplomaGame.Tests.Editor
                 float radius = new Vector2(offset.x, offset.z).magnitude;
                 Assert.AreEqual(expected, radius, 0.001f,
                     $"Индекс {i}: радиус первого кольца должен быть {expected}.");
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // v3 crowd avoidance: проверка нового дефолтного spacing = 2.0
+        // ----------------------------------------------------------------
+
+        [Test]
+        public void GetFormationOffset_DefaultSpacing_IsTwo()
+        {
+            // Дефолтный spacing изменён на 2.0 в v3 (crowd avoidance ADR-018).
+            // Индекс 1 — первое кольцо, радиус должен равняться 2.0f.
+            var offset = UnitCommandLogic.GetFormationOffset(1);
+            float radius = new Vector2(offset.x, offset.z).magnitude;
+            Assert.AreEqual(2.0f, radius, 0.001f,
+                "Дефолтный spacing = 2.0: радиус первого кольца должен быть 2.0.");
+        }
+
+        [Test]
+        public void GetFormationOffset_Ring1_DefaultSpacing_AllUnitsHaveRadius2()
+        {
+            // Все 8 юнитов первого кольца при spacing = 2.0 (дефолт) имеют радиус 2.0.
+            const float expected = 2.0f;
+            for (int i = 1; i <= 8; i++)
+            {
+                var offset = UnitCommandLogic.GetFormationOffset(i);
+                float radius = new Vector2(offset.x, offset.z).magnitude;
+                Assert.AreEqual(expected, radius, 0.001f,
+                    $"Индекс {i}: радиус первого кольца при spacing=2.0 должен быть {expected}.");
             }
         }
     }

@@ -117,5 +117,35 @@ namespace DiplomaGame.Runtime.Combat
             if (retreatCooldown <= 0f) return false;
             return now - lastRetreatTime >= retreatCooldown;
         }
+
+        /// <summary>
+        /// Находит все позиции в радиусе <paramref name="radius"/> от <paramref name="from"/>
+        /// и записывает их индексы в <paramref name="resultIndices"/>.
+        /// Метод чистой статики, без аллокаций: использует переданный буфер.
+        /// AoE проверяет фактическое расстояние без дополнительного BuildingAttackBuffer
+        /// (здания крупные, но AoE — площадная атака, не точечная).
+        /// </summary>
+        /// <param name="from">Центр области поиска (позиция атакующего).</param>
+        /// <param name="positions">Список позиций кандидатов.</param>
+        /// <param name="radius">Радиус AoE.</param>
+        /// <param name="resultIndices">Буфер-приёмник индексов; очищается перед заполнением.</param>
+        public static void FindTargetsInRadius(
+            Vector3               from,
+            IReadOnlyList<Vector3> positions,
+            float                 radius,
+            List<int>             resultIndices)
+        {
+            resultIndices.Clear();
+
+            if (positions == null || positions.Count == 0)
+                return;
+
+            float radiusSqr = radius * radius;
+            for (int i = 0; i < positions.Count; i++)
+            {
+                if ((from - positions[i]).sqrMagnitude <= radiusSqr)
+                    resultIndices.Add(i);
+            }
+        }
     }
 }
