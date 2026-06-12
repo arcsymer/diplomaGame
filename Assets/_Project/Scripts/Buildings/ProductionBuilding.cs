@@ -5,6 +5,7 @@ using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Tech;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace DiplomaGame.Runtime.Buildings
 {
@@ -283,7 +284,13 @@ namespace DiplomaGame.Runtime.Buildings
             var prefab = ResolvePrefab(entry);
             if (prefab == null) return;
 
-            Vector3 spawnPos = transform.position + transform.forward * 1.5f;
+            // Спавн у фронтальной стороны здания; привязываем к NavMesh, чтобы юнит
+            // не оказался внутри NavMeshObstacle carve-зоны соседних зданий.
+            Vector3 candidatePos = transform.position + transform.forward * 1.5f;
+            Vector3 spawnPos     = NavMesh.SamplePosition(candidatePos, out var spawnHit, 8f, NavMesh.AllAreas)
+                ? spawnHit.position
+                : candidatePos;
+
             var     go       = Instantiate(prefab, spawnPos, Quaternion.identity);
             go.SetActive(true);
 

@@ -105,7 +105,24 @@ namespace DiplomaGame.Tests.Runtime
         private static IEnumerator WaitForBattleEnd(float simLimitSeconds, List<Unit> buffer)
         {
             const float PollStep = 0.25f; // реальных секунд
-            float simElapsed = 0f;
+            // Stall-breaker: в синтетике нет командиров — если суммарный HP обеих сторон
+            // не меняется StallSimSeconds подряд (обе армии отступили и обороняют базы,
+            // оборонительный скан ×2 их не сводит), выдаём всем AttackMove на БАЗУ врага —
+            // модель приказа командира. Цель — позиция базы (не центр масс живых), потому что
+            // центр масс врага при взаимном AttackMove вызывал «встречу посередине»: обе
+            // армии шли навстречу, сходились, несколько юнитов ретрировалось, цикл
+            // повторялся без смертей (fighting retreat с перестрелкой на ходу).
+            // Атака к базе врага гарантирует, что армии идут В ОДНОМ НАПРАВЛЕНИИ,
+            // добираются до базы, атакуют защитников в упор — сходимость гарантирована.
+            const float StallSimSeconds = 15f;
+
+            float simElapsed    = 0f;
+            float lastChangeSim = 0f;
+            float lastTotalHp   = -1f;
+
+            // Кэшируем позиции баз один раз — ищем объекты по имени
+            Vector3 playerBasePos = GetBasePosition("PlayerBaseSpawn");
+            Vector3 enemyBasePos  = GetBasePosition("EnemyBaseSpawn");
 
             while (simElapsed < simLimitSeconds)
             {
@@ -114,6 +131,72 @@ namespace DiplomaGame.Tests.Runtime
 
                 if (CountAlive(Faction.Player, buffer) == 0 || CountAlive(Faction.Enemy, buffer) == 0)
                     yield break;
+
+                float totalHp = SumHp(Faction.Player, buffer) + SumHp(Faction.Enemy, buffer);
+                if (!Mathf.Approximately(totalHp, lastTotalHp))
+                {
+                    lastTotalHp   = totalHp;
+                    lastChangeSim = simElapsed;
+                }
+                else if (simElapsed - lastChangeSim >= StallSimSeconds)
+                {
+                    BreakStall(buffer, playerBasePos, enemyBasePos);
+                    lastChangeSim = simElapsed;
+                }
+            }
+        }
+
+        private static Vector3 GetBasePosition(string markerName)
+        {
+            var go = GameObject.Find(markerName);
+            return go != null ? go.transform.position : Vector3.zero;
+        }
+
+        /// <summary>
+        /// Приказывает всем живым юнитам атаковать позицию БАЗЫ противника.
+        /// Цель — база (rally-маркер), а не центр масс живых врагов: базу знаем
+        /// заранее, и движение к ней не вызывает «зеркальной встречи» армий
+        /// посередине поля (что давало бесконечный цикл ретрит-атака-ретрит).
+        /// </summary>
+        private static void BreakStall(List<Unit> buffer, Vector3 playerBasePos, Vector3 enemyBasePos)
+        {
+            // Player атакует базу врага; Enemy атакует базу игрока
+            IssueAttackMoveToAll(Faction.Player, enemyBasePos,  buffer);
+            IssueAttackMoveToAll(Faction.Enemy,  playerBasePos, buffer);
+            Debug.Log($"[Balance] Stall-breaker: Player→EnemyBase({enemyBasePos}), " +
+                      $"Enemy→PlayerBase({playerBasePos}).");
+        }
+
+        private static Vector3 CenterOfAlive(Faction faction, List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(faction, buffer);
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var h = buffer[i] != null ? buffer[i].GetComponent<Health>() : null;
+                if (h == null || h.IsDead) continue;
+                sum += buffer[i].transform.position;
+                count++;
+            }
+            return count > 0 ? sum / count : Vector3.zero;
+        }
+
+        private static void IssueAttackMoveToAll(Faction faction, Vector3 target, List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(faction, buffer);
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var u = buffer[i];
+                if (u == null) continue;
+                var h = u.GetComponent<Health>();
+                if (h == null || h.IsDead) continue;
+                // 1. Выдаём команду (OnCommandIssued сбросит _retreatSuppressedForBreaker)
+                u.IssueCommand(UnitCommand.AttackMove(target));
+                // 2. Подавляем ретрит ПОСЛЕ команды — юниты с HP≤retreatThreshold
+                //    не уйдут обратно к базе немедленно, а пойдут на врага до конца раунда
+                var combat = u.GetComponent<UnitCombat>();
+                combat?.SuppressRetreatForStallBreaker();
             }
         }
 

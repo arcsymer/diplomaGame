@@ -113,7 +113,13 @@ namespace DiplomaGame.Tests.Runtime
         private static IEnumerator WaitForBattleEnd(float simLimitSeconds, List<Unit> buffer)
         {
             const float PollStep = 0.25f;
-            float simElapsed = 0f;
+            // Stall-breaker (модель приказа командира) — как в BalanceSimulationTests:
+            // оборонительный пост-ретритный скан (×2) не сводит отступившие армии сам.
+            const float StallSimSeconds = 30f;
+
+            float simElapsed    = 0f;
+            float lastChangeSim = 0f;
+            float lastTotalHp   = -1f;
 
             while (simElapsed < simLimitSeconds)
             {
@@ -122,6 +128,59 @@ namespace DiplomaGame.Tests.Runtime
 
                 if (CountAlive(Faction.Player, buffer) == 0 || CountAlive(Faction.Enemy, buffer) == 0)
                     yield break;
+
+                float totalHp = SumAliveHp(Faction.Player, buffer) + SumAliveHp(Faction.Enemy, buffer);
+                if (!Mathf.Approximately(totalHp, lastTotalHp))
+                {
+                    lastTotalHp   = totalHp;
+                    lastChangeSim = simElapsed;
+                }
+                else if (simElapsed - lastChangeSim >= StallSimSeconds)
+                {
+                    IssueAttackMoveToAll(Faction.Player, CenterOfAlive(Faction.Enemy, buffer),  buffer);
+                    IssueAttackMoveToAll(Faction.Enemy,  CenterOfAlive(Faction.Player, buffer), buffer);
+                    lastChangeSim = simElapsed;
+                }
+            }
+        }
+
+        private static float SumAliveHp(Faction faction, List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(faction, buffer);
+            float sum = 0f;
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var h = buffer[i] != null ? buffer[i].GetComponent<Health>() : null;
+                if (h != null && !h.IsDead) sum += h.CurrentHp;
+            }
+            return sum;
+        }
+
+        private static Vector3 CenterOfAlive(Faction faction, List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(faction, buffer);
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var h = buffer[i] != null ? buffer[i].GetComponent<Health>() : null;
+                if (h == null || h.IsDead) continue;
+                sum += buffer[i].transform.position;
+                count++;
+            }
+            return count > 0 ? sum / count : Vector3.zero;
+        }
+
+        private static void IssueAttackMoveToAll(Faction faction, Vector3 target, List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(faction, buffer);
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var u = buffer[i];
+                if (u == null) continue;
+                var h = u.GetComponent<Health>();
+                if (h == null || h.IsDead) continue;
+                u.IssueCommand(UnitCommand.AttackMove(target));
             }
         }
 

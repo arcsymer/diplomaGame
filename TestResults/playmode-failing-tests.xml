@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="3" result="Failed(Child)" total="3" passed="1" failed="2" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:43Z" duration="136,8255398">
+  <test-suite type="TestSuite" id="1139" name="diplomaGame" fullname="diplomaGame" runstate="Runnable" testcasecount="107" result="Failed" site="Child" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:43Z" duration="136.825540" total="3" passed="1" failed="2" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1132" name="DiplomaGame.Tests.Runtime.dll" fullname="D:/Projects/diplomaGame/Library/ScriptAssemblies/DiplomaGame.Tests.Runtime.dll" runstate="Runnable" testcasecount="107" result="Failed" site="Child" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:43Z" duration="136.815750" total="3" passed="1" failed="2" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="17996" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1133" name="DiplomaGame" fullname="DiplomaGame" runstate="Runnable" testcasecount="107" result="Failed" site="Child" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:43Z" duration="136.814738" total="3" passed="1" failed="2" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1134" name="Tests" fullname="DiplomaGame.Tests" runstate="Runnable" testcasecount="107" result="Failed" site="Child" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:43Z" duration="136.814027" total="3" passed="1" failed="2" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1135" name="Runtime" fullname="DiplomaGame.Tests.Runtime" runstate="Runnable" testcasecount="107" result="Failed" site="Child" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:43Z" duration="136.813265" total="3" passed="1" failed="2" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1022" name="BalanceSimulationTests" fullname="DiplomaGame.Tests.Runtime.BalanceSimulationTests" classname="DiplomaGame.Tests.Runtime.BalanceSimulationTests" runstate="Runnable" testcasecount="5" result="Failed" site="Child" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:39Z" duration="133.530098" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties>
+                <property name="Category" value="Balance" />
+              </properties>
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1023" name="MirrorClash_MarineVsMarine_SeriesTerminatesAndIsRecorded" fullname="DiplomaGame.Tests.Runtime.BalanceSimulationTests.MirrorClash_MarineVsMarine_SeriesTerminatesAndIsRecorded" methodname="MirrorClash_MarineVsMarine_SeriesTerminatesAndIsRecorded" classname="DiplomaGame.Tests.Runtime.BalanceSimulationTests" runstate="Runnable" seed="1679515946" result="Failed" start-time="2026-06-12 13:47:26Z" end-time="2026-06-12 13:49:39Z" duration="133.514750" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="400000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Все 8 раундов обязаны завершиться до 240 сим-с (фикс ретрита, ADR-016).
+  Expected: 0
+  But was:  5
+]]></message>
+                  <stack-trace><![CDATA[at DiplomaGame.Tests.Runtime.BalanceSimulationTests+<MirrorClash_MarineVsMarine_SeriesTerminatesAndIsRecorded>d__16.MoveNext () [0x002ef] in D:\Projects\diplomaGame\Assets\_Project\Tests\Runtime\BalanceSimulationTests.cs:325
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@76560ee600cb\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 1/8: P 0 — E 7, 48 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 2/8: P 8 — E 7, 240 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 3/8: P 0 — E 7, 43 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 4/8: P 6 — E 7, 240 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 5/8: P 3 — E 5, 240 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 6/8: P 5 — E 4, 240 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 7/8: P 7 — E 0, 43 сим-с
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Stall-breaker: Player→EnemyBase((30.00, 0.00, 30.00)), Enemy→PlayerBase((-30.00, 0.00, -30.00)).
+[Balance] Mirror round 8/8: P 8 — E 8, 240 сим-с
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1074" name="SceneIntegrationTests" fullname="DiplomaGame.Tests.Runtime.SceneIntegrationTests" classname="DiplomaGame.Tests.Runtime.SceneIntegrationTests" runstate="Runnable" testcasecount="3" result="Failed" site="Child" start-time="2026-06-12 13:49:39Z" end-time="2026-06-12 13:49:41Z" duration="1.256887" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties>
+                <property name="Category" value="SceneIntegration" />
+              </properties>
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1076" name="SandboxScene_FullMatch_AiVsAi_Terminates" fullname="DiplomaGame.Tests.Runtime.SceneIntegrationTests.SandboxScene_FullMatch_AiVsAi_Terminates" methodname="SandboxScene_FullMatch_AiVsAi_Terminates" classname="DiplomaGame.Tests.Runtime.SceneIntegrationTests" runstate="Runnable" seed="1550175321" result="Failed" start-time="2026-06-12 13:49:39Z" end-time="2026-06-12 13:49:41Z" duration="1.255092" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[Unhandled log message: '[Error] RenderTexture.Create failed'. Use UnityEngine.TestTools.LogAssert.Expect
+TearDown : Unhandled log message: '[Error] RenderTexture.Create failed'. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                  <stack-trace><![CDATA[UnityEngine.Rendering.RenderPipelineManager:DoRenderLoop_Internal (UnityEngine.Rendering.RenderPipelineAsset,intptr,object,Unity.Collections.LowLevel.Unsafe.AtomicSafetyHandle)
+
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+RenderTexture.Create failed
+RenderTexture.Create failed
+Failed to set the active render target, ensure that it is a valid render target.
+RenderTexture.Create failed
+RenderTexture.Create failed
+SetConstantBuffer: The current renderer does not support constant buffers. This call will have no effect.
+SetConstantBuffer: The current renderer does not support constant buffers. This call will have no effect.
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawDepthNormalPrepass: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawOpaqueObjects: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawTransparentObjects: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+SetConstantBuffer: The current renderer does not support constant buffers. This call will have no effect.
+SetConstantBuffer: The current renderer does not support constant buffers. This call will have no effect.
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawDepthNormalPrepass: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawOpaqueObjects: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawTransparentObjects: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+SetConstantBuffer: The current renderer does not support constant buffers. This call will have no effect.
+SetConstantBuffer: The current renderer does not support constant buffers. This call will have no effect.
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawDepthNormalPrepass: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawOpaqueObjects: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+RenderTexture.Create failed
+RenderTexture.Create failed
+RenderTexture.Create failed
+DrawTransparentObjects: Unable to find surface for attachment 0
+EndRenderPass: Not inside a Renderpass
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1078" name="TechBalanceTests" fullname="DiplomaGame.Tests.Runtime.TechBalanceTests" classname="DiplomaGame.Tests.Runtime.TechBalanceTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-06-12 13:49:41Z" end-time="2026-06-12 13:49:43Z" duration="2.021251" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties>
+                <property name="Category" value="Balance" />
+              </properties>
+              <test-case id="1079" name="WeaponUpgrade_5v5_FavorsUpgradedArmy" fullname="DiplomaGame.Tests.Runtime.TechBalanceTests.WeaponUpgrade_5v5_FavorsUpgradedArmy" methodname="WeaponUpgrade_5v5_FavorsUpgradedArmy" classname="DiplomaGame.Tests.Runtime.TechBalanceTests" runstate="Runnable" seed="975566953" result="Passed" start-time="2026-06-12 13:49:41Z" end-time="2026-06-12 13:49:43Z" duration="2.020235" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[TechBalance] WeaponUpgrade 5v5: Player alive=5, HP=100; Enemy alive=0, HP=0
+Saving results to: C:/Users/arcsy/AppData/LocalLow/DefaultCompany/diplomaGame\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

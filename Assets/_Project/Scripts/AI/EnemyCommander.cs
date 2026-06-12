@@ -6,6 +6,7 @@ using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Tech;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace DiplomaGame.Runtime.AI
 {
@@ -228,7 +229,13 @@ namespace DiplomaGame.Runtime.AI
 
         private void DecideWave()
         {
-            // Собираем юниты противника в состоянии Idle/None
+            // Собираем юниты противника вне боя: Idle ИЛИ Moving (к rally).
+            // Строгое требование Idle давало «голодание волн»: в толпе у rally-точки
+            // юнит не достигает её точно (remainingDistance > stoppingDistance из-за
+            // соседей), вечно остаётся Moving и никогда не призывался — при 37 юнитах
+            // на базе волны переставали формироваться (chokePassCount=1 за весь матч;
+            // вскрыто SceneIntegration FullMatch). Командир забирает в волну всех,
+            // кто не в бою — как реальный приказ армии.
             UnitRegistry.GetUnits(Faction.Enemy, _enemyUnitBuffer);
 
             int idleCount = 0;
@@ -237,13 +244,7 @@ namespace DiplomaGame.Runtime.AI
                 var u = _enemyUnitBuffer[i];
                 if (u == null) continue;
 
-                bool isIdle = u.CurrentState == UnitState.Idle;
-
-                // Используем кэшированный CachedCombat — без GetComponent в горячем цикле
-                var combat = u.CachedCombat;
-                bool combatIdle = combat == null || combat.CurrentCombatState == CombatState.None;
-
-                if (isIdle && combatIdle)
+                if (IsDraftable(u))
                     idleCount++;
             }
 
@@ -258,19 +259,24 @@ namespace DiplomaGame.Runtime.AI
 
             if (_playerHQ == null) return; // HQ игрока нет — не атаковать
 
-            Vector3 targetPos = _playerHQ.transform.position;
+            // Используем ближайшую к HQ точку на NavMesh как цель атаки.
+            // HQ имеет NavMeshObstacle с carve (extents 0.5 × scale 4 = 2м в мировых единицах),
+            // поэтому его центр вырезан из NavMesh и NavMeshAgent не может туда добраться напрямую.
+            // SamplePosition с радиусом 10м с запасом находит точку у периметра здания.
+            Vector3 rawHQPos  = _playerHQ.transform.position;
+            Vector3 targetPos = rawHQPos;
+            if (NavMesh.SamplePosition(rawHQPos, out var navHit, 10f, NavMesh.AllAreas))
+            {
+                targetPos = navHit.position;
+            }
 
-            // Отправляем всех idle-юнитов в атаку
+            // Отправляем всех призываемых (вне боя) юнитов в атаку
             for (int i = 0; i < _enemyUnitBuffer.Count; i++)
             {
                 var u = _enemyUnitBuffer[i];
                 if (u == null) continue;
 
-                bool isIdle    = u.CurrentState == UnitState.Idle;
-                var  combat    = u.CachedCombat;
-                bool combatIdle = combat == null || combat.CurrentCombatState == CombatState.None;
-
-                if (isIdle && combatIdle)
+                if (IsDraftable(u))
                     u.IssueCommand(UnitCommand.AttackMove(targetPos));
             }
 
@@ -278,6 +284,19 @@ namespace DiplomaGame.Runtime.AI
 
             // Уведомляем подписчиков (AudioManager и другие) о старте волны
             WaveLaunched?.Invoke();
+        }
+
+        /// <summary>
+        /// Юнит призываем в волну, если он не в бою и не отступает:
+        /// Idle ИЛИ Moving (к rally / в прежней волне). Уже-AttackMove-юниты
+        /// получают повторный приказ на ту же цель — безвредно.
+        /// </summary>
+        private static bool IsDraftable(Unit u)
+        {
+            if (u.CurrentState == UnitState.Holding) return false;
+
+            var combat = u.CachedCombat;
+            return combat == null || combat.CurrentCombatState == CombatState.None;
         }
 
         private void CachePlayerHQ()

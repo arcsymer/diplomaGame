@@ -123,6 +123,11 @@ namespace DiplomaGame.Runtime.Units
         // Time.time в момент, когда началось последнее отступление (для кулдауна)
         private float _lastRetreatTime;
 
+        // Флаг: ретрит временно подавлен stall-breaker'ом (только для тест-харнессов).
+        // Сбрасывается при следующем явном приказе через OnCommandIssued.
+        // Не влияет на production-логику — устанавливается только через internal-метод.
+        private bool _retreatSuppressedForBreaker;
+
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
@@ -241,6 +246,36 @@ namespace DiplomaGame.Runtime.Units
             _scanTimer = CombatLogic.RandomiseInitialCooldownOffset(ScanInterval, seed * 31);
         }
 
+        /// <summary>
+        /// Снимает активное отступление и подавляет повторный ретрит до следующей
+        /// явной команды от игрока / EnemyCommander.
+        /// Предназначено ТОЛЬКО для stall-breaker'ов тест-харнессов.
+        ///
+        /// Правильный порядок вызова:
+        ///   1. IssueCommand(AttackMove(...))   ← OnCommandIssued сбросит _retreatSuppressedForBreaker
+        ///   2. SuppressRetreatForStallBreaker() ← выставляет _retreatSuppressedForBreaker = true
+        ///
+        /// Пока флаг активен, ShouldStartRetreat() всегда возвращает false,
+        /// поэтому юнит с HP ≤ retreatHpFraction идёт к врагу не отвлекаясь.
+        /// Следующий AttackMove/Move от reальной игровой логики сбросит флаг обратно.
+        /// </summary>
+        internal void SuppressRetreatForStallBreaker()
+        {
+            // Подавляем новый ретрит (до следующей явной команды)
+            _retreatSuppressedForBreaker = true;
+
+            // Снимаем ещё идущий ретрит на случай, если OnCommandIssued уже не отработал.
+            // Не вызываем StopInternal: если перед этим была IssueCommand(AttackMove),
+            // Unit уже получил направление к цели — останавливать нельзя.
+            if (CurrentCombatState == CombatState.Retreating)
+            {
+                CurrentCombatState = CombatState.None;
+                SetCurrentTarget(null, null);
+                // Движение к базе уже задано NavMesh-агентом; AttackMove-команда
+                // перекроет маршрут при первом UpdateCombat → MoveToInternal вызове.
+            }
+        }
+
         // ----------------------------------------------------------------
         // Применение данных
         // ----------------------------------------------------------------
@@ -351,16 +386,17 @@ namespace DiplomaGame.Runtime.Units
             if (cmdType == UnitCommandType.Move)
                 return 0f;
 
-            // После ретрита юнит вернулся на базу.
-            // Чтобы бой не замирал — сканируем на AggroRadius * 10 (120 ед. при базовом
-            // aggro 12 — больше диагонали между базами ~85). При ×5 (60) ловился стейлмейт:
-            // обе стороны целиком отступали на свои базы и не видели друг друга.
-            // Широкий скан действует НЕ только в Idle: пока юнит идёт к далёкой цели,
-            // обычный радиус (12) сбрасывал бы её каждый скан-тик — юнит осциллировал
-            // «шаг-стоп» у базы и бой зависал (проявилось с fighting retreat, когда
-            // ретрит-выживших стало много).
+            // После ретрита юнит обороняет зону базы: скан ×2 (24 ед. при aggro 12) —
+            // видит подходящую волну раньше обычного, но НЕ контратакует через карту.
+            // История: ×10 (map-wide) ставился ради сходимости синтетических Balance-боёв,
+            // но на реальной карте отступившие юниты в одиночку маршировали к вражескому
+            // HQ и сносили его (нарушение приказов и анти-микро-дизайна; вскрыто
+            // SceneIntegration-тестом). Сходимость синтетики теперь обеспечивает
+            // stall-breaker в тест-харнессе (AttackMove при затишье — модель командира).
+            // Широкий скан действует не только в Idle — иначе дальняя цель сбрасывалась
+            // обычным радиусом на следующем тике (осцилляция «шаг-стоп»).
             if (_retreatTriggered && CurrentCombatState != CombatState.Retreating)
-                return _data.AggroRadius * 10f;
+                return _data.AggroRadius * 2f;
 
             // Idle, Patrol — стандартный aggro
             return _data.AggroRadius;
@@ -564,6 +600,8 @@ namespace DiplomaGame.Runtime.Units
         private bool ShouldStartRetreat()
         {
             if (_data == null) return false;
+            // stall-breaker подавил ретрит на один раунд — пропускаем
+            if (_retreatSuppressedForBreaker) return false;
             return CombatLogic.ShouldRetreat(_health.Fraction, _data.RetreatHpFraction, _data.RetreatDisabled);
         }
 
@@ -659,6 +697,11 @@ namespace DiplomaGame.Runtime.Units
         {
             // Прямой приказ игрока сбрасывает отступление
             _retreatTriggered = false;
+            // Сбрасываем stall-breaker подавление — следующий ретрит будет
+            // разрешён если снова придёт обычная команда (не stall-breaker).
+            // SuppressRetreatForStallBreaker вызывается ПОСЛЕ IssueCommand,
+            // поэтому сброс здесь не мешает подавлению.
+            _retreatSuppressedForBreaker = false;
             if (CurrentCombatState == CombatState.Retreating)
                 CurrentCombatState = CombatState.None;
         }

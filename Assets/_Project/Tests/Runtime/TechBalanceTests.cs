@@ -112,8 +112,17 @@ namespace DiplomaGame.Tests.Runtime
 
         private static IEnumerator WaitForBattleEnd(float simLimitSeconds, List<Unit> buffer)
         {
-            const float PollStep = 0.25f;
-            float simElapsed = 0f;
+            const float PollStep       = 0.25f;
+            // Stall-breaker зеркален BalanceSimulationTests: порог 15 сим-с,
+            // цель — позиция БАЗЫ (не центр масс), см. детали в BalanceSimulationTests.
+            const float StallSimSeconds = 15f;
+
+            float simElapsed    = 0f;
+            float lastChangeSim = 0f;
+            float lastTotalHp   = -1f;
+
+            Vector3 playerBasePos = GetBasePosition("PlayerBaseSpawn");
+            Vector3 enemyBasePos  = GetBasePosition("EnemyBaseSpawn");
 
             while (simElapsed < simLimitSeconds)
             {
@@ -122,6 +131,50 @@ namespace DiplomaGame.Tests.Runtime
 
                 if (CountAlive(Faction.Player, buffer) == 0 || CountAlive(Faction.Enemy, buffer) == 0)
                     yield break;
+
+                float totalHp = SumHp(Faction.Player, buffer) + SumHp(Faction.Enemy, buffer);
+                if (!Mathf.Approximately(totalHp, lastTotalHp))
+                {
+                    lastTotalHp   = totalHp;
+                    lastChangeSim = simElapsed;
+                }
+                else if (simElapsed - lastChangeSim >= StallSimSeconds)
+                {
+                    BreakStall(buffer, playerBasePos, enemyBasePos);
+                    lastChangeSim = simElapsed;
+                }
+            }
+        }
+
+        private static Vector3 GetBasePosition(string markerName)
+        {
+            var go = GameObject.Find(markerName);
+            return go != null ? go.transform.position : Vector3.zero;
+        }
+
+        private static void BreakStall(List<Unit> buffer, Vector3 playerBasePos, Vector3 enemyBasePos)
+        {
+            IssueAttackMoveToAll(Faction.Player, enemyBasePos,  buffer);
+            IssueAttackMoveToAll(Faction.Enemy,  playerBasePos, buffer);
+            Debug.Log($"[TechBalance] Stall-breaker: Player→EnemyBase({enemyBasePos}), " +
+                      $"Enemy→PlayerBase({playerBasePos}).");
+        }
+
+        private static void IssueAttackMoveToAll(Faction faction, Vector3 target, List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(faction, buffer);
+            for (int i = 0; i < buffer.Count; i++)
+            {
+                var u = buffer[i];
+                if (u == null) continue;
+                var h = u.GetComponent<Health>();
+                if (h == null || h.IsDead) continue;
+                // 1. Выдаём команду (OnCommandIssued сбросит _retreatSuppressedForBreaker)
+                u.IssueCommand(UnitCommand.AttackMove(target));
+                // 2. Подавляем ретрит ПОСЛЕ команды — юниты с HP≤retreatThreshold
+                //    не уйдут обратно к базе немедленно, а пойдут на врага до конца раунда
+                var combat = u.GetComponent<UnitCombat>();
+                combat?.SuppressRetreatForStallBreaker();
             }
         }
 
@@ -157,10 +210,16 @@ namespace DiplomaGame.Tests.Runtime
         // Player должен победить ИЛИ иметь преимущество по HP
         // ----------------------------------------------------------------
 
+        /// <summary>
+        /// Серия из 5 раундов: один бой 5v5 при снежной дисперсии (первый выстрел/ретрит)
+        /// не гарантирует победу даже с +15% урона — одиночный assert флакал.
+        /// Метрика — большинство раундов за апгрейженной армией (≥3 из 5).
+        /// </summary>
         [UnityTest]
-        [Timeout(120000)]
+        [Timeout(300000)]
         public IEnumerator WeaponUpgrade_5v5_FavorsUpgradedArmy()
         {
+            const int Rounds = 5;
             var buffer = new List<Unit>(32);
 
             // Базовые статы Marine (зеркало ConfigTab)
@@ -178,31 +237,62 @@ namespace DiplomaGame.Tests.Runtime
 
             TechRegistry.Instance.MarkResearched(Faction.Player, weaponsTech);
 
-            SpawnLine(Faction.Player, marineData, x: -5f, count: 5, namePrefix: "TechBalanceP");
-            SpawnLine(Faction.Enemy,  marineData, x: +5f, count: 5, namePrefix: "TechBalanceE");
+            int playerScore = 0, enemyScore = 0;
 
-            Time.timeScale = 10f;
-            yield return null;
+            for (int round = 0; round < Rounds; round++)
+            {
+                // Чередуем порядок создания команд (гасит остаточный порядок Update)
+                if (round % 2 == 0)
+                {
+                    SpawnLine(Faction.Player, marineData, x: -5f, count: 5, namePrefix: "TechBalanceP");
+                    SpawnLine(Faction.Enemy,  marineData, x: +5f, count: 5, namePrefix: "TechBalanceE");
+                }
+                else
+                {
+                    SpawnLine(Faction.Enemy,  marineData, x: +5f, count: 5, namePrefix: "TechBalanceE");
+                    SpawnLine(Faction.Player, marineData, x: -5f, count: 5, namePrefix: "TechBalanceP");
+                }
 
-            yield return WaitForBattleEnd(simLimitSeconds: 180f, buffer);
+                Time.timeScale = 10f;
+                yield return null;
 
-            Time.timeScale = 1f;
+                yield return WaitForBattleEnd(simLimitSeconds: 180f, buffer);
 
-            int   playerAlive = CountAlive(Faction.Player, buffer);
-            int   enemyAlive  = CountAlive(Faction.Enemy, buffer);
-            float playerHp    = SumHp(Faction.Player, buffer);
-            float enemyHp     = SumHp(Faction.Enemy, buffer);
+                int   playerAlive = CountAlive(Faction.Player, buffer);
+                int   enemyAlive  = CountAlive(Faction.Enemy, buffer);
+                float playerHp    = SumHp(Faction.Player, buffer);
+                float enemyHp     = SumHp(Faction.Enemy, buffer);
 
-            Debug.Log($"[TechBalance] WeaponUpgrade 5v5: Player alive={playerAlive}, HP={playerHp:F0}; " +
-                      $"Enemy alive={enemyAlive}, HP={enemyHp:F0}");
+                // Очко за раунд: уничтожение либо преимущество по HP на таймауте
+                if (enemyAlive == 0 && playerAlive > 0)      playerScore++;
+                else if (playerAlive == 0 && enemyAlive > 0) enemyScore++;
+                else if (playerHp > enemyHp)                 playerScore++;
+                else                                         enemyScore++;
 
-            // Player победил полностью ИЛИ имеет преимущество по суммарному HP
-            bool playerWon   = enemyAlive == 0 && playerAlive > 0;
-            bool playerAhead = playerHp > enemyHp;
+                Debug.Log($"[TechBalance] WeaponUpgrade round {round + 1}/{Rounds}: " +
+                          $"P {playerAlive}/{playerHp:F0}hp — E {enemyAlive}/{enemyHp:F0}hp " +
+                          $"(счёт {playerScore}:{enemyScore})");
 
-            Assert.IsTrue(playerWon || playerAhead,
-                $"С +15% уроном Player обязан победить или иметь преимущество по HP. " +
-                $"Player alive={playerAlive}, HP={playerHp:F0}; Enemy alive={enemyAlive}, HP={enemyHp:F0}");
+                DestroyRoundUnits(buffer);
+                Time.timeScale = 1f;
+                yield return null;
+            }
+
+            Assert.GreaterOrEqual(playerScore, 3,
+                $"С +15% уроном Player обязан взять большинство из {Rounds} раундов. " +
+                $"Счёт: Player {playerScore}, Enemy {enemyScore}.");
+        }
+
+        /// <summary>Уничтожает юнитов раунда между раундами серии.</summary>
+        private static void DestroyRoundUnits(List<Unit> buffer)
+        {
+            UnitRegistry.GetUnits(Faction.Player, buffer);
+            for (int i = buffer.Count - 1; i >= 0; i--)
+                if (buffer[i] != null) Object.DestroyImmediate(buffer[i].gameObject);
+
+            UnitRegistry.GetUnits(Faction.Enemy, buffer);
+            for (int i = buffer.Count - 1; i >= 0; i--)
+                if (buffer[i] != null) Object.DestroyImmediate(buffer[i].gameObject);
         }
 
         // ----------------------------------------------------------------

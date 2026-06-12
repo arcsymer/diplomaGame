@@ -316,5 +316,16 @@ namespace DiplomaGame.Editor
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
             UnityEngine.Debug.Log("[Forge] ScreenshotDirector добавлен.");
         }
+        /// <summary>
+        /// v11: фикс вражеского производства — собственные BuildingData и префабы.
+        /// Batch: -executeMethod DiplomaGame.Editor.ForgeBatch.FixEnemyProductionV11
+        /// </summary>
+        public static void FixEnemyProductionV11()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.CreateOrUpdateEnemyBuildingDataV11();
+            ManagersTab.RewireEnemyProductionV11();
+        }
+
     }
 }
