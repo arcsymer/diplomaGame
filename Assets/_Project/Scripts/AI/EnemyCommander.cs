@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
+using DiplomaGame.Runtime.Tech;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
 
@@ -123,6 +124,7 @@ namespace DiplomaGame.Runtime.AI
         private void MakeDecisions()
         {
             DecideProduction();
+            DecideResearch();
             DecideWave();
         }
 
@@ -181,6 +183,46 @@ namespace DiplomaGame.Runtime.AI
                 int unitCost = buildingComp.Data.ProductionCost;
                 if (EnemyWaveLogic.ShouldProduce(balance, unitCost, currentUnits, MaxUnits))
                     building.TryEnqueue();
+            }
+        }
+
+        private void DecideResearch()
+        {
+            if (_bank == null || _enemyBarracks == null || _cachedBarracksBuilding == null) return;
+
+            var data = _cachedBarracksBuilding.Data;
+            if (data == null || !data.HasTechEntries) return;
+
+            int balance = _bank.GetBalance(Faction.Enemy);
+
+            var techEntries = data.TechEntries;
+            for (int i = 0; i < techEntries.Length; i++)
+            {
+                var techEntry = techEntries[i];
+                if (techEntry == null || techEntry.techData == null) continue;
+
+                var tech = techEntry.techData;
+
+                // Проверяем что можно исследовать и хватает денег
+                if (!TechRegistry.Instance.CanResearch(Faction.Enemy, tech)) continue;
+                if (!EnemyWaveLogic.ShouldResearch(balance, tech.Cost)) continue;
+
+                // Проверяем, не полна ли очередь
+                if (_enemyBarracks.QueueCount >= 5) break;
+
+                // Создаём синтетический ProductionEntry для исследования
+                var entry = new ProductionEntry
+                {
+                    techData       = tech,
+                    cost           = tech.Cost,
+                    productionTime = tech.ResearchTime,
+                    icon           = tech.Icon,
+                    hotkeyLabel    = tech.HotkeyLabel,
+                    unitData       = null,
+                };
+
+                if (_enemyBarracks.TryEnqueue(entry))
+                    break; // одно исследование за цикл решений
             }
         }
 

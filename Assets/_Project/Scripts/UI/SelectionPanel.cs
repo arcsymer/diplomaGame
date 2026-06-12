@@ -3,6 +3,7 @@ using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Selection;
+using DiplomaGame.Runtime.Tech;
 using DiplomaGame.Runtime.Units;
 using TMPro;
 using UnityEngine;
@@ -33,11 +34,18 @@ namespace DiplomaGame.Runtime.UI
         [SerializeField] private CommandCardButton[] commandCardSlots = new CommandCardButton[3];
         [SerializeField] private QueueSlotUI[]       queueSlots       = new QueueSlotUI[5];
 
+        [Header("Tech Card Row (v7)")]
+        [SerializeField] private GameObject          techCardRoot;
+        [SerializeField] private CommandCardButton[] techCardSlots = new CommandCardButton[3];
+
         private ProductionBuilding _trackedProduction;
         private int                _lastQueueCount = -1;
 
         // True если активен multi-production режим (командная карта)
         private bool _multiProductionMode;
+
+        // Кэш выделенного здания (нужен для рефреша tech-слотов по событию TechResearched)
+        private Building _selectedBuilding;
 
         // Переиспользуемый StringBuilder для составной строки выделения (без GC)
         private readonly StringBuilder _selectionSb = new StringBuilder(64);
@@ -58,6 +66,8 @@ namespace DiplomaGame.Runtime.UI
                 selectionSystem.SelectionChanged  += OnSelectionChanged;
                 selectionSystem.BuildingSelected  += OnBuildingSelected;
             }
+
+            TechRegistry.TechResearched += OnTechResearched;
         }
 
         private void OnDisable()
@@ -67,6 +77,8 @@ namespace DiplomaGame.Runtime.UI
                 selectionSystem.SelectionChanged  -= OnSelectionChanged;
                 selectionSystem.BuildingSelected  -= OnBuildingSelected;
             }
+
+            TechRegistry.TechResearched -= OnTechResearched;
         }
 
         private void Update()
@@ -118,7 +130,9 @@ namespace DiplomaGame.Runtime.UI
             _trackedProduction    = null;
             _lastQueueCount       = -1;
             _multiProductionMode  = false;
+            _selectedBuilding     = null;
             HideCommandCard();
+            HideAllTechSlots();
 
             if (selectionSystem == null) return;
 
@@ -176,7 +190,9 @@ namespace DiplomaGame.Runtime.UI
             _trackedProduction   = null;
             _lastQueueCount      = -1;
             _multiProductionMode = false;
+            _selectedBuilding    = building;
             HideCommandCard();
+            HideAllTechSlots();
 
             if (building == null)
             {
@@ -237,6 +253,9 @@ namespace DiplomaGame.Runtime.UI
                 ShowProgressBlock(false);
                 if (hintText != null) hintText.gameObject.SetActive(false);
             }
+
+            // Tech row (v7) — показываем если у здания есть технологии
+            BindTechCard(building);
         }
 
         private void SetVisible(bool visible)
@@ -321,6 +340,67 @@ namespace DiplomaGame.Runtime.UI
                     slot.Hide();
                 }
             }
+        }
+
+        // ----------------------------------------------------------------
+        // Tech Card Row (v7)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Привязывает ряд tech-кнопок к выделенному зданию.
+        /// Показывает ряд если у здания есть TechEntries, иначе скрывает.
+        /// </summary>
+        private void BindTechCard(Building building)
+        {
+            if (building == null || building.Data == null || !building.Data.HasTechEntries)
+            {
+                HideAllTechSlots();
+                if (techCardRoot != null) techCardRoot.SetActive(false);
+                return;
+            }
+
+            if (techCardRoot != null) techCardRoot.SetActive(true);
+
+            var entries = building.Data.TechEntries;
+            var prod    = building.GetComponent<ProductionBuilding>();
+
+            if (techCardSlots == null) return;
+
+            for (int i = 0; i < techCardSlots.Length; i++)
+            {
+                var slot = techCardSlots[i];
+                if (slot == null) continue;
+
+                if (entries != null && i < entries.Length)
+                    slot.BindTech(entries[i], prod, building.Faction);
+                else
+                    slot.Hide();
+            }
+        }
+
+        private void HideAllTechSlots()
+        {
+            if (techCardRoot != null) techCardRoot.SetActive(false);
+
+            if (techCardSlots == null) return;
+            for (int i = 0; i < techCardSlots.Length; i++)
+                if (techCardSlots[i] != null) techCardSlots[i].Hide();
+        }
+
+        /// <summary>
+        /// Обработчик TechRegistry.TechResearched — обновляет tech-ряд.
+        /// Вызывается только если в панели есть активное выделение здания.
+        /// </summary>
+        private void OnTechResearched(Faction faction, TechData tech)
+        {
+            RefreshTechSlots();
+        }
+
+        /// <summary>Перебиндит tech-ряд по текущему _selectedBuilding.</summary>
+        private void RefreshTechSlots()
+        {
+            if (_selectedBuilding == null) return;
+            BindTechCard(_selectedBuilding);
         }
     }
 }

@@ -14,6 +14,7 @@ namespace DiplomaGame.Editor
         private const string UnitDataFolder     = "Assets/_Project/Data/Units";
         private const string BuildingDataFolder = "Assets/_Project/Data/Buildings";
         private const string AbilityDataFolder  = "Assets/_Project/Data/Abilities";
+        private const string TechDataFolder     = "Assets/_Project/Data/Tech";
 
         public string Title => "Config";
 
@@ -88,6 +89,22 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Migrate Production Entries (v6)", GUILayout.Height(32)))
                 MigrateProductionEntriesV6();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Create/Update Tech Assets (v7):\n" +
+                "• Tech_Armoring.asset — Бронирование, +20% MaxHp, InfantryOnly, 150/40с, hotkey R\n" +
+                "• Tech_Weapons.asset  — Усиленные стволы, +15% Damage, все, 175/45с, hotkey G\n" +
+                "• Tech_RapidFire.asset — Расширенные обоймы, −15% AttackCooldown, все, 200/50с, hotkey X (требует Weapons)\n" +
+                "• Barracks._techEntries заполняется тремя технологиями.\n" +
+                "Идемпотентно.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Create/Update Tech Assets (v7)", GUILayout.Height(32)))
+                CreateOrUpdateTechAssetsV7();
         }
 
         // ----------------------------------------------------------------
@@ -571,6 +588,152 @@ namespace DiplomaGame.Editor
             entryProp.FindPropertyRelative("productionTime").floatValue     = productionTime;
             entryProp.FindPropertyRelative("icon").objectReferenceValue     = null;
             entryProp.FindPropertyRelative("hotkeyLabel").stringValue       = hotkeyLabel;
+        }
+
+        // ----------------------------------------------------------------
+        // v7: Tech Assets
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт/обновляет TechData-ассеты и заполняет Barracks._techEntries.
+        /// </summary>
+        internal static void CreateOrUpdateTechAssetsV7()
+        {
+            EnsureFolder(TechDataFolder);
+            EnsureFolder(BuildingDataFolder);
+
+            // ----- Tech_Armoring -----
+            var armoring = CreateOrUpdateTechData(
+                assetName:       "Tech_Armoring",
+                displayName:     "Бронирование",
+                description:     "+20% здоровья пехоте.",
+                cost:            150,
+                researchTime:    40f,
+                hotkeyLabel:     "R",
+                effectType:      DiplomaGame.Runtime.Data.TechEffect.MaxHpMultiplier,
+                effectMagnitude: 0.20f,
+                prerequisites:   null,
+                infantryOnly:    true);
+
+            // ----- Tech_Weapons -----
+            var weapons = CreateOrUpdateTechData(
+                assetName:       "Tech_Weapons",
+                displayName:     "Усиленные стволы",
+                description:     "+15% урона всем юнитам.",
+                cost:            175,
+                researchTime:    45f,
+                hotkeyLabel:     "G",
+                effectType:      DiplomaGame.Runtime.Data.TechEffect.DamageMultiplier,
+                effectMagnitude: 0.15f,
+                prerequisites:   null,
+                infantryOnly:    false);
+
+            // ----- Tech_RapidFire (prerequisite: Tech_Weapons) -----
+            CreateOrUpdateTechData(
+                assetName:       "Tech_RapidFire",
+                displayName:     "Расширенные обоймы",
+                description:     "−15% перезарядки. Требует Усиленные стволы.",
+                cost:            200,
+                researchTime:    50f,
+                hotkeyLabel:     "X",
+                effectType:      DiplomaGame.Runtime.Data.TechEffect.AttackCooldownMultiplier,
+                effectMagnitude: -0.15f,
+                prerequisites:   weapons != null ? new[] { weapons } : null,
+                infantryOnly:    false);
+
+            // ----- Загружаем три ассета для заполнения Barracks -----
+            var armoringAsset  = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.TechData>(
+                $"{TechDataFolder}/Tech_Armoring.asset");
+            var weaponsAsset   = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.TechData>(
+                $"{TechDataFolder}/Tech_Weapons.asset");
+            var rapidFireAsset = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.TechData>(
+                $"{TechDataFolder}/Tech_RapidFire.asset");
+
+            // ----- Barracks._techEntries -----
+            {
+                string path = $"{BuildingDataFolder}/Barracks.asset";
+                var    data = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.BuildingData>(path);
+                if (data == null)
+                {
+                    Debug.LogWarning("[Project Forge v7] Barracks.asset не найден. Запустите Create/Update Building Data (M5) сначала.");
+                }
+                else
+                {
+                    var so      = new SerializedObject(data);
+                    var entries = so.FindProperty("_techEntries");
+                    entries.arraySize = 3;
+
+                    SetTechEntry(entries.GetArrayElementAtIndex(0), armoringAsset);
+                    SetTechEntry(entries.GetArrayElementAtIndex(1), weaponsAsset);
+                    SetTechEntry(entries.GetArrayElementAtIndex(2), rapidFireAsset);
+
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Tech Assets (v7) созданы/обновлены.");
+        }
+
+        private static DiplomaGame.Runtime.Data.TechData CreateOrUpdateTechData(
+            string   assetName,
+            string   displayName,
+            string   description,
+            int      cost,
+            float    researchTime,
+            string   hotkeyLabel,
+            DiplomaGame.Runtime.Data.TechEffect effectType,
+            float    effectMagnitude,
+            DiplomaGame.Runtime.Data.TechData[] prerequisites,
+            bool     infantryOnly)
+        {
+            string path     = $"{TechDataFolder}/{assetName}.asset";
+            var    existing = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.TechData>(path);
+
+            DiplomaGame.Runtime.Data.TechData data;
+            if (existing != null)
+            {
+                data = existing;
+            }
+            else
+            {
+                data = ScriptableObject.CreateInstance<DiplomaGame.Runtime.Data.TechData>();
+                AssetDatabase.CreateAsset(data, path);
+            }
+
+            var so = new SerializedObject(data);
+            so.FindProperty("_displayName").stringValue         = displayName;
+            so.FindProperty("_description").stringValue         = description;
+            so.FindProperty("_cost").intValue                   = cost;
+            so.FindProperty("_researchTime").floatValue         = researchTime;
+            so.FindProperty("_hotkeyLabel").stringValue         = hotkeyLabel;
+            so.FindProperty("_effectType").enumValueIndex       = (int)effectType;
+            so.FindProperty("_effectMagnitude").floatValue      = effectMagnitude;
+            so.FindProperty("_infantryOnly").boolValue          = infantryOnly;
+
+            // Prerequisites
+            var prereqProp = so.FindProperty("_prerequisites");
+            if (prerequisites != null && prerequisites.Length > 0)
+            {
+                prereqProp.arraySize = prerequisites.Length;
+                for (int i = 0; i < prerequisites.Length; i++)
+                    prereqProp.GetArrayElementAtIndex(i).objectReferenceValue = prerequisites[i];
+            }
+            else
+            {
+                prereqProp.arraySize = 0;
+            }
+
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            return data;
+        }
+
+        private static void SetTechEntry(SerializedProperty entryProp, DiplomaGame.Runtime.Data.TechData techData)
+        {
+            entryProp.FindPropertyRelative("techData").objectReferenceValue = techData;
         }
 
         private static void EnsureFolder(string folderPath)

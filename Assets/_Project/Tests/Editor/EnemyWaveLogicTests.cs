@@ -167,5 +167,27 @@ namespace DiplomaGame.Tests.Editor
             Assert.AreEqual(7, EnemyWaveLogic.GetWaveSizeForTime(600f));
             Assert.AreEqual(7, EnemyWaveLogic.GetWaveSizeForTime(3600f));
         }
+
+        // ================================================================
+        // ShouldResearch (v7)
+        // ================================================================
+
+        [Test]
+        public void ShouldResearch_SufficientBalance_ReturnsTrue()
+        {
+            // 300 >= 150 + 50 = 200
+            Assert.IsTrue(
+                EnemyWaveLogic.ShouldResearch(balance: 300, techCost: 150),
+                "При балансе >= techCost + 50 исследование разрешено.");
+        }
+
+        [Test]
+        public void ShouldResearch_InsufficientBuffer_ReturnsFalse()
+        {
+            // 180 < 150 + 50 = 200
+            Assert.IsFalse(
+                EnemyWaveLogic.ShouldResearch(balance: 180, techCost: 150),
+                "При балансе < techCost + 50 исследование запрещено (резерв 50 не покрывается).");
+        }
     }
 }
