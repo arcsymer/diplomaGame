@@ -29,8 +29,14 @@ MonoBehaviour:
     productionTime: 5
     icon: {fileID: 0}
     hotkeyLabel: T
+    techData: {fileID: 0}
   - unitData: {fileID: 11400000, guid: 370ad1bfecae81c41a2d3281d69049d7, type: 2}
     cost: 90
     productionTime: 8
     icon: {fileID: 0}
     hotkeyLabel: Y
+    techData: {fileID: 0}
+  _techEntries:
+  - techData: {fileID: 11400000, guid: a9e26d0a626d8814fa6c4a706844ad83, type: 2}
+  - techData: {fileID: 11400000, guid: abf53df75f6442741b28d24d1579776e, type: 2}
+  - techData: {fileID: 11400000, guid: d4cd071b45bbd3447b1f9f9e83833615, type: 2}

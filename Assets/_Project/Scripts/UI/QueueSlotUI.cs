@@ -28,6 +28,7 @@ namespace DiplomaGame.Runtime.UI
 
         /// <summary>
         /// Показать слот с данной записью. progress01 [0..1] — для слота 0 заполняет overlay.
+        /// Поддерживает как production-записи (entry.unitData), так и tech-записи (entry.techData).
         /// </summary>
         public void ShowEntry(ProductionEntry entry, float progress01)
         {
@@ -35,9 +36,18 @@ namespace DiplomaGame.Runtime.UI
 
             if (iconImage != null)
             {
-                if (entry != null && entry.icon != null)
+                // Иконка: сначала entry.icon, потом techData.Icon как fallback
+                Sprite icon = null;
+                if (entry != null)
                 {
-                    iconImage.sprite = entry.icon;
+                    icon = entry.icon;
+                    if (icon == null && entry.techData != null)
+                        icon = entry.techData.Icon;
+                }
+
+                if (icon != null)
+                {
+                    iconImage.sprite = icon;
                     iconImage.color  = Color.white;
                 }
                 else

@@ -4,6 +4,7 @@ using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Hero;
+using DiplomaGame.Runtime.Tech;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
@@ -246,7 +247,13 @@ namespace DiplomaGame.Runtime.Units
 
         private void ApplyData(UnitData data)
         {
-            _health.Init(data.MaxHp);
+            // MaxHp с модификатором технологий (только для новых юнитов при инициализации)
+            float hpMult = 1f;
+            var registry = TechRegistry.Instance;
+            if (registry != null && _unit != null)
+                hpMult = 1f + registry.GetMaxHpMultiplier(_unit.Faction, data);
+
+            _health.Init(data.MaxHp * hpMult);
             _agent.speed = data.MoveSpeed;
         }
 
@@ -443,7 +450,9 @@ namespace DiplomaGame.Runtime.Units
         {
             if (_data == null || _currentTargetHealth == null) return;
 
-            if (!FireRateLogic.CanFire(_lastAttackTime, _data.AttackCooldown, Time.time))
+            float effectiveCooldown = GetEffectiveCooldown();
+
+            if (!FireRateLogic.CanFire(_lastAttackTime, effectiveCooldown, Time.time))
                 return;
 
             if (_data.AoeRadius > 0f)
@@ -452,8 +461,9 @@ namespace DiplomaGame.Runtime.Units
             }
             else
             {
-                // Одиночная атака — старый путь без изменений
-                _currentTargetHealth.TakeDamage(_data.Damage);
+                // Одиночная атака с модификатором урона
+                float effectiveDamage = GetEffectiveDamage();
+                _currentTargetHealth.TakeDamage(effectiveDamage);
                 _lastAttackTime = Time.time;
                 AnyAttacked?.Invoke(transform.position);
                 AnyAttackedWithFaction?.Invoke(_unit.Faction, transform.position, (int)gameObject.GetEntityId());
@@ -466,6 +476,25 @@ namespace DiplomaGame.Runtime.Units
                     CurrentCombatState = CombatState.None;
                 }
             }
+        }
+
+        /// <summary>Эффективный урон с учётом модификаторов технологий (null-safe).</summary>
+        private float GetEffectiveDamage()
+        {
+            var registry = TechRegistry.Instance;
+            if (registry == null || _unit == null) return _data.Damage;
+            float mult = 1f + registry.GetDamageMultiplier(_unit.Faction, _data);
+            return _data.Damage * mult;
+        }
+
+        /// <summary>Эффективный кулдаун с учётом модификаторов технологий (null-safe).</summary>
+        private float GetEffectiveCooldown()
+        {
+            var registry = TechRegistry.Instance;
+            if (registry == null || _unit == null) return _data.AttackCooldown;
+            float mult = 1f + registry.GetCooldownMultiplier(_unit.Faction, _data);
+            // Кулдаун не может быть меньше 0.05 (floor для читабельности)
+            return Mathf.Max(0.05f, _data.AttackCooldown * mult);
         }
 
         /// <summary>
@@ -501,11 +530,12 @@ namespace DiplomaGame.Runtime.Units
 
             _lastAttackTime = Time.time;
 
+            float effectiveDamage = GetEffectiveDamage();
             for (int i = 0; i < _aoeIndexBuffer.Count; i++)
             {
                 var target = _candidateHealths[_aoeIndexBuffer[i]];
                 if (target != null && !target.IsDead)
-                    target.TakeDamage(_data.Damage);
+                    target.TakeDamage(effectiveDamage);
             }
 
             AnyAttacked?.Invoke(transform.position);

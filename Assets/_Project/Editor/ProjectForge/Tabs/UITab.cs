@@ -127,6 +127,23 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Command Card (v6)", GUILayout.Height(32)))
                 SetupCommandCardV6();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Setup Tech Tree (v7):\n" +
+                "• Создаёт TechCardRoot (2-й ряд из 3 tech-кнопок) под CommandCardRoot\n" +
+                "• Добавляет researchedOverlay (Image зелёный + TMP ✓) к каждой кнопке\n" +
+                "• Прописывает techCardSlots в SelectionPanel\n" +
+                "• Навешивает TooltipTrigger на tech-кнопки\n" +
+                "Требует: BuildGameHUD (M6a) и SetupCommandCard (v6) уже выполнены.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Tech Tree (v7)", GUILayout.Height(32)))
+                SetupTechTreeV7();
         }
 
         // ----------------------------------------------------------------
@@ -1387,6 +1404,231 @@ namespace DiplomaGame.Editor
             AssetDatabase.Refresh();
 
             Debug.Log("[Project Forge] Setup Command Card (v6) завершён.");
+        }
+
+        // ----------------------------------------------------------------
+        // v7 Tech Tree
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентная сборка ряда tech-кнопок (v7).
+        /// Вызывается кнопкой OnGUI и ForgeBatch.SetupTechTree().
+        /// </summary>
+        internal static void SetupTechTreeV7()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            EnsureTmpEssentials();
+
+            // 1. Создать / обновить tech-ассеты
+            ConfigTab.CreateOrUpdateTechAssetsV7();
+
+            // 2. Построить TechCardRoot + 3 tech-кнопки
+            BuildTechCardRow();
+
+            // 3. Сохранить
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Setup Tech Tree (v7) завершён.");
+        }
+
+        private static void BuildTechCardRow()
+        {
+            var gameHud = GameObject.Find("GameHUD");
+            if (gameHud == null)
+            {
+                Debug.LogWarning("[Project Forge v7] GameHUD не найден. Сначала запустите Build Game HUD (M6a).");
+                return;
+            }
+
+            var selPanelGo = FindDescendantByName(gameHud, "SelectionPanel");
+            if (selPanelGo == null)
+            {
+                Debug.LogWarning("[Project Forge v7] SelectionPanel не найден в GameHUD.");
+                return;
+            }
+
+            // --- TechCardRoot ---
+            var techCardRoot = EnsureChild(selPanelGo, "TechCardRoot");
+            {
+                var rt = techCardRoot.GetComponent<RectTransform>();
+                // Под CommandCardRoot (второй ряд), правая часть панели
+                rt.anchorMin = new Vector2(0.6f, 0f);
+                rt.anchorMax = new Vector2(1f, 0f);
+                rt.pivot     = new Vector2(0f, 1f);
+                // Сдвигаем ниже CommandCardRoot — смещение 72px (64 + отступ)
+                rt.anchoredPosition = new Vector2(0f, -72f);
+                rt.offsetMin = new Vector2(8f, 4f);
+                rt.offsetMax = new Vector2(-4f, -4f);
+
+                var layout = EnsureComponent<HorizontalLayoutGroup>(techCardRoot);
+                layout.spacing               = 4f;
+                layout.childAlignment        = TextAnchor.MiddleLeft;
+                layout.childControlWidth     = false;
+                layout.childControlHeight    = false;
+                layout.childForceExpandWidth  = false;
+                layout.childForceExpandHeight = false;
+            }
+
+            // --- Три CommandCardButton слота для технологий ---
+            var techCardButtons = new CommandCardButton[3];
+
+            for (int i = 0; i < 3; i++)
+            {
+                string slotName = "TechSlot_" + i.ToString();
+                var slotGo = EnsureChild(techCardRoot, slotName);
+
+                var slotRt = slotGo.GetComponent<RectTransform>();
+                slotRt.sizeDelta = new Vector2(64f, 64f);
+
+                // Фон (чуть темнее/зеленоватый чтобы отличаться от production)
+                var bgImg = EnsureComponent<Image>(slotGo);
+                bgImg.color = new Color(0.12f, 0.22f, 0.18f, 0.9f);
+
+                // Кнопка
+                EnsureComponent<Button>(slotGo);
+
+                // Иконка
+                var iconGo  = EnsureChild(slotGo, "Icon");
+                var iconImg = EnsureComponent<Image>(iconGo);
+                iconImg.color = Color.white;
+                {
+                    var irt = iconGo.GetComponent<RectTransform>();
+                    irt.anchorMin = new Vector2(0.1f, 0.25f);
+                    irt.anchorMax = new Vector2(0.9f, 0.95f);
+                    irt.offsetMin = Vector2.zero;
+                    irt.offsetMax = Vector2.zero;
+                }
+
+                // Название
+                var nameGo  = EnsureChild(slotGo, "UnitNameText");
+                var nameTmp = EnsureComponent<TextMeshProUGUI>(nameGo);
+                nameTmp.text      = "";
+                nameTmp.fontSize  = 9f;
+                nameTmp.color     = Color.white;
+                nameTmp.alignment = TextAlignmentOptions.Center;
+                nameTmp.enableWordWrapping = false;
+                {
+                    var nrt = nameGo.GetComponent<RectTransform>();
+                    nrt.anchorMin = new Vector2(0f, 0.02f);
+                    nrt.anchorMax = new Vector2(1f, 0.28f);
+                    nrt.offsetMin = Vector2.zero;
+                    nrt.offsetMax = Vector2.zero;
+                }
+
+                // Стоимость
+                var costGo  = EnsureChild(slotGo, "CostText");
+                var costTmp = EnsureComponent<TextMeshProUGUI>(costGo);
+                costTmp.text      = "";
+                costTmp.fontSize  = 9f;
+                costTmp.color     = new Color(0.9f, 0.85f, 0.2f, 1f);
+                costTmp.alignment = TextAlignmentOptions.BottomLeft;
+                {
+                    var crt = costGo.GetComponent<RectTransform>();
+                    crt.anchorMin = new Vector2(0f, 0f);
+                    crt.anchorMax = new Vector2(0.5f, 0.28f);
+                    crt.offsetMin = new Vector2(2f, 0f);
+                    crt.offsetMax = Vector2.zero;
+                }
+
+                // Хоткей
+                var keyGo  = EnsureChild(slotGo, "HotkeyText");
+                var keyTmp = EnsureComponent<TextMeshProUGUI>(keyGo);
+                keyTmp.text      = "";
+                keyTmp.fontSize  = 9f;
+                keyTmp.color     = new Color(0.7f, 0.9f, 0.7f, 1f);
+                keyTmp.alignment = TextAlignmentOptions.BottomRight;
+                {
+                    var krt = keyGo.GetComponent<RectTransform>();
+                    krt.anchorMin = new Vector2(0.5f, 0f);
+                    krt.anchorMax = new Vector2(1f, 0.28f);
+                    krt.offsetMin = Vector2.zero;
+                    krt.offsetMax = new Vector2(-2f, 0f);
+                }
+
+                // ResearchedOverlay — полупрозрачный зелёный Image + TMP "✓"
+                var overlayGo = EnsureChild(slotGo, "ResearchedOverlay");
+                {
+                    var overlayImg = EnsureComponent<Image>(overlayGo);
+                    overlayImg.color = new Color(0.2f, 0.8f, 0.3f, 0.6f);
+
+                    var overlayRt = overlayGo.GetComponent<RectTransform>();
+                    overlayRt.anchorMin = Vector2.zero;
+                    overlayRt.anchorMax = Vector2.one;
+                    overlayRt.offsetMin = Vector2.zero;
+                    overlayRt.offsetMax = Vector2.zero;
+
+                    // TMP "✓"
+                    var checkGo  = EnsureChild(overlayGo, "CheckMark");
+                    var checkTmp = EnsureComponent<TextMeshProUGUI>(checkGo);
+                    checkTmp.text      = "✓";
+                    checkTmp.fontSize  = 28f;
+                    checkTmp.color     = Color.white;
+                    checkTmp.alignment = TextAlignmentOptions.Center;
+                    {
+                        var crt = checkGo.GetComponent<RectTransform>();
+                        crt.anchorMin = Vector2.zero;
+                        crt.anchorMax = Vector2.one;
+                        crt.offsetMin = Vector2.zero;
+                        crt.offsetMax = Vector2.zero;
+                    }
+
+                    overlayGo.SetActive(false);
+                }
+
+                // CommandCardButton
+                var btn = EnsureComponent<CommandCardButton>(slotGo);
+                {
+                    var so = new SerializedObject(btn);
+                    so.FindProperty("iconImage").objectReferenceValue      = iconImg;
+                    so.FindProperty("button").objectReferenceValue         = slotGo.GetComponent<Button>();
+                    so.FindProperty("unitNameText").objectReferenceValue   = nameTmp;
+                    so.FindProperty("costText").objectReferenceValue       = costTmp;
+                    so.FindProperty("hotkeyText").objectReferenceValue     = keyTmp;
+                    so.FindProperty("slotIndex").intValue                  = i;
+                    so.FindProperty("researchedOverlay").objectReferenceValue = overlayGo;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                // TooltipTrigger
+                EnsureComponent<TooltipTrigger>(slotGo);
+
+                techCardButtons[i] = btn;
+
+                // По умолчанию скрыт
+                slotGo.SetActive(false);
+            }
+
+            // TechCardRoot тоже скрыт по умолчанию
+            techCardRoot.SetActive(false);
+
+            // --- Проставить ссылки в SelectionPanel ---
+            var selPanel = selPanelGo.GetComponent<SelectionPanel>();
+            if (selPanel != null)
+            {
+                var so = new SerializedObject(selPanel);
+
+                so.FindProperty("techCardRoot").objectReferenceValue = techCardRoot;
+
+                var techSlotsProp = so.FindProperty("techCardSlots");
+                techSlotsProp.arraySize = 3;
+                for (int i = 0; i < 3; i++)
+                    techSlotsProp.GetArrayElementAtIndex(i).objectReferenceValue = techCardButtons[i];
+
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            else
+            {
+                Debug.LogWarning("[Project Forge v7] SelectionPanel компонент не найден.");
+            }
         }
 
         // ----------------------------------------------------------------

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
+using DiplomaGame.Runtime.Tech;
 using DiplomaGame.Runtime.Units;
 using UnityEngine;
 
@@ -265,6 +266,20 @@ namespace DiplomaGame.Runtime.Buildings
 
         private void SpawnUnit(ProductionEntry entry)
         {
+            // Guard: запись не может быть одновременно без юнита и без технологии
+            if (entry == null) return;
+
+            // Ветка исследования технологии
+            if (entry.techData != null)
+            {
+                var buildingForTech = GetBuilding();
+                if (buildingForTech != null && TechRegistry.Instance != null)
+                    TechRegistry.Instance.MarkResearched(buildingForTech.Faction, entry.techData);
+                // UnitProduced НЕ вызывается — юнит не создан
+                return;
+            }
+
+            // Обычный спавн юнита
             var prefab = ResolvePrefab(entry);
             if (prefab == null) return;
 

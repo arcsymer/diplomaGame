@@ -3,7 +3,7 @@
     "winner": "Player (Tank)",
     "playerAlive": 4,
     "enemyAlive": 0,
-    "playerHpLeft": 700.0,
+    "playerHpLeft": 710.0,
     "enemyHpLeft": 0.0,
-    "simDurationSec": 10.00970458984375
+    "simDurationSec": 10.010498046875
 }

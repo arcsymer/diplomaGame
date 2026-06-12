@@ -7,6 +7,16 @@ namespace DiplomaGame.Runtime.AI
     public static class EnemyWaveLogic
     {
         /// <summary>
+        /// Возвращает true, если ИИ должен исследовать технологию.
+        /// Условие: баланс покрывает стоимость технологии плюс 50 резервных единиц.
+        /// </summary>
+        public static bool ShouldResearch(int balance, int techCost)
+        {
+            if (techCost <= 0) return false;
+            return balance >= techCost + 50;
+        }
+
+        /// <summary>
         /// Возвращает true, если ИИ должен произвести очередного юнита.
         /// Условие: баланс покрывает стоимость И текущее количество юнитов меньше лимита.
         /// </summary>

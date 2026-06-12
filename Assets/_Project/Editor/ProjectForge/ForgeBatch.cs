@@ -228,6 +228,19 @@ namespace DiplomaGame.Editor
             UITab.SetupCommandCardV6();
         }
 
+        /// <summary>
+        /// Дерево технологий (v7): открывает Sandbox → создаёт/обновляет Tech-ассеты →
+        /// строит TechCardRoot (3 tech-кнопки) в SelectionPanel →
+        /// прописывает techCardSlots → сохраняет сцену и ассеты.
+        /// Prerequisite: SetupCircle6() / SetupCommandCardV6 уже выполнен.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupTechTree
+        /// </summary>
+        public static void SetupTechTree()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.SetupTechTreeV7();
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {
