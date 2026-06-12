@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 6369318777661038206}
   - component: {fileID: 5005120301906829354}
   - component: {fileID: 1131258931296182375}
+  - component: {fileID: 8642775394465601118}
   m_Layer: 0
   m_Name: EnemyTankUnit
   m_TagString: Untagged
@@ -182,6 +183,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Units.UnitCombat
   _data: {fileID: 11400000, guid: c0396fc784149db43b0ee9025d7a8b82, type: 2}
   _aoeVfx: {fileID: 0}
+--- !u!114 &8642775394465601118
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2337006481715678219}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94af75138ddb0c047959f765fb98a9ea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.GameFeel.HitFlashHandler
 --- !u!1 &4426215993028711066
 GameObject:
   m_ObjectHideFlags: 0

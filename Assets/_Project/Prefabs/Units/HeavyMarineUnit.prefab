@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 867397690997213380}
   - component: {fileID: 6537108161119258967}
   - component: {fileID: 4792753534371211928}
+  - component: {fileID: 2841810196078467376}
   m_Layer: 0
   m_Name: HeavyMarineUnit
   m_TagString: Untagged
@@ -194,6 +195,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df9189bdf7af04e4c937ce40354f4af8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Units.UnitAnimator
+--- !u!114 &2841810196078467376
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5754068053299786833}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94af75138ddb0c047959f765fb98a9ea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.GameFeel.HitFlashHandler
 --- !u!1001 &1328043452386404234
 PrefabInstance:
   m_ObjectHideFlags: 0

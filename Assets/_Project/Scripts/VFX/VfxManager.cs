@@ -26,21 +26,24 @@ namespace DiplomaGame.Runtime.VFX
         [SerializeField] private GameObject _hitImpactPrefab;
         [SerializeField] private GameObject _explosionPrefab;
         [SerializeField] private GameObject _buildEffectPrefab;
+        [SerializeField] private GameObject _shockwaveRingPrefab;
 
         // ----------------------------------------------------------------
         // Пулы
         // ----------------------------------------------------------------
 
-        private readonly List<ParticleSystem> _muzzlePool    = new List<ParticleSystem>(PoolSize);
-        private readonly List<ParticleSystem> _hitPool       = new List<ParticleSystem>(PoolSize);
-        private readonly List<ParticleSystem> _explosionPool = new List<ParticleSystem>(PoolSize);
-        private readonly List<ParticleSystem> _buildPool     = new List<ParticleSystem>(PoolSize);
+        private readonly List<ParticleSystem> _muzzlePool       = new List<ParticleSystem>(PoolSize);
+        private readonly List<ParticleSystem> _hitPool          = new List<ParticleSystem>(PoolSize);
+        private readonly List<ParticleSystem> _explosionPool    = new List<ParticleSystem>(PoolSize);
+        private readonly List<ParticleSystem> _buildPool        = new List<ParticleSystem>(PoolSize);
+        private readonly List<ParticleSystem> _shockwavePool    = new List<ParticleSystem>(PoolSize);
 
         // Текущие индексы пулов
         private int _muzzleIndex    = -1;
         private int _hitIndex       = -1;
         private int _explosionIndex = -1;
         private int _buildIndex     = -1;
+        private int _shockwaveIndex = -1;
 
         // ----------------------------------------------------------------
         // Таймеры деактивации — массивы float по размеру пула.
@@ -52,6 +55,7 @@ namespace DiplomaGame.Runtime.VFX
         private float[] _hitTimers;
         private float[] _explosionTimers;
         private float[] _buildTimers;
+        private float[] _shockwaveTimers;
 
         // Флаг: тестовый режим (пул уже инициализирован снаружи)
         private bool _testMode;
@@ -80,6 +84,7 @@ namespace DiplomaGame.Runtime.VFX
             TickTimers(_hitPool,       _hitTimers);
             TickTimers(_explosionPool, _explosionTimers);
             TickTimers(_buildPool,     _buildTimers);
+            TickTimers(_shockwavePool, _shockwaveTimers);
         }
 
         private void OnDestroy()
@@ -136,7 +141,10 @@ namespace DiplomaGame.Runtime.VFX
 
         private void OnHeroShotFired(Vector3 origin, Vector3 end, bool hit)
         {
-            // Эффект вспышки только если есть попадание (end = точка удара)
+            // Дульная вспышка при КАЖДОМ выстреле (origin = точка выстрела)
+            Play(_muzzlePool, ref _muzzleIndex, origin);
+
+            // Эффект попадания только при хите
             if (hit)
                 Play(_hitPool, ref _hitIndex, end);
         }
@@ -168,6 +176,7 @@ namespace DiplomaGame.Runtime.VFX
             {
                 case DiplomaGame.Runtime.Data.AbilityType.Shockwave:
                     Play(_explosionPool, ref _explosionIndex, heroPos);
+                    Play(_shockwavePool, ref _shockwaveIndex, heroPos);
                     break;
 
                 case DiplomaGame.Runtime.Data.AbilityType.RepairField:
@@ -222,7 +231,8 @@ namespace DiplomaGame.Runtime.VFX
             List<ParticleSystem> muzzle,
             List<ParticleSystem> hit,
             List<ParticleSystem> explosion,
-            List<ParticleSystem> build)
+            List<ParticleSystem> build,
+            List<ParticleSystem> shockwave = null)
         {
             _testMode = true;
 
@@ -237,6 +247,10 @@ namespace DiplomaGame.Runtime.VFX
 
             _buildPool.Clear();
             _buildPool.AddRange(build);
+
+            _shockwavePool.Clear();
+            if (shockwave != null)
+                _shockwavePool.AddRange(shockwave);
 
             // Инициализируем массивы таймеров под фактический размер тестовых пулов
             InitTimerArrays();
@@ -257,6 +271,7 @@ namespace DiplomaGame.Runtime.VFX
             FillPool(_hitImpactPrefab,    _hitPool,       PoolSize);
             FillPool(_explosionPrefab,    _explosionPool, PoolSize);
             FillPool(_buildEffectPrefab,  _buildPool,     PoolSize);
+            FillPool(_shockwaveRingPrefab, _shockwavePool, PoolSize);
 
             // Массивы таймеров — после финального заполнения пулов
             InitTimerArrays();
@@ -268,6 +283,7 @@ namespace DiplomaGame.Runtime.VFX
             _hitTimers       = new float[_hitPool.Count];
             _explosionTimers = new float[_explosionPool.Count];
             _buildTimers     = new float[_buildPool.Count];
+            _shockwaveTimers = new float[_shockwavePool.Count];
         }
 
         private void FillPool(GameObject prefab, List<ParticleSystem> pool, int count)
@@ -323,7 +339,11 @@ namespace DiplomaGame.Runtime.VFX
             if (pool == _hitPool)       return _hitTimers;
             if (pool == _explosionPool) return _explosionTimers;
             if (pool == _buildPool)     return _buildTimers;
+            if (pool == _shockwavePool) return _shockwaveTimers;
             return null;
         }
+
+        /// <summary>Пул ShockwaveRing — для внешнего доступа из тестов.</summary>
+        internal List<ParticleSystem> ShockwavePool => _shockwavePool;
     }
 }

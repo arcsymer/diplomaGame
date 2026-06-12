@@ -687,7 +687,7 @@ namespace DiplomaGame.Editor
             ConfigureBurstPs(flamePs, flameMat,
                 burstCount:   12,
                 lifetime:     0.6f,
-                startSize:    1.5f,
+                startSize:    1.8f,
                 startColor:   new Color(1f, 0.45f, 0.1f),
                 speed:        3f);
 

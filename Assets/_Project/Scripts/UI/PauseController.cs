@@ -1,3 +1,4 @@
+using System;
 using DiplomaGame.Runtime.Buildings;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -17,6 +18,16 @@ namespace DiplomaGame.Runtime.UI
         [SerializeField] private GameObject   pausePanel;
         [SerializeField] private SettingsPanel settingsPanel;
         [SerializeField] private BuildingPlacer buildingPlacer;
+
+        // ----------------------------------------------------------------
+        // Событие (GameFeel — инвок ДО установки timeScale)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Вызывается при изменении состояния паузы до установки Time.timeScale.
+        /// Параметр true → переходим в паузу; false → возобновляем.
+        /// </summary>
+        public event Action<bool> PauseChanged;
 
         // ----------------------------------------------------------------
         // Публичный API
@@ -117,7 +128,11 @@ namespace DiplomaGame.Runtime.UI
 
         private void Pause()
         {
-            IsPaused       = true;
+            IsPaused = true;
+
+            // Инвок ДО установки timeScale — GameFeelManager успевает прервать hitstop
+            PauseChanged?.Invoke(true);
+
             Time.timeScale = 0f;
             SetPanelVisible(true);
 
@@ -128,7 +143,11 @@ namespace DiplomaGame.Runtime.UI
 
         private void Resume()
         {
-            IsPaused       = false;
+            IsPaused = false;
+
+            // Инвок ДО установки timeScale
+            PauseChanged?.Invoke(false);
+
             Time.timeScale = 1f;
             SetPanelVisible(false);
         }
