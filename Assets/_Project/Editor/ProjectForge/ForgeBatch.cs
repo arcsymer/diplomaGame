@@ -178,6 +178,17 @@ namespace DiplomaGame.Editor
         }
 
         /// <summary>
+        /// Сборка WebGL (v8) в Builds/WebGL/.
+        /// PlayerSettings (Gzip, DecompressionFallback, template Default, runInBackground)
+        /// выставляются идемпотентно перед сборкой — безопасно запускать повторно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.BuildWebGL
+        /// </summary>
+        public static void BuildWebGL()
+        {
+            BuildTab.BuildWebGL();
+        }
+
+        /// <summary>
         /// v3 Tank: открывает Sandbox → создаёт Tank-ассеты данных →
         /// создаёт Tank-префабы → размещает WarFactory в сцене → сохраняет.
         /// Prerequisite: M9 (SetupScenario) уже выполнен.

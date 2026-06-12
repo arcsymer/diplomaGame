@@ -1,9 +1,9 @@
 {
     "scenario": "Stress 20v20, timeScale 10",
     "frames": 4096,
-    "avgFrameMs": 0.4724823534488678,
-    "p95FrameMs": 0.512499988079071,
-    "worstFrameMs": 0.8339993953704834,
-    "avgFps": 2116.481201171875,
-    "managedDeltaBytes": 2940928
+    "avgFrameMs": 0.5141568779945374,
+    "p95FrameMs": 0.6795989274978638,
+    "worstFrameMs": 1.1168012619018555,
+    "avgFps": 1944.931640625,
+    "managedDeltaBytes": 2732032
 }

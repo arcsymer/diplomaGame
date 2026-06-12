@@ -3,7 +3,7 @@
     "winner": "Player",
     "playerAlive": 8,
     "enemyAlive": 0,
-    "playerHpLeft": 472.0,
+    "playerHpLeft": 480.0,
     "enemyHpLeft": 0.0,
-    "simDurationSec": 17.516204833984376
+    "simDurationSec": 17.52789306640625
 }
