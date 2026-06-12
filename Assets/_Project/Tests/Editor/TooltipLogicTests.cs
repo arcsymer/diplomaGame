@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.UI;
 using NUnit.Framework;
@@ -12,6 +13,49 @@ namespace DiplomaGame.Tests.Editor
     [TestFixture]
     public class TooltipLogicTests
     {
+        // ----------------------------------------------------------------
+        // Фикстура LocService — инициализируем до тестов с русским глоссарием
+        // ----------------------------------------------------------------
+
+        [SetUp]
+        public void SetUp()
+        {
+            // Создаём минимальный LocTable с ключами способностей
+            var table = ScriptableObject.CreateInstance<LocTable>();
+            var so    = new UnityEditor.SerializedObject(table);
+            var arr   = so.FindProperty("_entries");
+
+            var entries = new (string key, string ru, string en)[]
+            {
+                ("tooltip.ability_cooldown",  "Кулдаун: {0}с",    "Cooldown: {0}s"),
+                ("tooltip.ability_distance",  "Дистанция: {0}",   "Distance: {0}"),
+                ("tooltip.ability_damage",    "Урон: {0}",        "Damage: {0}"),
+                ("tooltip.ability_radius",    "Радиус: {0}",      "Radius: {0}"),
+                ("tooltip.ability_heal",      "Лечение: {0}",     "Heal: {0}"),
+                ("tooltip.ability_duration",  "Длительность: {0}с","Duration: {0}s"),
+                ("tooltip.ability_dmg_mult",  "Урон ×{0}",        "Damage ×{0}"),
+            };
+
+            arr.arraySize = entries.Length;
+            for (int i = 0; i < entries.Length; i++)
+            {
+                var elem = arr.GetArrayElementAtIndex(i);
+                elem.FindPropertyRelative("key").stringValue = entries[i].key;
+                elem.FindPropertyRelative("ru").stringValue  = entries[i].ru;
+                elem.FindPropertyRelative("en").stringValue  = entries[i].en;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            LocService.ResetForTests();
+            LocService.Initialize(table);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            LocService.ResetForTests();
+        }
+
         // ================================================================
         // FormatAbilityStats
         // ================================================================

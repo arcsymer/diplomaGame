@@ -414,3 +414,23 @@
 **Верификация:** PlayMode MapLayoutTests — путь между базами существует (PathComplete), экспанды на NavMesh и добываемы, центр скалы вне NavMesh; полные сьюты без регрессий.
 
 **Бэклог-наблюдение:** RtsCameraController не ограничивает панораму — с увеличенной картой стоит добавить мягкий кламп.
+
+---
+
+## ADR-029 — Локализация ru/en: LocService + SO-таблица, без пакета Unity Localization
+**Дата:** 2026-06-12 (Сессия 04, круг 10) · **Статус:** принято
+
+**Проблема:** весь UI на русском — демонстрация/публикация для англоязычной аудитории невозможна (P3 «локализация EN»); защита диплома — русская, значит ru остаётся дефолтом.
+
+**Сравнение подходов:** (1) пакет Unity Localization — оверкилл для 2 языков (Addressables-асинхронность для WebGL, высокая кривая входа); (2) CSV в StreamingAssets — в WebGL только через UnityWebRequest (async ломает простую инициализацию); (3) **SO-таблица LocTable + статический LocService** — синхронно, ноль зависимостей, нулевые аллокации чтения (Dictionary-кэш), вписывается в SO-паттерн проекта. Выбран (3).
+
+**Решения:**
+- `LocService` (CurrentLanguage → PlayerPrefs `Settings.Language`, событие LanguageChanged, Get(key) с fallback на сам ключ — отсутствующий перевод виден сразу); `LocServiceBootstrap` в обеих сценах; `LocalizedText` для статических надписей (автоподписка).
+- SO-данные: параллельные поля `_displayNameEn/_descriptionEn` (fallback на ru при пустых) — а не вынос в таблицу: Forge уже programmatically заполняет тексты, миграция одной кнопкой.
+- Динамические строки — формат-ключи (`{0}` обрабатывает TMP SetText без аллокаций); кэши тултипов инвалидируются по LanguageChanged.
+- Переключатель RU/EN в настройках (опции не локализуются — самореференция).
+- Forge: «Migrate Localization EN Fields», «Create/Update LocTable» (56 ключей), «Apply Localization to Scene UI» + батч SetupLocalization (Sandbox + MainMenu).
+
+**Попутно (quick win):** мягкий кламп RTS-камеры к границам карты ±48 (чистая ClampPosition + EditMode-тесты) — долг из ADR-028.
+
+**Верификация:** LocServiceTests (язык/событие/fallback/полнота таблицы), обновлённые TooltipLogic-тесты с LocService-фикстурой, RtsCameraClampTests; полные сьюты.

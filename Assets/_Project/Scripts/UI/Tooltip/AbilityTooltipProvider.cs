@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using UnityEngine;
 
@@ -22,12 +23,30 @@ namespace DiplomaGame.Runtime.UI
             _slotUi = GetComponent<AbilitySlotUI>();
         }
 
+        private void OnEnable()
+        {
+            LocService.LanguageChanged += InvalidateCache;
+        }
+
+        private void OnDisable()
+        {
+            LocService.LanguageChanged -= InvalidateCache;
+        }
+
+        private void InvalidateCache()
+        {
+            // Сброс кэша — при следующем GetTooltipData строки пересчитаются в новом языке.
+            _cachedAbility = null;
+        }
+
         public TooltipData GetTooltipData()
         {
             var ability = _slotUi != null ? _slotUi.GetBoundAbility() : null;
 
             if (ability == null)
-                return new TooltipData("Способность", "Слот не назначен");
+                return new TooltipData(
+                    LocService.Get("tooltip.ability_empty_title"),
+                    LocService.Get("tooltip.ability_empty_desc"));
 
             // Пересчитываем только при смене AbilityData (сравнение по ссылке)
             if (!ReferenceEquals(ability, _cachedAbility))

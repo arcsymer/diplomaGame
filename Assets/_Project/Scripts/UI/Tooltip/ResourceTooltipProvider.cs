@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Core.Localization;
 using UnityEngine;
 
 namespace DiplomaGame.Runtime.UI
@@ -17,11 +18,11 @@ namespace DiplomaGame.Runtime.UI
             {
                 case ResourceKind.Crystals:
                     return new TooltipData(
-                        "Кристаллы",
-                        "Основная валюта. Добываются экстракторами и поступают от штаба.");
+                        LocService.Get("tooltip.crystals_title"),
+                        LocService.Get("tooltip.crystals_desc"));
 
                 default:
-                    return new TooltipData("Ресурс", string.Empty);
+                    return new TooltipData(LocService.Get("tooltip.crystals_title"), string.Empty);
             }
         }
     }

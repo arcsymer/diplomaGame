@@ -1,4 +1,5 @@
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Units;
 using TMPro;
 using UnityEngine;
@@ -42,6 +43,32 @@ namespace DiplomaGame.Runtime.UI
 
         [SerializeField] private TMP_Text _durationText;
 
+        // Кэш: -1 означает «не задана» (экран закрыт / stats == null)
+        private float _lastDurationSeconds = -1f;
+
+        // ----------------------------------------------------------------
+        // Unity lifecycle
+        // ----------------------------------------------------------------
+
+        private void OnEnable()
+        {
+            LocService.LanguageChanged += OnLanguageChanged;
+        }
+
+        private void OnDisable()
+        {
+            LocService.LanguageChanged -= OnLanguageChanged;
+        }
+
+        private void OnLanguageChanged()
+        {
+            // Перерисовываем строку длительности в новом языке.
+            if (_lastDurationSeconds >= 0f)
+                SetDuration(_lastDurationSeconds);
+            else if (_durationText != null)
+                _durationText.SetText(LocService.Get("stats.duration_empty"));
+        }
+
         // ----------------------------------------------------------------
         // Публичный API
         // ----------------------------------------------------------------
@@ -77,7 +104,8 @@ namespace DiplomaGame.Runtime.UI
             SetInt(_enemyProduced,    stats.UnitsProduced(Faction.Enemy));
             SetInt(_enemyArmyPeak,    stats.ArmyPeak     (Faction.Enemy));
 
-            SetDuration(stats.MatchDurationSeconds);
+            _lastDurationSeconds = stats.MatchDurationSeconds;
+            SetDuration(_lastDurationSeconds);
         }
 
         // ----------------------------------------------------------------
@@ -105,9 +133,10 @@ namespace DiplomaGame.Runtime.UI
             int mm        = totalSecs / 60;
             int ss        = totalSecs % 60;
 
+            // Получаем локализованный шаблон "Длительность: {0:00}:{1:00}" / "Duration: {0:00}:{1:00}".
             // TMP SetText(string, float, float) — передаём минуты и секунды как float.
             // {0:00} — числовой формат с ведущим нулём, поддерживаемый TMP-форматтером.
-            _durationText.SetText("Длительность: {0:00}:{1:00}", mm, ss);
+            _durationText.SetText(LocService.Get("stats.duration_format"), mm, ss);
         }
 
         private void ClearAll()
@@ -128,8 +157,9 @@ namespace DiplomaGame.Runtime.UI
             SetDash(_enemyProduced);
             SetDash(_enemyArmyPeak);
 
+            _lastDurationSeconds = -1f;
             if (_durationText != null)
-                _durationText.SetText("Длительность: --:--");
+                _durationText.SetText(LocService.Get("stats.duration_empty"));
         }
 
         private static void SetDash(TMP_Text label)

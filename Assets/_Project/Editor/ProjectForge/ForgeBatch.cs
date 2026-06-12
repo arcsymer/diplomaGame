@@ -264,6 +264,33 @@ namespace DiplomaGame.Editor
             ScenesTab.RebuildMapLayout();
         }
 
+        /// <summary>
+        /// Полная настройка локализации (v10):
+        /// Sandbox → MigrateLocalizationEnFields + CreateOrUpdateLocTable + ApplyLocalizationToSceneUI →
+        /// MainMenu → ApplyLocalizationToSceneUI → возврат в Sandbox.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupLocalization
+        /// </summary>
+        public static void SetupLocalization()
+        {
+            const string MainMenuScenePath = "Assets/_Project/Scenes/MainMenu.unity";
+
+            // 1. Sandbox: мигрируем EN поля + создаём LocTable + применяем к UI
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ConfigTab.MigrateLocalizationEnFieldsV10();
+            ConfigTab.CreateOrUpdateLocTableV10();
+            UITab.ApplyLocalizationToSceneUI_V10();
+
+            // 2. MainMenu (если существует): применяем к UI
+            if (System.IO.File.Exists(System.IO.Path.GetFullPath(MainMenuScenePath)))
+            {
+                EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+                UITab.ApplyLocalizationToSceneUI_V10();
+            }
+
+            // 3. Возвращаемся в Sandbox
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {

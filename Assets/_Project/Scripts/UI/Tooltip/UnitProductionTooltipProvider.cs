@@ -1,4 +1,6 @@
+using System;
 using DiplomaGame.Runtime.Buildings;
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Selection;
 using UnityEngine;
@@ -20,6 +22,21 @@ namespace DiplomaGame.Runtime.UI
         private BuildingData _cachedData;
         private TooltipData  _cachedTooltip;
 
+        private void OnEnable()
+        {
+            LocService.LanguageChanged += InvalidateCache;
+        }
+
+        private void OnDisable()
+        {
+            LocService.LanguageChanged -= InvalidateCache;
+        }
+
+        private void InvalidateCache()
+        {
+            _cachedData = null;
+        }
+
         public TooltipData GetTooltipData()
         {
             if (selectionSystem == null) return default;
@@ -36,19 +53,21 @@ namespace DiplomaGame.Runtime.UI
             var produces = data.Produces;
             if (produces == null) return default;
 
-            // Пересчитываем строки только при смене выбранного здания
+            // Пересчитываем строки при смене здания ИЛИ смене языка (_cachedData == null после InvalidateCache)
             if (!ReferenceEquals(data, _cachedData))
             {
                 _cachedData = data;
 
-                string title = $"Производство: {produces.DisplayName}";
+                string title = LocService.Get("tooltip.production_prefix") + produces.DisplayName;
                 string desc  = string.IsNullOrEmpty(produces.Description)
                     ? data.Description
                     : produces.Description;
 
-                string stats = $"Стоимость: {data.ProductionCost}   Время: {data.ProductionTime:F0}с";
+                string stats = LocService.Get("tooltip.cost_label") + data.ProductionCost
+                    + "   " + LocService.Get("tooltip.time_label")
+                    + FormattableString.Invariant($"{data.ProductionTime:F0}с");
                 if (produces.SupplyCost > 0)
-                    stats += $"   Supply: {produces.SupplyCost}";
+                    stats += "   " + LocService.Get("tooltip.supply_label") + produces.SupplyCost;
 
                 _cachedTooltip = new TooltipData(title, desc, stats);
             }

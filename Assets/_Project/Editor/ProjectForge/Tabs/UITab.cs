@@ -144,6 +144,22 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Tech Tree (v7)", GUILayout.Height(32)))
                 SetupTechTreeV7();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Apply Localization to Scene UI (v10):\n" +
+                "• Добавляет LanguageRow (TMP_Dropdown RU/EN) в SettingsPanel\n" +
+                "• Навешивает LocalizedText на статические TMP-надписи (PauseMenu, GameOver, Заголовок настроек)\n" +
+                "• Добавляет LocServiceBootstrap на GameManagers (со ссылкой на LocTable.asset)\n" +
+                "Требует: BuildMenus (M6b) уже выполнен. Работает и для Sandbox, и для MainMenu.\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Apply Localization to Scene UI (v10)", GUILayout.Height(32)))
+                ApplyLocalizationToSceneUI_V10();
         }
 
         // ----------------------------------------------------------------
@@ -2925,6 +2941,172 @@ namespace DiplomaGame.Editor
                     AssetDatabase.CreateFolder(current, parts[i]);
                 current = next;
             }
+        }
+
+        // ----------------------------------------------------------------
+        // v10: Apply Localization to Scene UI
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно:
+        /// 1. Добавляет LocServiceBootstrap на GameManagers (со ссылкой на LocTable.asset).
+        /// 2. Добавляет LanguageRow в SettingsPanel (TMP_Dropdown RU/EN + локализованный Label).
+        /// 3. Навешивает LocalizedText на известные статические TMP-надписи.
+        /// Работает для Sandbox и MainMenu.
+        /// </summary>
+        internal static void ApplyLocalizationToSceneUI_V10()
+        {
+            const string locTablePath = "Assets/_Project/Data/Localization/LocTable.asset";
+
+            var locTable = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.Data.LocTable>(locTablePath);
+            if (locTable == null)
+                Debug.LogWarning("[Forge v10] LocTable.asset не найден — запустите 'Create/Update LocTable (v10)' сначала. LocServiceBootstrap будет добавлен без ссылки.");
+
+            // ---- 1. LocServiceBootstrap на GameManagers ----
+            var managers = GameObject.Find("GameManagers");
+            if (managers != null)
+            {
+                var bootstrap = EnsureComponent<DiplomaGame.Runtime.Core.Localization.LocServiceBootstrap>(managers);
+                if (locTable != null)
+                {
+                    var so = new SerializedObject(bootstrap);
+                    so.FindProperty("_locTable").objectReferenceValue = locTable;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+                Debug.Log("[Forge v10] LocServiceBootstrap добавлен на GameManagers.");
+            }
+            else
+            {
+                Debug.LogWarning("[Forge v10] GameManagers не найден в сцене — LocServiceBootstrap пропущен.");
+            }
+
+            // ---- 2. LanguageRow в SettingsPanel ----
+            // Ищем SettingsPanel в иерархии (внутри PauseMenu или как self-object)
+            var allSettings = new List<SettingsPanel>(
+                GameObject.FindObjectsByType<SettingsPanel>(FindObjectsSortMode.None));
+
+            foreach (var sp in allSettings)
+                AddLanguageRowToSettingsPanel(sp);
+
+            // ---- 3. LocalizedText на статические TMP-надписи ----
+            // PauseMenu
+            AttachLocalizedText("PauseMenuCanvas/PausePanel/Title",       "pause.title");
+            AttachLocalizedText("PauseMenuCanvas/PausePanel/BtnContinue/Label", "pause.btn_continue");
+            AttachLocalizedText("PauseMenuCanvas/PausePanel/BtnSettings/Label", "pause.btn_settings");
+            AttachLocalizedText("PauseMenuCanvas/PausePanel/BtnExitMenu/Label", "pause.btn_exit_menu");
+            AttachLocalizedText("PauseMenuCanvas/PausePanel/BtnQuit/Label",     "pause.btn_quit");
+
+            // GameOver — Victory
+            AttachLocalizedText("GameOverCanvas/VictoryPanel/Title",          "gameover.victory");
+            AttachLocalizedText("GameOverCanvas/VictoryPanel/BtnRestart/Label",   "gameover.btn_restart");
+            AttachLocalizedText("GameOverCanvas/VictoryPanel/BtnMainMenu/Label",  "gameover.btn_main_menu");
+
+            // GameOver — Defeat
+            AttachLocalizedText("GameOverCanvas/DefeatPanel/Title",           "gameover.defeat");
+            AttachLocalizedText("GameOverCanvas/DefeatPanel/BtnRestart/Label",    "gameover.btn_restart");
+            AttachLocalizedText("GameOverCanvas/DefeatPanel/BtnMainMenu/Label",   "gameover.btn_main_menu");
+
+            // SettingsPanel — заголовок (Title внутри найденной SettingsPanel)
+            foreach (var sp in allSettings)
+            {
+                var titleGo = FindDescendantByName(sp.gameObject, "Title");
+                if (titleGo != null)
+                    AttachLocalizedTextToGo(titleGo, "settings.title");
+
+                var backLabelGo = FindDescendantByName(sp.gameObject, "Label");
+                // "Label" встречается много раз — ищем именно в BtnBack
+                var btnBack = FindDescendantByName(sp.gameObject, "BtnBack");
+                if (btnBack != null)
+                {
+                    var lbl = FindDescendantByName(btnBack, "Label");
+                    if (lbl != null) AttachLocalizedTextToGo(lbl, "settings.btn_back");
+                }
+            }
+
+            // MainMenu кнопки (если сцена — MainMenu)
+            AttachLocalizedText("MainMenuCanvas/Panel/BtnPlay/Label",     "menu.btn_play");
+            AttachLocalizedText("MainMenuCanvas/Panel/BtnSettings/Label", "menu.btn_settings");
+            AttachLocalizedText("MainMenuCanvas/Panel/BtnQuit/Label",     "menu.btn_quit");
+            AttachLocalizedText("MainMenuCanvas/Panel/Title",             "menu.title");
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+            Debug.Log("[Forge v10] Localization applied to Scene UI.");
+        }
+
+        /// <summary>
+        /// Добавляет LanguageRow с TMP_Dropdown в контент SettingsPanel, если её ещё нет.
+        /// Также прописывает languageDropdown в компонент SettingsPanel.
+        /// </summary>
+        private static void AddLanguageRowToSettingsPanel(SettingsPanel settingsPanel)
+        {
+            if (settingsPanel == null) return;
+
+            // Ищем Content (VerticalLayoutGroup)
+            var contentGo = FindDescendantByName(settingsPanel.gameObject, "Content");
+            if (contentGo == null)
+            {
+                Debug.LogWarning("[Forge v10] Content в SettingsPanel не найден — пропускаем LanguageRow.");
+                return;
+            }
+
+            // Идемпотентно: если LanguageRow уже есть — только обновляем ссылку
+            var langRowGo = FindDescendantByName(contentGo, "LanguageRow");
+            if (langRowGo == null)
+            {
+                langRowGo = EnsureChild(contentGo, "LanguageRow");
+                SetRowSize(langRowGo, 50f);
+                EnsureRowLabel(langRowGo, "Язык");
+
+                var dropdownGo = EnsureChild(langRowGo, "LanguageDropdown");
+                var langDropdown = EnsureComponent<TMP_Dropdown>(dropdownGo);
+                SetControlRectRight(dropdownGo, 220f, 40f);
+
+                // Прописываем languageDropdown в SettingsPanel
+                var sp = new SerializedObject(settingsPanel);
+                sp.FindProperty("languageDropdown").objectReferenceValue = langDropdown;
+                sp.ApplyModifiedPropertiesWithoutUndo();
+            }
+            else
+            {
+                // Уже есть — только обновляем ссылку если нужно
+                var dropdownGo = FindDescendantByName(langRowGo, "LanguageDropdown");
+                if (dropdownGo != null)
+                {
+                    var langDropdown = dropdownGo.GetComponent<TMP_Dropdown>();
+                    if (langDropdown != null)
+                    {
+                        var sp = new SerializedObject(settingsPanel);
+                        sp.FindProperty("languageDropdown").objectReferenceValue = langDropdown;
+                        sp.ApplyModifiedPropertiesWithoutUndo();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Находит объект по пути в иерархии сцены (не через Transform.Find — ищет по части пути).
+        /// Путь вида "PauseMenuCanvas/PausePanel/Title" ищет через GameObject.Find.
+        /// </summary>
+        private static void AttachLocalizedText(string hierarchyPath, string locKey)
+        {
+            var go = GameObject.Find(hierarchyPath);
+            if (go == null) return;
+            AttachLocalizedTextToGo(go, locKey);
+        }
+
+        private static void AttachLocalizedTextToGo(GameObject go, string locKey)
+        {
+            if (go == null) return;
+
+            // Убеждаемся что на объекте есть TMP_Text
+            var tmp = go.GetComponent<TMP_Text>();
+            if (tmp == null) return;
+
+            var locText = EnsureComponent<DiplomaGame.Runtime.UI.LocalizedText>(go);
+            var so = new SerializedObject(locText);
+            so.FindProperty("locKey").stringValue = locKey;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 }

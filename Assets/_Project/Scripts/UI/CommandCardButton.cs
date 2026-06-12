@@ -1,5 +1,6 @@
 using System;
 using DiplomaGame.Runtime.Buildings;
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Tech;
 using DiplomaGame.Runtime.Units;
@@ -98,8 +99,8 @@ namespace DiplomaGame.Runtime.UI
             if (costText     != null) costText.text     = entry.cost.ToString();
             if (hotkeyText   != null) hotkeyText.text   = hotkey;
 
-            // Строим тултип один раз при Bind (Invariant — без culture-зависимых разделителей)
-            string title = "Производство: " + displayName;
+            // Строим тултип один раз при Bind (холодный путь — аллокации допустимы)
+            string title = LocService.Get("tooltip.production_prefix") + displayName;
 
             string desc;
             if (entry.unitData != null && !string.IsNullOrEmpty(entry.unitData.Description))
@@ -109,11 +110,12 @@ namespace DiplomaGame.Runtime.UI
             else
                 desc = "";
 
-            string stats = FormattableString.Invariant(
-                $"Стоимость: {entry.cost}   Время: {entry.productionTime:F0}с");
+            string stats = LocService.Get("tooltip.cost_label") + entry.cost
+                + "   " + LocService.Get("tooltip.time_label")
+                + FormattableString.Invariant($"{entry.productionTime:F0}с");
 
             if (entry.unitData != null && entry.unitData.SupplyCost > 0)
-                stats += FormattableString.Invariant($"   Supply: {entry.unitData.SupplyCost}");
+                stats += "   " + LocService.Get("tooltip.supply_label") + entry.unitData.SupplyCost;
 
             if (!string.IsNullOrEmpty(hotkey))
                 stats += "   [" + hotkey + "]";
@@ -178,11 +180,12 @@ namespace DiplomaGame.Runtime.UI
             bool canResearch    = TechRegistry.Instance.CanResearch(faction, tech);
 
             // Тултип
-            string title = "Исследование: " + tech.DisplayName;
+            string title = LocService.Get("tooltip.research_prefix") + tech.DisplayName;
             string desc  = string.IsNullOrEmpty(tech.Description) ? "" : tech.Description;
 
-            string stats = FormattableString.Invariant(
-                $"Стоимость: {tech.Cost}   Время: {tech.ResearchTime:F0}с");
+            string stats = LocService.Get("tooltip.cost_label") + tech.Cost
+                + "   " + LocService.Get("tooltip.time_label")
+                + FormattableString.Invariant($"{tech.ResearchTime:F0}с");
 
             if (!string.IsNullOrEmpty(tech.HotkeyLabel))
                 stats += "   [" + tech.HotkeyLabel + "]";
@@ -201,7 +204,7 @@ namespace DiplomaGame.Runtime.UI
                     }
                 }
                 if (prereqNames.Length > 0)
-                    desc += (desc.Length > 0 ? "\n" : "") + "Требует: " + prereqNames;
+                    desc += (desc.Length > 0 ? "\n" : "") + LocService.Get("tooltip.requires_label") + prereqNames;
             }
 
             _tooltipData = new TooltipData(title, desc, stats);

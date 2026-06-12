@@ -1,4 +1,5 @@
 using System;
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using UnityEngine;
 
@@ -24,28 +25,61 @@ namespace DiplomaGame.Runtime.UI
         {
             if (data == null) return null;
 
-            // Invariant — чтобы вывод не зависел от локали ОС («1.5», не «1,5»)
+            // Invariant — чтобы вывод не зависел от локали ОС («1.5», не «1,5»).
+            // Локализованные метки берём из LocService; числа форматируем Invariant.
+            string cooldownFmt  = LocService.Get("tooltip.ability_cooldown");  // "Кулдаун: {0}с"
+            string distanceFmt  = LocService.Get("tooltip.ability_distance");  // "Дистанция: {0}"
+            string damageFmt    = LocService.Get("tooltip.ability_damage");    // "Урон: {0}"
+            string radiusFmt    = LocService.Get("tooltip.ability_radius");    // "Радиус: {0}"
+            string healFmt      = LocService.Get("tooltip.ability_heal");      // "Лечение: {0}"
+            string durationFmt  = LocService.Get("tooltip.ability_duration");  // "Длительность: {0}с"
+            string dmgMultFmt   = LocService.Get("tooltip.ability_dmg_mult");  // "Урон ×{0}"
+
+            // Заменяем {0} числовым значением Invariant-форматом.
+            string cooldownStr = FormatStat(cooldownFmt, data.Cooldown, "F0");
+
             switch (data.AbilityType)
             {
                 case AbilityType.Dash:
-                    return FormattableString.Invariant(
-                        $"Кулдаун: {data.Cooldown:F0}с   Дистанция: {data.DashDistance:F0}");
+                    return cooldownStr + "   "
+                        + FormatStat(distanceFmt, data.DashDistance, "F0");
 
                 case AbilityType.Shockwave:
-                    return FormattableString.Invariant(
-                        $"Кулдаун: {data.Cooldown:F0}с   Урон: {data.EffectAmount:F0}   Радиус: {data.EffectRadius:F0}");
+                    return cooldownStr + "   "
+                        + FormatStat(damageFmt, data.EffectAmount, "F0") + "   "
+                        + FormatStat(radiusFmt, data.EffectRadius, "F0");
 
                 case AbilityType.RepairField:
-                    return FormattableString.Invariant(
-                        $"Кулдаун: {data.Cooldown:F0}с   Лечение: {data.EffectAmount:F0}   Радиус: {data.EffectRadius:F0}");
+                    return cooldownStr + "   "
+                        + FormatStat(healFmt, data.EffectAmount, "F0") + "   "
+                        + FormatStat(radiusFmt, data.EffectRadius, "F0");
 
                 case AbilityType.Overcharge:
-                    return FormattableString.Invariant(
-                        $"Кулдаун: {data.Cooldown:F0}с   Длительность: {data.BuffDuration:F0}с   Урон ×{data.DamageMultiplier:F1}");
+                    return cooldownStr + "   "
+                        + FormatStat(durationFmt, data.BuffDuration, "F0") + "   "
+                        + FormatStat(dmgMultFmt, data.DamageMultiplier, "F1");
 
                 default:
-                    return FormattableString.Invariant($"Кулдаун: {data.Cooldown:F0}с");
+                    return cooldownStr;
             }
+        }
+
+        // ----------------------------------------------------------------
+        // Вспомогательные методы форматирования
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Заменяет {0} в шаблоне числом с указанным форматом (Invariant culture).
+        /// Если в шаблоне нет {0} — возвращает шаблон как есть.
+        /// </summary>
+        private static string FormatStat(string fmt, float value, string numFmt)
+        {
+            if (string.IsNullOrEmpty(fmt)) return "";
+            int idx = fmt.IndexOf("{0}", StringComparison.Ordinal);
+            if (idx < 0) return fmt;
+
+            string numStr = value.ToString(numFmt, System.Globalization.CultureInfo.InvariantCulture);
+            return fmt.Substring(0, idx) + numStr + fmt.Substring(idx + 3);
         }
 
         // ----------------------------------------------------------------

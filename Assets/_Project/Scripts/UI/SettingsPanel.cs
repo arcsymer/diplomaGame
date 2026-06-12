@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using DiplomaGame.Runtime.Core;
+using DiplomaGame.Runtime.Core.Localization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,6 +22,7 @@ namespace DiplomaGame.Runtime.UI
         [SerializeField] private Slider       musicVolumeSlider;
         [SerializeField] private Slider       sfxVolumeSlider;
         [SerializeField] private Slider       sensitivitySlider;
+        [SerializeField] private TMP_Dropdown languageDropdown;
         [SerializeField] private Button       backButton;
 
         /// <summary>Вызывается при нажатии кнопки «Назад».</summary>
@@ -32,6 +35,7 @@ namespace DiplomaGame.Runtime.UI
         private void OnEnable()
         {
             PopulateQualityDropdown();
+            PopulateLanguageDropdown();
             LoadAllValues();
             SubscribeHandlers();
         }
@@ -50,8 +54,18 @@ namespace DiplomaGame.Runtime.UI
             if (qualityDropdown == null) return;
 
             qualityDropdown.ClearOptions();
-            var options = new System.Collections.Generic.List<string>(QualitySettings.names);
+            var options = new List<string>(QualitySettings.names);
             qualityDropdown.AddOptions(options);
+        }
+
+        private void PopulateLanguageDropdown()
+        {
+            if (languageDropdown == null) return;
+
+            // Метки языков намеренно НЕ локализованы — пользователь должен найти родной язык
+            // вне зависимости от текущей локали интерфейса.
+            languageDropdown.ClearOptions();
+            languageDropdown.AddOptions(new List<string> { "RU", "EN" });
         }
 
         private void LoadAllValues()
@@ -75,6 +89,9 @@ namespace DiplomaGame.Runtime.UI
 
             if (sensitivitySlider != null)
                 sensitivitySlider.value = SettingsService.LoadMouseSensitivity();
+
+            if (languageDropdown != null)
+                languageDropdown.value = LocService.CurrentLanguage == LocLanguage.En ? 1 : 0;
         }
 
         private void SubscribeHandlers()
@@ -96,6 +113,9 @@ namespace DiplomaGame.Runtime.UI
 
             if (sensitivitySlider != null)
                 sensitivitySlider.onValueChanged.AddListener(OnSensitivityChanged);
+
+            if (languageDropdown != null)
+                languageDropdown.onValueChanged.AddListener(OnLanguageDropdownChanged);
 
             if (backButton != null)
                 backButton.onClick.AddListener(OnBackClicked);
@@ -120,6 +140,9 @@ namespace DiplomaGame.Runtime.UI
 
             if (sensitivitySlider != null)
                 sensitivitySlider.onValueChanged.RemoveListener(OnSensitivityChanged);
+
+            if (languageDropdown != null)
+                languageDropdown.onValueChanged.RemoveListener(OnLanguageDropdownChanged);
 
             if (backButton != null)
                 backButton.onClick.RemoveListener(OnBackClicked);
@@ -167,6 +190,12 @@ namespace DiplomaGame.Runtime.UI
             var hero = UnityEngine.Object.FindFirstObjectByType<DiplomaGame.Runtime.Hero.HeroController>();
             if (hero != null)
                 hero.SetLookSensitivity(value);
+        }
+
+        private void OnLanguageDropdownChanged(int index)
+        {
+            // index 0 = RU, index 1 = EN
+            LocService.CurrentLanguage = index == 1 ? LocLanguage.En : LocLanguage.Ru;
         }
 
         private void OnBackClicked()

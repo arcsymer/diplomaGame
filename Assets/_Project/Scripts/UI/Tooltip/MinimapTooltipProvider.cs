@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Core.Localization;
 using UnityEngine;
 
 namespace DiplomaGame.Runtime.UI
@@ -10,8 +11,8 @@ namespace DiplomaGame.Runtime.UI
         public TooltipData GetTooltipData()
         {
             return new TooltipData(
-                "Миникарта",
-                "ПКМ — задать точку сбора. Показывает союзников (синие) и врагов (красные).");
+                LocService.Get("tooltip.minimap_title"),
+                LocService.Get("tooltip.minimap_desc"));
         }
     }
 }
