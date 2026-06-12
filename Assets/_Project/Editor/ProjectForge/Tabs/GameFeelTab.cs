@@ -1,0 +1,442 @@
+using DiplomaGame.Runtime.GameFeel;
+using DiplomaGame.Runtime.VFX;
+using Unity.Cinemachine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.AI;
+
+namespace DiplomaGame.Editor
+{
+    /// <summary>
+    /// Вкладка GameFeel — идемпотентная настройка game-feel героя.
+    /// Кнопки:
+    ///   1. Create GameFeelSettings.asset
+    ///   2. Setup GameFeelManager (на GameManagers)
+    ///   3. Add HitFlashHandler ко всем юнит-префабам
+    ///   4. Add DashTrail to Hero (TrailRenderer на Hero/Visual)
+    ///   5. Build ShockwaveRing Prefab + Wire к VfxManager
+    /// </summary>
+    internal sealed class GameFeelTab : IForgeTab
+    {
+        private const string SettingsAssetPath  = "Assets/_Project/Data/GameFeel/GameFeelSettings.asset";
+        private const string UnitPrefabsFolder  = "Assets/_Project/Prefabs/Units";
+        private const string ShockwaveRingPath  = "Assets/_Project/Prefabs/VFX/ShockwaveRing.prefab";
+        private const string ParticleGlowMatPath = "Assets/_Project/Art/Materials/VFX/ParticleGlow.mat";
+
+        public string Title => "GameFeel";
+
+        public void OnGUI()
+        {
+            GUILayout.Space(8);
+            GUILayout.Label("Game Feel (Circle-12)", EditorStyles.boldLabel);
+            GUILayout.Space(4);
+
+            EditorGUILayout.HelpBox(
+                "Создаёт ScriptableObject GameFeelSettings с дефолтными параметрами.\n" +
+                "Путь: Assets/_Project/Data/GameFeel/GameFeelSettings.asset. Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Create GameFeelSettings.asset", GUILayout.Height(28)))
+                CreateGameFeelSettings();
+
+            GUILayout.Space(6);
+
+            EditorGUILayout.HelpBox(
+                "Добавляет GameFeelManager на GameManagers, проставляет ссылки на SO, TPS-камеру.\n" +
+                "Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Setup GameFeelManager", GUILayout.Height(28)))
+                SetupGameFeelManager();
+
+            GUILayout.Space(6);
+
+            EditorGUILayout.HelpBox(
+                "Добавляет HitFlashHandler ко всем префабам юнитов в Prefabs/Units/.\n" +
+                "Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Add HitFlashHandler to Unit Prefabs", GUILayout.Height(28)))
+                AddHitFlashToUnitPrefabs();
+
+            GUILayout.Space(6);
+
+            EditorGUILayout.HelpBox(
+                "Добавляет DashTrailHandler и TrailRenderer на Hero/Visual в открытой сцене.\n" +
+                "Параметры: time=0.2, width 0.4→0, цвет (0.4,0.8,1)→alpha0. Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Add DashTrail to Hero", GUILayout.Height(28)))
+                AddDashTrailToHero();
+
+            GUILayout.Space(6);
+
+            EditorGUILayout.HelpBox(
+                "Создаёт ShockwaveRing.prefab (ParticleSystem Circle burst-32) " +
+                "и прописывает его как _shockwaveRingPrefab в VfxManager сцены.\n" +
+                "Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Build ShockwaveRing Prefab + Wire", GUILayout.Height(28)))
+            {
+                BuildShockwaveRingPrefab();
+                WireShockwaveToVfxManager();
+            }
+
+            GUILayout.Space(6);
+
+            EditorGUILayout.HelpBox(
+                "Запускает все шаги разом (для ForgeBatch.SetupGameFeel).",
+                MessageType.Info);
+
+            if (GUILayout.Button("Setup All GameFeel", GUILayout.Height(32)))
+                SetupAll();
+        }
+
+        // ================================================================
+        // Публичные методы (используются из ForgeBatch)
+        // ================================================================
+
+        internal static void CreateGameFeelSettings()
+        {
+            EnsureFolder("Assets/_Project/Data/GameFeel");
+
+            var existing = AssetDatabase.LoadAssetAtPath<GameFeelSettings>(SettingsAssetPath);
+            if (existing != null)
+            {
+                Debug.Log("[GameFeel] GameFeelSettings.asset уже существует — пропуск.");
+                return;
+            }
+
+            var settings = ScriptableObject.CreateInstance<GameFeelSettings>();
+            AssetDatabase.CreateAsset(settings, SettingsAssetPath);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[GameFeel] Создан GameFeelSettings.asset.");
+        }
+
+        internal static void SetupGameFeelManager()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo == null)
+            {
+                Debug.LogWarning("[GameFeel] GameManagers не найден — сначала Setup Mode Rig.");
+                return;
+            }
+
+            // GameFeelManager
+            var mgr = managersGo.GetComponent<GameFeelManager>();
+            if (mgr == null)
+                mgr = managersGo.AddComponent<GameFeelManager>();
+
+            var settings = AssetDatabase.LoadAssetAtPath<GameFeelSettings>(SettingsAssetPath);
+            var so       = new SerializedObject(mgr);
+
+            so.FindProperty("_settings").objectReferenceValue = settings;
+
+            // TPS Camera
+            var tpsCamGo = GameObject.Find("TPS Camera");
+            if (tpsCamGo != null)
+            {
+                var tpsCam = tpsCamGo.GetComponent<CinemachineCamera>();
+                so.FindProperty("_tpsCamera").objectReferenceValue = tpsCam;
+            }
+            else
+            {
+                Debug.LogWarning("[GameFeel] 'TPS Camera' не найдена в сцене.");
+            }
+
+            // HeroShooter
+            var heroGo = GameObject.Find("Hero");
+            if (heroGo != null)
+            {
+                var shooter = heroGo.GetComponent<DiplomaGame.Runtime.Hero.HeroShooter>();
+                so.FindProperty("_heroShooter").objectReferenceValue = shooter;
+
+                var ability = heroGo.GetComponent<DiplomaGame.Runtime.Hero.AbilitySystem>();
+                so.FindProperty("_abilitySystem").objectReferenceValue = ability;
+            }
+
+            // PauseController
+            var pauseCtrl = Object.FindFirstObjectByType<DiplomaGame.Runtime.UI.PauseController>();
+            so.FindProperty("_pauseController").objectReferenceValue = pauseCtrl;
+
+            // DashTrailHandler (ищем на Hero/Visual)
+            if (heroGo != null)
+            {
+                var visualTf = heroGo.transform.Find("Visual");
+                if (visualTf != null)
+                {
+                    var dashTrail = visualTf.GetComponent<DashTrailHandler>();
+                    so.FindProperty("_dashTrail").objectReferenceValue = dashTrail;
+                }
+            }
+
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[GameFeel] GameFeelManager настроен.");
+        }
+
+        internal static void AddHitFlashToUnitPrefabs()
+        {
+            var guids = AssetDatabase.FindAssets("t:Prefab", new[] { UnitPrefabsFolder });
+            int count = 0;
+
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                using (var scope = new PrefabUtility.EditPrefabContentsScope(path))
+                {
+                    var root = scope.prefabContentsRoot;
+                    if (root.GetComponent<HitFlashHandler>() == null)
+                    {
+                        root.AddComponent<HitFlashHandler>();
+                        count++;
+                    }
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[GameFeel] HitFlashHandler добавлен к {count} префабам юнитов.");
+        }
+
+        internal static void AddDashTrailToHero()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            var heroGo = GameObject.Find("Hero");
+            if (heroGo == null)
+            {
+                Debug.LogWarning("[GameFeel] Hero не найден в сцене.");
+                return;
+            }
+
+            // Находим или создаём Visual child
+            var visualTf = heroGo.transform.Find("Visual");
+            if (visualTf == null)
+            {
+                Debug.LogWarning("[GameFeel] Hero/Visual не найден — сначала Apply Visuals (M8).");
+                return;
+            }
+
+            var visualGo = visualTf.gameObject;
+
+            // TrailRenderer
+            var trail = visualGo.GetComponent<TrailRenderer>();
+            if (trail == null)
+                trail = visualGo.AddComponent<TrailRenderer>();
+
+            trail.time      = 0.2f;
+            trail.startWidth = 0.4f;
+            trail.endWidth   = 0f;
+            trail.material   = AssetDatabase.LoadAssetAtPath<Material>(ParticleGlowMatPath);
+            trail.emitting   = false;
+
+            // Настройка цвета: (0.4,0.8,1) → alpha0
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[] { new GradientColorKey(new Color(0.4f, 0.8f, 1f), 0f),
+                        new GradientColorKey(new Color(0.4f, 0.8f, 1f), 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+            trail.colorGradient = gradient;
+
+            // DashTrailHandler
+            if (visualGo.GetComponent<DashTrailHandler>() == null)
+                visualGo.AddComponent<DashTrailHandler>();
+
+            // Обновляем ссылку в GameFeelManager
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo != null)
+            {
+                var mgr = managersGo.GetComponent<GameFeelManager>();
+                if (mgr != null)
+                {
+                    var dashHandler = visualGo.GetComponent<DashTrailHandler>();
+                    var so = new SerializedObject(mgr);
+                    so.FindProperty("_dashTrail").objectReferenceValue = dashHandler;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[GameFeel] DashTrail добавлен на Hero/Visual.");
+        }
+
+        internal static void BuildShockwaveRingPrefab()
+        {
+            EnsureFolder("Assets/_Project/Prefabs/VFX");
+            EnsureFolder("Assets/_Project/Art/Materials/VFX");
+
+            // Загружаем ParticleGlow.mat (создан VFXTab)
+            var glowMat = AssetDatabase.LoadAssetAtPath<Material>(ParticleGlowMatPath);
+            if (glowMat == null)
+            {
+                Debug.LogWarning($"[GameFeel] {ParticleGlowMatPath} не найден — сначала Build VFX Prefabs (M8).");
+                // Создаём fallback материал
+                glowMat = EnsureParticleMaterial();
+            }
+
+            var root = new GameObject("ShockwaveRing");
+            var ps   = root.AddComponent<ParticleSystem>();
+
+            // main
+            var main = ps.main;
+            main.loop        = false;
+            main.playOnAwake = false;
+            main.startLifetime = 0.4f;
+            main.startSize     = 0.5f;
+            main.startColor    = new Color(0.4f, 0.7f, 1f, 0.8f);
+            main.startSpeed    = 4f;
+            main.maxParticles  = 64;
+
+            // emission — burst 32
+            var emission = ps.emission;
+            emission.enabled      = true;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 32) });
+
+            // shape — Circle
+            var shape = ps.shape;
+            shape.enabled   = true;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius    = 0.5f;
+
+            // renderer — аддитивный
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null && glowMat != null)
+            {
+                renderer.material   = glowMat;
+                renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            }
+
+            // colorOverLifetime — fade out
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            var grad = new Gradient();
+            grad.SetKeys(
+                new[] { new GradientColorKey(new Color(0.4f, 0.7f, 1f), 0f),
+                        new GradientColorKey(new Color(0.4f, 0.7f, 1f), 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+            col.color = grad;
+
+            // sizeOverLifetime — расширяется
+            var sizeOL = ps.sizeOverLifetime;
+            sizeOL.enabled = true;
+            sizeOL.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 0.5f), new Keyframe(1f, 3f)));
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, ShockwaveRingPath);
+            Object.DestroyImmediate(root);
+
+            if (prefab != null)
+                Debug.Log($"[GameFeel] ShockwaveRing.prefab создан: {ShockwaveRingPath}");
+            else
+                Debug.LogError($"[GameFeel] Не удалось сохранить ShockwaveRing.prefab");
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
+        internal static void WireShockwaveToVfxManager()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid()) return;
+
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo == null)
+            {
+                Debug.LogWarning("[GameFeel] GameManagers не найден.");
+                return;
+            }
+
+            var vfxMgr = managersGo.GetComponent<VfxManager>();
+            if (vfxMgr == null)
+            {
+                Debug.LogWarning("[GameFeel] VfxManager не найден на GameManagers — сначала Apply Visuals (M8).");
+                return;
+            }
+
+            var shockwavePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ShockwaveRingPath);
+            if (shockwavePrefab == null)
+            {
+                Debug.LogWarning("[GameFeel] ShockwaveRing.prefab не найден — сначала Build ShockwaveRing Prefab.");
+                return;
+            }
+
+            var so = new SerializedObject(vfxMgr);
+            so.FindProperty("_shockwaveRingPrefab").objectReferenceValue = shockwavePrefab;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[GameFeel] ShockwaveRing подключён к VfxManager.");
+        }
+
+        internal static void SetupAll()
+        {
+            CreateGameFeelSettings();
+            BuildShockwaveRingPrefab();
+            AddHitFlashToUnitPrefabs();
+            SetupGameFeelManager();
+            WireShockwaveToVfxManager();
+            AddDashTrailToHero();
+            // Переоткрываем гарантию: сохраняем ещё раз
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (scene.IsValid())
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+            }
+            Debug.Log("[GameFeel] SetupAll завершён.");
+        }
+
+        // ================================================================
+        // Вспомогательные методы
+        // ================================================================
+
+        private static Material EnsureParticleMaterial()
+        {
+            var matPath = ParticleGlowMatPath;
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (existing != null) return existing;
+
+            EnsureFolder("Assets/_Project/Art/Materials/VFX");
+
+            var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
+            if (shader == null) shader = Shader.Find("Legacy Shaders/Particles/Additive");
+            if (shader == null) return null;
+
+            var mat = new Material(shader);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_ZWrite", 0);
+            mat.renderQueue = 3000;
+
+            AssetDatabase.CreateAsset(mat, matPath);
+            AssetDatabase.SaveAssets();
+            return mat;
+        }
+
+        private static void EnsureFolder(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath)) return;
+            var parts   = folderPath.Split('/');
+            var current = parts[0];
+            for (int i = 1; i < parts.Length; i++)
+            {
+                var next = current + "/" + parts[i];
+                if (!AssetDatabase.IsValidFolder(next))
+                    AssetDatabase.CreateFolder(current, parts[i]);
+                current = next;
+            }
+        }
+    }
+}

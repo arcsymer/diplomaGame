@@ -282,6 +282,7 @@ GameObject:
   - component: {fileID: 5388548395972417648}
   - component: {fileID: 683833390370172744}
   - component: {fileID: 5476069673897773811}
+  - component: {fileID: 4350822785093478204}
   m_Layer: 0
   m_Name: EnemyUnit
   m_TagString: Untagged
@@ -461,6 +462,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df9189bdf7af04e4c937ce40354f4af8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.Units.UnitAnimator
+--- !u!114 &4350822785093478204
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5960503001849451574}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94af75138ddb0c047959f765fb98a9ea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DiplomaGame.Runtime::DiplomaGame.Runtime.GameFeel.HitFlashHandler
 --- !u!1 &7222028896982406027
 GameObject:
   m_ObjectHideFlags: 0

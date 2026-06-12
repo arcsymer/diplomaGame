@@ -269,6 +269,38 @@ namespace DiplomaGame.Runtime.Audio
             source.Play();
         }
 
+        // ----------------------------------------------------------------
+        // Публичный API — GameFeel
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Воспроизводит звук выстрела героя с вариацией питча.
+        /// Питч сбрасывается в 1 при следующем вызове (без аллокаций на выстрел).
+        /// </summary>
+        public void PlayHeroShotFeel(Vector3 worldPos, float pitchVariance)
+        {
+            if (_heroShot == null || _heroShot.Length == 0) return;
+
+            int idx = AudioLogic.PickRandomIndex(_heroShot.Length, _prevHeroShot);
+            _prevHeroShot = idx;
+
+            var clip = _heroShot[idx];
+            if (clip == null) return;
+
+            var src = GetNextSfxSource();
+            if (src == null) return;
+
+            // Сбрасываем питч источника из предыдущего вызова (нет корутин, нет аллокаций)
+            src.pitch = 1f + UnityEngine.Random.Range(-pitchVariance, pitchVariance);
+
+            src.clip                  = clip;
+            src.volume                = _mixer == null ? _sfxVol * _masterVol : 1f;
+            src.spatialBlend          = 1f;
+            src.transform.position    = worldPos;
+            src.outputAudioMixerGroup = _sfxGroup;
+            src.Play();
+        }
+
         /// <summary>Воспроизводит UI-звук (2D, группа UI).</summary>
         public void PlayUiClick()
         {

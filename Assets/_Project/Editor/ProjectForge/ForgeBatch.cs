@@ -327,5 +327,19 @@ namespace DiplomaGame.Editor
             ManagersTab.RewireEnemyProductionV11();
         }
 
+        /// <summary>
+        /// Game Feel (circle-12): открывает Sandbox →
+        /// создаёт GameFeelSettings.asset → строит ShockwaveRing.prefab →
+        /// добавляет HitFlashHandler ко всем юнит-префабам →
+        /// настраивает GameFeelManager → подключает ShockwaveRing к VfxManager →
+        /// добавляет DashTrail на Hero/Visual → сохраняет сцену и ассеты.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupGameFeel
+        /// </summary>
+        public static void SetupGameFeel()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            GameFeelTab.SetupAll();
+        }
+
     }
 }

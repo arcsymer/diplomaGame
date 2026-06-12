@@ -1,13 +1,13 @@
 {
   "smokePass": false,
   "matchTerminated": true,
-  "matchDurationSec": 994.13,
-  "chokePassCount": 11,
-  "peakUnitCount": 14,
+  "matchDurationSec": 1305.43,
+  "chokePassCount": 8,
+  "peakUnitCount": 13,
   "matchOutcome": "Enemy wins (player HQ destroyed)",
   "perfPass": true,
-  "avgFrameMs": 3.827,
-  "p95FrameMs": 4.379,
-  "worstFrameMs": 5.906,
-  "timestamp": "2026-06-12T17:24:16.0780975Z"
+  "avgFrameMs": 5.367,
+  "p95FrameMs": 7.075,
+  "worstFrameMs": 8.608,
+  "timestamp": "2026-06-12T18:48:51.1466754Z"
 }
