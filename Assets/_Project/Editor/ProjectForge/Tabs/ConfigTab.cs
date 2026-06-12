@@ -599,6 +599,77 @@ namespace DiplomaGame.Editor
             Debug.Log("[Project Forge] Production Entries (v6) перенесены успешно.");
         }
 
+        // ----------------------------------------------------------------
+        // v11: собственные BuildingData для вражеских зданий
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт EnemyBarracks.asset и EnemyWarFactory.asset с entries
+        /// на ВРАЖЕСКИХ юнитов (EnemyGrunt / EnemyTank).
+        /// Причина (круг 11): вражеские здания делили Barracks/WarFactory.asset с игроком,
+        /// а v6-маппинг _unitPrefabs в общем префабе указывал на player-префабы —
+        /// враг тратил кристаллы и производил юнитов фракции ИГРОКА.
+        /// </summary>
+        internal static void CreateOrUpdateEnemyBuildingDataV11()
+        {
+            EnsureFolder(BuildingDataFolder);
+
+            var gruntData = AssetDatabase.LoadAssetAtPath<UnitData>($"{UnitDataFolder}/EnemyGrunt.asset");
+            var eTankData = AssetDatabase.LoadAssetAtPath<UnitData>($"{UnitDataFolder}/EnemyTank.asset");
+
+            if (gruntData == null)
+                Debug.LogWarning("[Project Forge v11] EnemyGrunt.asset не найден.");
+            if (eTankData == null)
+                Debug.LogWarning("[Project Forge v11] EnemyTank.asset не найден.");
+
+            // Казарма противника: дешёвый и быстрый грант — кормит волны
+            var enemyBarracks = CreateOrUpdateBuildingData(
+                assetName:          "EnemyBarracks",
+                displayName:        "Enemy Barracks",
+                description:        "Казарма противника. Производит грантов.",
+                cost:               100,
+                maxHp:              500f,
+                buildingType:       DiplomaGame.Runtime.Data.BuildingType.Barracks,
+                incomePerTick:      0,
+                incomeTickInterval: 2f,
+                produces:           gruntData,
+                productionTime:     4f,
+                productionCost:     25);
+            {
+                var so      = new SerializedObject(enemyBarracks);
+                var entries = so.FindProperty("_productionEntries");
+                entries.arraySize = 1;
+                SetProductionEntry(entries.GetArrayElementAtIndex(0), gruntData, cost: 25, productionTime: 4f, hotkeyLabel: "");
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            // Завод противника: зеркальный танк
+            var enemyWF = CreateOrUpdateBuildingData(
+                assetName:          "EnemyWarFactory",
+                displayName:        "Enemy War Factory",
+                description:        "Завод противника. Производит танки.",
+                cost:               150,
+                maxHp:              600f,
+                buildingType:       DiplomaGame.Runtime.Data.BuildingType.WarFactory,
+                incomePerTick:      0,
+                incomeTickInterval: 2f,
+                produces:           eTankData,
+                productionTime:     12f,
+                productionCost:     150);
+            {
+                var so      = new SerializedObject(enemyWF);
+                var entries = so.FindProperty("_productionEntries");
+                entries.arraySize = 1;
+                SetProductionEntry(entries.GetArrayElementAtIndex(0), eTankData, cost: 150, productionTime: 12f, hotkeyLabel: "");
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Project Forge] Enemy BuildingData (v11) созданы/обновлены.");
+        }
+
         /// <summary>Заполняет элемент SerializedProperty ProductionEntry через SerializedProperty.</summary>
         private static void SetProductionEntry(
             SerializedProperty entryProp,

@@ -1135,5 +1135,82 @@ namespace DiplomaGame.Editor
             }
         }
 
+        // ----------------------------------------------------------------
+        // v11: перепрошивка вражеского производства
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно переводит Barracks_Enemy и WarFactory_Enemy на СОБСТВЕННЫЕ
+        /// BuildingData (EnemyBarracks/EnemyWarFactory.asset) и пер-инстансный маппинг
+        /// _unitPrefabs на вражеские префабы. Причина (круг 11): общий префаб нёс
+        /// v6-маппинг на player-префабы — враг производил юнитов фракции игрока.
+        /// </summary>
+        internal static void RewireEnemyProductionV11()
+        {
+            var scene = EditorSceneManager.GetActiveScene();
+
+            var enemyBarracksData = AssetDatabase.LoadAssetAtPath<BuildingData>(
+                "Assets/_Project/Data/Buildings/EnemyBarracks.asset");
+            var enemyWFData = AssetDatabase.LoadAssetAtPath<BuildingData>(
+                "Assets/_Project/Data/Buildings/EnemyWarFactory.asset");
+            var gruntData = AssetDatabase.LoadAssetAtPath<UnitData>(
+                "Assets/_Project/Data/Units/EnemyGrunt.asset");
+            var eTankData = AssetDatabase.LoadAssetAtPath<UnitData>(
+                "Assets/_Project/Data/Units/EnemyTank.asset");
+            var enemyUnitPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyUnitPrefabPath);
+            var enemyTankPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyTankUnitPrefabPath);
+
+            if (enemyBarracksData == null || enemyWFData == null)
+            {
+                Debug.LogWarning("[Project Forge v11] Enemy BuildingData не найдены — " +
+                                 "сначала ConfigTab.CreateOrUpdateEnemyBuildingDataV11().");
+                return;
+            }
+
+            RewireEnemyBuilding("Barracks_Enemy",   enemyBarracksData, gruntData,  enemyUnitPrefab);
+            RewireEnemyBuilding("WarFactory_Enemy", enemyWFData,       eTankData,  enemyTankPrefab);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[Project Forge] v11: вражеское производство перепрошито (свои данные и префабы).");
+        }
+
+        private static void RewireEnemyBuilding(
+            string objectName, BuildingData data, UnitData unitData, GameObject unitPrefab)
+        {
+            var go = GameObject.Find(objectName);
+            if (go == null)
+            {
+                Debug.LogWarning($"[Project Forge v11] {objectName} не найден в сцене.");
+                return;
+            }
+
+            var building = go.GetComponent<Building>();
+            if (building != null)
+            {
+                var so = new SerializedObject(building);
+                so.FindProperty("_data").objectReferenceValue = data;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            var prod = go.GetComponent<ProductionBuilding>();
+            if (prod != null)
+            {
+                var so = new SerializedObject(prod);
+
+                // Пер-инстансный маппинг: ВРАЖЕСКИЙ UnitData -> вражеский префаб.
+                // Перекрывает унаследованный из общего префаба player-маппинг.
+                var map = so.FindProperty("_unitPrefabs");
+                map.arraySize = 1;
+                var elem = map.GetArrayElementAtIndex(0);
+                elem.FindPropertyRelative("unitData").objectReferenceValue = unitData;
+                elem.FindPropertyRelative("prefab").objectReferenceValue   = unitPrefab;
+
+                // Legacy-fallback тоже на вражеский префаб
+                so.FindProperty("_unitPrefab").objectReferenceValue = unitPrefab;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
     }
 }

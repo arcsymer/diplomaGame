@@ -41,8 +41,8 @@ namespace DiplomaGame.Editor
             GUILayout.Space(8);
 
             EditorGUILayout.HelpBox(
-                "v9: Переставляет маркеры баз (±35), здания, расставляет 6 скал-чокпоинт\n" +
-                "(x=±8, z=+2/0/-2), 2 экспанд-ноды (±12/±18, reserve=2000),\n" +
+                "v9.1: Переставляет маркеры баз (±35), здания, расставляет 6 скал-чокпоинт\n" +
+                "(x=±12, z=+2/0/-2), 2 экспанд-ноды (±12/±18, reserve=2000),\n" +
                 "15 объектов декора (без коллайдеров) и перезапекает NavMesh.\n" +
                 "Требует открытой сцены Sandbox. Идемпотентно.",
                 MessageType.Info);
@@ -749,12 +749,14 @@ namespace DiplomaGame.Editor
             // ── 3. Родительский контейнер MapLayout ─────────────────────
             var mapLayout = EnsureGameObjectRoot("MapLayout");
 
-            // ── 4. Choke_Obstacles: 6 скал по 2 колонны x=±8, z∈{+2,0,-2} ──
-            // Центральный чокпоинт: проход ~16 ед. в центре, открытые фланги.
-            // Колонны x=±8 дают коридор шириной 16 ед. (от -8 до +8),
-            // скалы с scale 2.5 на x занимают ~2.5 ед. — реальная ширина прохода
-            // у самих камней ≈ 16 - 2*2.5 = 11 ед. Открытые фланги сохраняются.
-            const float chokeX    = 8f;
+            // ── 4. Choke_Obstacles: 6 скал по 2 колонны x=±12, z∈{+2,0,-2} ──
+            // Центральный чокпоинт v9.1: колонны раздвинуты с ±8 до ±12.
+            // Коридор шириной 24 ед. (от -12 до +12), скалы scale x=2.5 занимают
+            // 2.5 ед. каждая → реальная ширина прохода ≈ 24 - 5 = 19 ед.
+            // После эрозии NavMesh (agentRadius 0.5): ~18 ед. — достаточно для
+            // одновременного прохода нескольких юнитов бок о бок без RVO-затора.
+            // Открытые фланги (|x|>14.25 на NavMesh) сохраняются.
+            const float chokeX    = 12f;
             var chokeContainer = EnsureChildObject(mapLayout, "Choke_Obstacles");
 
             var rockMesh = LoadMeshFromFbx("Assets/_Project/Art/Models/Props/rock_largeA.fbx");
@@ -783,7 +785,7 @@ namespace DiplomaGame.Editor
                     new Vector3( chokeX, 0f, zVal), chokeScale, rockMesh, chokeFlags);
             }
 
-            Debug.Log("[Project Forge] v9: Choke_Obstacles расставлены (x=±8, z=+2/0/-2, scale 2.5×3×2.5).");
+            Debug.Log($"[Project Forge] v9.1: Choke_Obstacles расставлены (x=±{chokeX}, z=+2/0/-2, scale 2.5×3×2.5).");
 
             // ── 5. Expand_Nodes: 2 ResourceNode (точечно-симметрично) ───
             var expandContainer = EnsureChildObject(mapLayout, "Expand_Nodes");
@@ -819,9 +821,9 @@ namespace DiplomaGame.Editor
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 
-            Debug.Log("[Project Forge] v9: RebuildMapLayout завершён. " +
+            Debug.Log("[Project Forge] v9.1: RebuildMapLayout завершён. " +
                       $"PlayerBaseSpawn={playerBasePos}, EnemyBaseSpawn={enemyBasePos}. " +
-                      "Choke: x=±8, z=+2/0/-2, проход ~11 ед.");
+                      "Choke: x=±12, z=+2/0/-2, проход ~19 ед. (NavMesh ~18 ед. после эрозии).");
         }
 
         private static void MoveGameObjectIfExists(string goName, Vector3 position)
