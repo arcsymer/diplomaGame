@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Core.Localization;
 using UnityEngine;
 
 namespace DiplomaGame.Runtime.Data
@@ -12,6 +13,11 @@ namespace DiplomaGame.Runtime.Data
         [SerializeField] private string      _displayName  = "Ability";
         [TextArea(2, 4)]
         [SerializeField] private string      _description  = "";
+
+        [Header("Локализация EN")]
+        [SerializeField] private string      _displayNameEn = "";
+        [TextArea(2, 4)]
+        [SerializeField] private string      _descriptionEn = "";
         [SerializeField] private float       _cooldown     = 8f;
         [SerializeField] private AbilityType _abilityType  = AbilityType.Shockwave;
 
@@ -37,8 +43,13 @@ namespace DiplomaGame.Runtime.Data
         // Публичный API (read-only)
         // ----------------------------------------------------------------
 
-        public string      DisplayName        => _displayName;
-        public string      Description        => _description;
+        public string      DisplayName        =>
+            LocService.CurrentLanguage == LocLanguage.En && !string.IsNullOrEmpty(_displayNameEn)
+                ? _displayNameEn : _displayName;
+
+        public string      Description        =>
+            LocService.CurrentLanguage == LocLanguage.En && !string.IsNullOrEmpty(_descriptionEn)
+                ? _descriptionEn : _description;
         public float       Cooldown           => _cooldown;
         public AbilityType AbilityType        => _abilityType;
         public float       DashDistance       => _dashDistance;

@@ -105,6 +105,30 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Create/Update Tech Assets (v7)", GUILayout.Height(32)))
                 CreateOrUpdateTechAssetsV7();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Migrate Localization EN Fields (v10):\n" +
+                "Проставляет _displayNameEn / _descriptionEn на все Unit/Building/Ability/Tech ассеты.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Migrate Localization EN Fields (v10)", GUILayout.Height(32)))
+                MigrateLocalizationEnFieldsV10();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Create/Update LocTable (v10):\n" +
+                "Создаёт Assets/_Project/Data/Localization/LocTable.asset со всеми ключами глоссария (50+ записей).",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Create/Update LocTable (v10)", GUILayout.Height(32)))
+                CreateOrUpdateLocTableV10();
         }
 
         // ----------------------------------------------------------------
@@ -734,6 +758,191 @@ namespace DiplomaGame.Editor
         private static void SetTechEntry(SerializedProperty entryProp, DiplomaGame.Runtime.Data.TechData techData)
         {
             entryProp.FindPropertyRelative("techData").objectReferenceValue = techData;
+        }
+
+        // ----------------------------------------------------------------
+        // v10: Migrate Localization EN Fields
+        // ----------------------------------------------------------------
+
+        private const string LocalizationDataFolder = "Assets/_Project/Data/Localization";
+
+        /// <summary>
+        /// Проставляет _displayNameEn / _descriptionEn на все Unit/Building/Ability/Tech ассеты.
+        /// Идемпотентно: безопасно запускать повторно.
+        /// </summary>
+        internal static void MigrateLocalizationEnFieldsV10()
+        {
+            // Units
+            SetEnFields<UnitData>(UnitDataFolder, "Marine",      "Marine",       "Universal infantry. Attacks ground targets.");
+            SetEnFields<UnitData>(UnitDataFolder, "EnemyGrunt",  "Enemy Grunt",  "Basic enemy. Attacks everything.");
+            SetEnFields<UnitData>(UnitDataFolder, "Tank",        "Tank",         "Heavy tank. AoE damage, good against buildings.");
+            SetEnFields<UnitData>(UnitDataFolder, "EnemyTank",   "Enemy Tank",   "Heavy tank. AoE damage, good against buildings.");
+            SetEnFields<UnitData>(UnitDataFolder, "HeavyMarine", "Heavy Marine", "Heavier infantry. Slower but tougher.");
+
+            // Buildings
+            SetEnFields<BuildingData>(BuildingDataFolder, "HQ",         "Headquarters", "Command center. Generates crystal income.");
+            SetEnFields<BuildingData>(BuildingDataFolder, "Barracks",   "Barracks",     "Trains combat units.");
+            SetEnFields<BuildingData>(BuildingDataFolder, "Extractor",  "Extractor",    "Mines crystals from deposits.");
+            SetEnFields<BuildingData>(BuildingDataFolder, "WarFactory", "War Factory",  "Heavy vehicle plant. Produces tanks.");
+
+            // Abilities
+            SetEnFields<AbilityData>(AbilityDataFolder, "Dash",     "Dash",           "Dash forward. Escape from enemy fire.");
+            SetEnFields<AbilityData>(AbilityDataFolder, "Ability2", "Shockwave",       "Shockwave. Damages enemies around the hero.");
+            SetEnFields<AbilityData>(AbilityDataFolder, "Ability3", "Repair Field",    "Repair field. Restores HP of nearby allies.");
+            SetEnFields<AbilityData>(AbilityDataFolder, "Ability4", "Overcharge",      "Overcharge. Temporarily boosts fire rate and damage.");
+
+            // Tech
+            SetEnFields<TechData>(TechDataFolder, "Tech_Armoring",  "Armoring",        "+20% HP for infantry.");
+            SetEnFields<TechData>(TechDataFolder, "Tech_Weapons",   "Enhanced Weapons", "+15% damage for all units.");
+            SetEnFields<TechData>(TechDataFolder, "Tech_RapidFire", "Rapid Fire",       "-15% attack cooldown. Requires Enhanced Weapons.");
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Project Forge] Localization EN fields (v10) migrated.");
+        }
+
+        private static void SetEnFields<T>(string folder, string assetName, string displayNameEn, string descriptionEn)
+            where T : ScriptableObject
+        {
+            string path = $"{folder}/{assetName}.asset";
+            var    data = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (data == null)
+            {
+                Debug.LogWarning($"[Project Forge v10] {typeof(T).Name} не найден: {path}");
+                return;
+            }
+
+            var so = new SerializedObject(data);
+            var nameProp = so.FindProperty("_displayNameEn");
+            var descProp = so.FindProperty("_descriptionEn");
+
+            if (nameProp != null) nameProp.stringValue = displayNameEn;
+            if (descProp != null) descProp.stringValue = descriptionEn;
+
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // ----------------------------------------------------------------
+        // v10: Create/Update LocTable
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Создаёт или обновляет Assets/_Project/Data/Localization/LocTable.asset
+        /// со всеми ключами глоссария (50+ записей).
+        /// </summary>
+        internal static void CreateOrUpdateLocTableV10()
+        {
+            EnsureFolder(LocalizationDataFolder);
+
+            const string path = "Assets/_Project/Data/Localization/LocTable.asset";
+            var existing = AssetDatabase.LoadAssetAtPath<LocTable>(path);
+
+            LocTable table;
+            if (existing != null)
+            {
+                table = existing;
+            }
+            else
+            {
+                table = ScriptableObject.CreateInstance<LocTable>();
+                AssetDatabase.CreateAsset(table, path);
+            }
+
+            // Полный глоссарий: (key, ru, en)
+            var entries = new (string key, string ru, string en)[]
+            {
+                // HUD
+                ("hud.crystals",          "Кристаллы: {0}",                    "Crystals: {0}"),
+                ("hud.selected_units",    "Выбрано: {0} юнитов",               "Selected: {0} units"),
+                ("hud.queue_count",       "Очередь: {0}",                      "Queue: {0}"),
+                ("hud.hint_train",        "Нажмите кнопку для производства",   "Press button to train"),
+
+                // Tooltip — общие метки
+                ("tooltip.cost_label",          "Стоимость: ",                 "Cost: "),
+                ("tooltip.time_label",          "Время: ",                     "Time: "),
+                ("tooltip.supply_label",        "Supply: ",                    "Supply: "),
+                ("tooltip.research_prefix",     "Исследование: ",              "Research: "),
+                ("tooltip.production_prefix",   "Производство: ",              "Train: "),
+                ("tooltip.requires_label",      "Требует: ",                   "Requires: "),
+
+                // Tooltip — ресурсы и карта
+                ("tooltip.crystals_title",  "Кристаллы",                                                    "Crystals"),
+                ("tooltip.crystals_desc",   "Основная валюта. Добываются экстракторами и поступают от штаба.", "Primary currency. Mined by extractors and generated by HQ."),
+                ("tooltip.minimap_title",   "Миникарта",                                                    "Minimap"),
+                ("tooltip.minimap_desc",    "ПКМ — задать точку сбора. Показывает союзников (синие) и врагов (красные).", "RMB — set rally point. Shows allies (blue) and enemies (red)."),
+
+                // Tooltip — способности
+                ("tooltip.ability_empty_title",  "Способность",                    "Ability"),
+                ("tooltip.ability_empty_desc",   "Слот способности пуст.",         "Ability slot is empty."),
+                ("tooltip.ability_cooldown",     "Кулдаун: {0}с",                  "Cooldown: {0}s"),
+                ("tooltip.ability_distance",     "Дистанция: {0}",                 "Distance: {0}"),
+                ("tooltip.ability_damage",       "Урон: {0}",                      "Damage: {0}"),
+                ("tooltip.ability_radius",       "Радиус: {0}",                    "Radius: {0}"),
+                ("tooltip.ability_heal",         "Лечение: {0}",                   "Heal: {0}"),
+                ("tooltip.ability_duration",     "Длительность: {0}с",             "Duration: {0}s"),
+                ("tooltip.ability_dmg_mult",     "Урон ×{0}",                      "Damage ×{0}"),
+
+                // Пауза
+                ("pause.title",         "Пауза",          "Pause"),
+                ("pause.btn_continue",  "Продолжить",     "Continue"),
+                ("pause.btn_settings",  "Настройки",      "Settings"),
+                ("pause.btn_exit_menu", "Выйти в меню",   "Exit to Menu"),
+                ("pause.btn_quit",      "Выйти из игры",  "Quit"),
+
+                // Настройки
+                ("settings.title",          "Настройки",          "Settings"),
+                ("settings.quality_label",  "Качество",           "Quality"),
+                ("settings.fullscreen",     "Полный экран",       "Fullscreen"),
+                ("settings.master_volume",  "Громкость",          "Master Volume"),
+                ("settings.music_volume",   "Музыка",             "Music"),
+                ("settings.sfx_volume",     "Звуки",              "SFX"),
+                ("settings.sensitivity",    "Чувствительность",   "Sensitivity"),
+                ("settings.language",       "Язык",               "Language"),
+                ("settings.btn_back",       "Назад",              "Back"),
+
+                // Главное меню
+                ("menu.btn_play",     "Играть",         "Play"),
+                ("menu.btn_settings", "Настройки",      "Settings"),
+                ("menu.btn_quit",     "Выйти",          "Quit"),
+                ("menu.title",        "Диплом: RTS+TPS", "Diploma: RTS+TPS"),
+
+                // GameOver
+                ("gameover.victory",        "Победа!",          "Victory!"),
+                ("gameover.defeat",         "Поражение",        "Defeat"),
+                ("gameover.btn_restart",    "Заново",           "Restart"),
+                ("gameover.btn_main_menu",  "Главное меню",     "Main Menu"),
+
+                // Статистика матча
+                ("stats.duration_format",    "Длительность: {0:00}:{1:00}", "Duration: {0:00}:{1:00}"),
+                ("stats.duration_empty",     "Длительность: --:--",         "Duration: --:--"),
+                ("stats.header_player",      "Игрок",                       "Player"),
+                ("stats.header_enemy",       "Враг",                        "Enemy"),
+                ("stats.kills",              "Убито",                       "Kills"),
+                ("stats.losses",             "Потери",                      "Losses"),
+                ("stats.damage_dealt",       "Нанесено урона",              "Damage Dealt"),
+                ("stats.damage_taken",       "Получено урона",              "Damage Taken"),
+                ("stats.crystals",           "Кристаллы",                   "Crystals"),
+                ("stats.produced",           "Произведено",                 "Produced"),
+                ("stats.army_peak",          "Пик армии",                   "Army Peak"),
+            };
+
+            var so = new SerializedObject(table);
+            var entriesProp = so.FindProperty("_entries");
+            entriesProp.arraySize = entries.Length;
+
+            for (int i = 0; i < entries.Length; i++)
+            {
+                var elem = entriesProp.GetArrayElementAtIndex(i);
+                elem.FindPropertyRelative("key").stringValue = entries[i].key;
+                elem.FindPropertyRelative("ru").stringValue  = entries[i].ru;
+                elem.FindPropertyRelative("en").stringValue  = entries[i].en;
+            }
+
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"[Project Forge] LocTable (v10) создана/обновлена: {entries.Length} записей → {path}");
         }
 
         private static void EnsureFolder(string folderPath)

@@ -1,5 +1,7 @@
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Tech;
+using UnityEditor;
 using DiplomaGame.Runtime.UI;
 using DiplomaGame.Runtime.Units;
 using NUnit.Framework;
@@ -21,8 +23,22 @@ namespace DiplomaGame.Tests.Editor
     public class TechCardUITests
     {
         // ----------------------------------------------------------------
-        // SetUp / TearDown — сброс TechRegistry
+        // SetUp / TearDown — сброс TechRegistry + LocService (тултипы)
         // ----------------------------------------------------------------
+
+        [OneTimeSetUp]
+        public void LocSetUp()
+        {
+            var table = AssetDatabase.LoadAssetAtPath<LocTable>(
+                "Assets/_Project/Data/Localization/LocTable.asset");
+            Assert.IsNotNull(table,
+                "LocTable.asset не найдена — прогоните Forge: Create/Update LocTable (v10).");
+            LocService.ResetForTests();
+            LocService.Initialize(table);
+        }
+
+        [OneTimeTearDown]
+        public void LocTearDown() => LocService.ResetForTests();
 
         [SetUp]
         public void SetUp()

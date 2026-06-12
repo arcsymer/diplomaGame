@@ -1,3 +1,4 @@
+using DiplomaGame.Runtime.Core.Localization;
 using UnityEngine;
 
 namespace DiplomaGame.Runtime.Data
@@ -23,6 +24,11 @@ namespace DiplomaGame.Runtime.Data
         [SerializeField] private string _displayName      = "Unit";
         [TextArea(2, 4)]
         [SerializeField] private string _description      = "";
+
+        [Header("Локализация EN")]
+        [SerializeField] private string _displayNameEn    = "";
+        [TextArea(2, 4)]
+        [SerializeField] private string _descriptionEn    = "";
         [Tooltip("Стоимость в Supply. 0 — строка Supply в тултипе скрыта.")]
         [SerializeField] private int    _supplyCost       = 0;
         [SerializeField] private float  _maxHp            = 100f;
@@ -54,8 +60,13 @@ namespace DiplomaGame.Runtime.Data
         // Публичный API (read-only)
         // ----------------------------------------------------------------
 
-        public string         DisplayName       => _displayName;
-        public string         Description       => _description;
+        public string         DisplayName       =>
+            LocService.CurrentLanguage == LocLanguage.En && !string.IsNullOrEmpty(_displayNameEn)
+                ? _displayNameEn : _displayName;
+
+        public string         Description       =>
+            LocService.CurrentLanguage == LocLanguage.En && !string.IsNullOrEmpty(_descriptionEn)
+                ? _descriptionEn : _description;
         public int            SupplyCost        => _supplyCost;
         public float          MaxHp             => _maxHp;
         public float          Damage            => _damage;

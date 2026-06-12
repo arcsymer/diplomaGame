@@ -1,6 +1,8 @@
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.UI;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -16,6 +18,21 @@ namespace DiplomaGame.Tests.Editor
     [TestFixture]
     public class CommandCardLogicTests
     {
+        // Тултипы строятся через LocService — инициализируем реальной таблицей
+        [OneTimeSetUp]
+        public void LocSetUp()
+        {
+            var table = AssetDatabase.LoadAssetAtPath<LocTable>(
+                "Assets/_Project/Data/Localization/LocTable.asset");
+            Assert.IsNotNull(table,
+                "LocTable.asset не найдена — прогоните Forge: Create/Update LocTable (v10).");
+            LocService.ResetForTests();
+            LocService.Initialize(table);
+        }
+
+        [OneTimeTearDown]
+        public void LocTearDown() => LocService.ResetForTests();
+
         // ----------------------------------------------------------------
         // Вспомогательный метод — создаёт минимальный CommandCardButton
         // ----------------------------------------------------------------

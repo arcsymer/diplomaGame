@@ -16,6 +16,8 @@ MonoBehaviour:
   _description: "\u0422\u044F\u0436\u0451\u043B\u044B\u0439 \u043F\u0435\u0445\u043E\u0442\u0438\u043D\u0435\u0446.
     \u041C\u0435\u0434\u043B\u0435\u043D\u043D\u0435\u0435, \u043D\u043E \u043A\u0440\u0435\u043F\u0447\u0435
     \u0438 \u0431\u043E\u043B\u044C\u043D\u0435\u0435."
+  _displayNameEn: Heavy Marine
+  _descriptionEn: Heavier infantry. Slower but tougher.
   _supplyCost: 2
   _maxHp: 150
   _damage: 14

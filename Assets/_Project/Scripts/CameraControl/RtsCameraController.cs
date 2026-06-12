@@ -16,10 +16,14 @@ namespace DiplomaGame.Runtime.CameraControl
         [SerializeField] private GameModeController  modeController;
         [SerializeField] private InputActionAsset    actions;
 
-        [SerializeField] private float panSpeed  = 20f;
-        [SerializeField] private float zoomMin   =  5f;
-        [SerializeField] private float zoomMax   = 40f;
-        [SerializeField] private float zoomSpeed =  5f;
+        [SerializeField] private float   panSpeed  = 20f;
+        [SerializeField] private float   zoomMin   =  5f;
+        [SerializeField] private float   zoomMax   = 40f;
+        [SerializeField] private float   zoomSpeed =  5f;
+
+        [Header("Границы карты (XZ)")]
+        [SerializeField] private Vector2 minBounds = new Vector2(-48f, -48f);
+        [SerializeField] private Vector2 maxBounds = new Vector2( 48f,  48f);
 
         // ----------------------------------------------------------------
         // Кэш действий
@@ -97,7 +101,22 @@ namespace DiplomaGame.Runtime.CameraControl
             if (input == Vector2.zero) return;
 
             Vector3 delta = new Vector3(input.x, 0f, input.y) * (panSpeed * Time.deltaTime);
-            target.position += delta;
+            Vector3 pos   = target.position + delta;
+            pos.x         = Mathf.Clamp(pos.x, minBounds.x, maxBounds.x);
+            pos.z         = Mathf.Clamp(pos.z, minBounds.y, maxBounds.y);
+            target.position = pos;
+        }
+
+        /// <summary>
+        /// Чистая функция кламплирования позиции камеры к границам карты.
+        /// Вынесена для тестируемости в EditMode без MonoBehaviour.
+        /// </summary>
+        internal static Vector3 ClampPosition(Vector3 position, Vector2 min, Vector2 max)
+        {
+            return new Vector3(
+                Mathf.Clamp(position.x, min.x, max.x),
+                position.y,
+                Mathf.Clamp(position.z, min.y, max.y));
         }
 
         private void HandleZoom()

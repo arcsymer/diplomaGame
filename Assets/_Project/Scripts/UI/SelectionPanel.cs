@@ -1,6 +1,7 @@
 using System.Text;
 using DiplomaGame.Runtime.Buildings;
 using DiplomaGame.Runtime.Combat;
+using DiplomaGame.Runtime.Core.Localization;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.Tech;
@@ -68,6 +69,7 @@ namespace DiplomaGame.Runtime.UI
             }
 
             TechRegistry.TechResearched += OnTechResearched;
+            LocService.LanguageChanged  += OnLanguageChanged;
         }
 
         private void OnDisable()
@@ -79,6 +81,7 @@ namespace DiplomaGame.Runtime.UI
             }
 
             TechRegistry.TechResearched -= OnTechResearched;
+            LocService.LanguageChanged  -= OnLanguageChanged;
         }
 
         private void Update()
@@ -104,7 +107,12 @@ namespace DiplomaGame.Runtime.UI
 
                 // Обновляем legacy queueText
                 if (queueText != null)
-                    queueText.SetText("В очереди: {0}", currentCount);
+                {
+                    // Горячий путь — TMP SetText с аргументом, без GC.
+                    // Формат содержит {0} для TMP-форматтера только если ru/en строка совпадает по шаблону.
+                    // Для надёжности используем LocService.Get + SetText(fmt, arg).
+                    queueText.SetText(LocService.Get("hud.queue_count"), currentCount);
+                }
 
                 // Обновляем очередь-слоты в multi-режиме
                 if (_multiProductionMode)
@@ -168,11 +176,23 @@ namespace DiplomaGame.Runtime.UI
 
                 if (infoText != null)
                 {
-                    // Используем кэшированный StringBuilder — без строковых аллокаций
+                    // Горячий путь: используем кэшированный StringBuilder без GC-аллокаций.
+                    // LocService.Get — O(1) Dictionary-lookup.
                     _selectionSb.Clear();
-                    _selectionSb.Append("Выбрано: ");
-                    _selectionSb.Append(selected.Count);
-                    _selectionSb.Append(" юнитов");
+                    string fmt = LocService.Get("hud.selected_units");
+                    // fmt == "Выбрано: {0} юнитов" / "Selected: {0} units"
+                    // Заменяем {0} вручную без аллокации через StringBuilder.
+                    int braceIdx = fmt.IndexOf("{0}", System.StringComparison.Ordinal);
+                    if (braceIdx >= 0)
+                    {
+                        _selectionSb.Append(fmt, 0, braceIdx);
+                        _selectionSb.Append(selected.Count);
+                        _selectionSb.Append(fmt, braceIdx + 3, fmt.Length - braceIdx - 3);
+                    }
+                    else
+                    {
+                        _selectionSb.Append(fmt);
+                    }
                     if (maxHp > 0)
                     {
                         _selectionSb.Append("  HP: ");
@@ -244,7 +264,7 @@ namespace DiplomaGame.Runtime.UI
                 if (hintText != null)
                 {
                     hintText.gameObject.SetActive(true);
-                    hintText.SetText("[T] — обучить    ПКМ — точка сбора");
+                    hintText.SetText(LocService.Get("hud.hint_train"));
                 }
             }
             else
@@ -401,6 +421,18 @@ namespace DiplomaGame.Runtime.UI
         {
             if (_selectedBuilding == null) return;
             BindTechCard(_selectedBuilding);
+        }
+
+        /// <summary>Обработчик смены языка — перерисовываем текущее состояние панели.</summary>
+        private void OnLanguageChanged()
+        {
+            // Пересоздаём текущее состояние (Hint и QueueText по LanguageChanged).
+            // Самый простой путь: если есть активное выделение — перевызвать обработчик.
+            if (_selectedBuilding != null)
+                OnBuildingSelected(_selectedBuilding);
+            else if (selectionSystem != null && selectionSystem.Selected != null
+                     && selectionSystem.Selected.Count > 0)
+                OnSelectionChanged();
         }
     }
 }
