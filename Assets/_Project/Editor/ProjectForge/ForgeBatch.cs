@@ -252,6 +252,18 @@ namespace DiplomaGame.Editor
             UITab.SetupTechTreeV7();
         }
 
+        /// <summary>
+        /// v9 RebuildMapLayout: открывает Sandbox → перемещает маркеры баз (±35),
+        /// здания, расставляет чок-скалы (x=±8), 2 экспанд-ноды и 15 декор-объектов →
+        /// перезапекает NavMesh → сохраняет сцену.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.RebuildMapLayout
+        /// </summary>
+        public static void RebuildMapLayout()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ScenesTab.RebuildMapLayout();
+        }
+
         /// <summary>Добавляет ScreenshotDirector на GameManagers в Sandbox (для авто-скриншотов README).</summary>
         public static void AddScreenshotDirector()
         {
