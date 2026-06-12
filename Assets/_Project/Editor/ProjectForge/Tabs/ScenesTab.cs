@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.UI;
 using TMPro;
 using UnityEditor;
@@ -36,6 +37,20 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Create/Update MainMenu Scene", GUILayout.Height(32)))
                 CreateOrUpdateMainMenuScene();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "v9: Переставляет маркеры баз (±35), здания, расставляет 6 скал-чокпоинт\n" +
+                "(x=±8, z=+2/0/-2), 2 экспанд-ноды (±12/±18, reserve=2000),\n" +
+                "15 объектов декора (без коллайдеров) и перезапекает NavMesh.\n" +
+                "Требует открытой сцены Sandbox. Идемпотентно.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Rebuild Map Layout (v9)", GUILayout.Height(32)))
+                RebuildMapLayout();
         }
 
         /// <summary>
@@ -673,6 +688,345 @@ namespace DiplomaGame.Editor
                 scenes.Add(new EditorBuildSettingsScene(scenePath, true));
                 EditorBuildSettings.scenes = scenes.ToArray();
                 Debug.Log("[Project Forge] Sandbox добавлена в Build Settings.");
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // v9 RebuildMapLayout
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Переставляет маркеры баз, здания, расставляет скалы-чокпоинт,
+        /// два экспанд-узла и декор. Идемпотентно (EnsureChild-паттерн).
+        /// Завершается перезапечкой NavMesh и сохранением сцены.
+        /// </summary>
+        internal static void RebuildMapLayout()
+        {
+            var scene = EditorSceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            // ── 1. Маркеры баз ──────────────────────────────────────────
+            const float baseExtent = 35f;
+            var playerBasePos = new Vector3(-baseExtent, 0f, -baseExtent);
+            var enemyBasePos  = new Vector3( baseExtent, 0f,  baseExtent);
+
+            EnsureMarker("PlayerBaseSpawn", playerBasePos);
+            EnsureMarker("EnemyBaseSpawn",  enemyBasePos);
+
+            Debug.Log("[Project Forge] v9: маркеры баз перемещены.");
+
+            // ── 2. Перемещение зданий относительно новых позиций баз ────
+            // Офсеты соответствуют тем, что устанавливали SetupEconomy / SetupScenario / SetupTank.
+            // SetupEconomy:   HQ_Player  @ playerBase + (0,0,0)
+            //                 HQ_Enemy   @ enemyBase  + (0,0,0)
+            //                 Barracks_Player @ playerBase + (6,0,4)
+            // SetupScenario:  Barracks_Enemy  @ enemyBase  + (6,0,-4)
+            // SetupTank:      WarFactory_Player @ playerBase + (10,0,4)
+            //                 WarFactory_Enemy  @ enemyBase  + (10,0,-4)
+            MoveGameObjectIfExists("HQ_Player",         playerBasePos + new Vector3( 0f, 0f,  0f));
+            MoveGameObjectIfExists("HQ_Enemy",          enemyBasePos  + new Vector3( 0f, 0f,  0f));
+            MoveGameObjectIfExists("Barracks_Player",   playerBasePos + new Vector3( 6f, 0f,  4f));
+            MoveGameObjectIfExists("Barracks_Enemy",    enemyBasePos  + new Vector3( 6f, 0f, -4f));
+            MoveGameObjectIfExists("WarFactory_Player", playerBasePos + new Vector3(10f, 0f,  4f));
+            MoveGameObjectIfExists("WarFactory_Enemy",  enemyBasePos  + new Vector3(10f, 0f, -4f));
+
+            // M5 ResourceNode'ы с оригинальными офсетами
+            MoveGameObjectIfExists("ResourceNode_Player_1", playerBasePos + new Vector3(-8f, 0f, -5f));
+            MoveGameObjectIfExists("ResourceNode_Player_2", playerBasePos + new Vector3( 8f, 0f, -5f));
+            MoveGameObjectIfExists("ResourceNode_Enemy_1",  enemyBasePos  + new Vector3(-8f, 0f,  5f));
+            MoveGameObjectIfExists("ResourceNode_Enemy_2",  enemyBasePos  + new Vector3( 8f, 0f,  5f));
+
+            // Герой и тестовые юниты — сдвигаем к игровой базе
+            MoveGameObjectIfExists("Hero",              playerBasePos + new Vector3(0f, 1f, 0f));
+            MoveGameObjectIfExists("RtsCameraTarget",   playerBasePos);
+
+            Debug.Log("[Project Forge] v9: здания и юниты переставлены.");
+
+            // ── 3. Родительский контейнер MapLayout ─────────────────────
+            var mapLayout = EnsureGameObjectRoot("MapLayout");
+
+            // ── 4. Choke_Obstacles: 6 скал по 2 колонны x=±8, z∈{+2,0,-2} ──
+            // Центральный чокпоинт: проход ~16 ед. в центре, открытые фланги.
+            // Колонны x=±8 дают коридор шириной 16 ед. (от -8 до +8),
+            // скалы с scale 2.5 на x занимают ~2.5 ед. — реальная ширина прохода
+            // у самих камней ≈ 16 - 2*2.5 = 11 ед. Открытые фланги сохраняются.
+            const float chokeX    = 8f;
+            var chokeContainer = EnsureChildObject(mapLayout, "Choke_Obstacles");
+
+            var rockMesh = LoadMeshFromFbx("Assets/_Project/Art/Models/Props/rock_largeA.fbx");
+            var chokeScale = new Vector3(2.5f, 3f, 2.5f);
+            const StaticEditorFlags chokeFlags =
+                StaticEditorFlags.NavigationStatic |
+                StaticEditorFlags.BatchingStatic   |
+                StaticEditorFlags.ContributeGI;
+
+            // L-колонна (x = -8): имена Choke_L1, Choke_L2, Choke_L3
+            // R-колонна (x = +8): имена Choke_R1, Choke_R2, Choke_R3
+            float[] chokeZValues = { 2f, 0f, -2f };
+            string[] lNames = { "Choke_L1", "Choke_L2", "Choke_L3" };
+            string[] rNames = { "Choke_R1", "Choke_R2", "Choke_R3" };
+
+            for (int i = 0; i < 3; i++)
+            {
+                float zVal = chokeZValues[i];
+
+                // L-скала
+                EnsureRock(chokeContainer, lNames[i],
+                    new Vector3(-chokeX, 0f, zVal), chokeScale, rockMesh, chokeFlags);
+
+                // R-скала
+                EnsureRock(chokeContainer, rNames[i],
+                    new Vector3( chokeX, 0f, zVal), chokeScale, rockMesh, chokeFlags);
+            }
+
+            Debug.Log("[Project Forge] v9: Choke_Obstacles расставлены (x=±8, z=+2/0/-2, scale 2.5×3×2.5).");
+
+            // ── 5. Expand_Nodes: 2 ResourceNode (точечно-симметрично) ───
+            var expandContainer = EnsureChildObject(mapLayout, "Expand_Nodes");
+            var nodePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/_Project/Prefabs/Props/ResourceNode.prefab");
+
+            EnsureExpandNode(expandContainer, scene, "ExpandNode_Player",
+                new Vector3(-12f, 0f, -18f), nodePrefab, 2000);
+            EnsureExpandNode(expandContainer, scene, "ExpandNode_Enemy",
+                new Vector3( 12f, 0f,  18f), nodePrefab, 2000);
+
+            Debug.Log("[Project Forge] v9: Expand_Nodes расставлены.");
+
+            // ── 6. Decor: 15 объектов без коллайдеров ───────────────────
+            BuildDecor(mapLayout, scene);
+
+            // ── 7. MinimapCamera orthographicSize ≥ 52 ──────────────────
+            var minimapCamGo = GameObject.Find("MinimapCamera");
+            if (minimapCamGo != null)
+            {
+                var cam = minimapCamGo.GetComponent<Camera>();
+                if (cam != null && cam.orthographicSize < 52f)
+                {
+                    cam.orthographicSize = 60f;
+                    Debug.Log("[Project Forge] v9: MinimapCamera.orthographicSize обновлён до 60.");
+                }
+            }
+
+            // ── 8. NavMesh перебейк ──────────────────────────────────────
+            NavMeshTab.BakeNavMesh();
+
+            // ── 9. Сохранение ────────────────────────────────────────────
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Project Forge] v9: RebuildMapLayout завершён. " +
+                      $"PlayerBaseSpawn={playerBasePos}, EnemyBaseSpawn={enemyBasePos}. " +
+                      "Choke: x=±8, z=+2/0/-2, проход ~11 ед.");
+        }
+
+        private static void MoveGameObjectIfExists(string goName, Vector3 position)
+        {
+            var go = GameObject.Find(goName);
+            if (go != null)
+                go.transform.position = position;
+        }
+
+        /// <summary>Возвращает GO с данным именем на корневом уровне или создаёт новый.</summary>
+        private static GameObject EnsureGameObjectRoot(string goName)
+        {
+            var existing = GameObject.Find(goName);
+            return existing != null ? existing : new GameObject(goName);
+        }
+
+        /// <summary>Возвращает дочерний GO с данным именем или создаёт его.</summary>
+        private static GameObject EnsureChildObject(GameObject parent, string childName)
+        {
+            var t = parent.transform.Find(childName);
+            if (t != null) return t.gameObject;
+            var go = new GameObject(childName);
+            go.transform.SetParent(parent.transform, false);
+            return go;
+        }
+
+        private static Mesh LoadMeshFromFbx(string fbxPath)
+        {
+            // Загружаем все ассеты из fbx, возвращаем первый Mesh
+            var allAssets = AssetDatabase.LoadAllAssetsAtPath(fbxPath);
+            foreach (var a in allAssets)
+            {
+                if (a is Mesh m)
+                    return m;
+            }
+            return null;
+        }
+
+        private static void EnsureRock(
+            GameObject parent,
+            string     goName,
+            Vector3    localPosition,
+            Vector3    scale,
+            Mesh       mesh,
+            StaticEditorFlags flags)
+        {
+            var t = parent.transform.Find(goName);
+            GameObject go;
+            if (t != null)
+            {
+                go = t.gameObject;
+            }
+            else
+            {
+                go = new GameObject(goName);
+                go.transform.SetParent(parent.transform, false);
+
+                if (mesh != null)
+                {
+                    go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                    go.AddComponent<MeshRenderer>();
+                }
+
+                // BoxCollider для навигационного препятствия
+                go.AddComponent<BoxCollider>();
+            }
+
+            go.transform.localPosition = localPosition;
+            go.transform.localScale    = scale;
+            GameObjectUtility.SetStaticEditorFlags(go, flags);
+        }
+
+        private static void EnsureExpandNode(
+            GameObject  parent,
+            Scene scene,
+            string      goName,
+            Vector3     localPosition,
+            GameObject  prefab,
+            int         reserve)
+        {
+            var t = parent.transform.Find(goName);
+            GameObject go;
+            if (t != null)
+            {
+                go = t.gameObject;
+            }
+            else
+            {
+                if (prefab != null)
+                {
+                    go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+                    go.name = goName;
+                    go.transform.SetParent(parent.transform, false);
+                }
+                else
+                {
+                    go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    go.name = goName;
+                    go.transform.SetParent(parent.transform, false);
+                    go.transform.localScale = new Vector3(2f, 0.5f, 2f);
+                    if (!go.GetComponent<ResourceNode>())
+                        go.AddComponent<ResourceNode>();
+                }
+            }
+
+            go.transform.localPosition = localPosition;
+
+            // Устанавливаем _reserve = reserve через SerializedObject
+            var node = go.GetComponentInChildren<ResourceNode>(true);
+            if (node == null)
+                node = go.AddComponent<ResourceNode>();
+
+            var so = new SerializedObject(node);
+            so.FindProperty("_reserve").intValue = reserve;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // ----------------------------------------------------------------
+        // BuildDecor: 15 объектов без коллайдеров
+        // ----------------------------------------------------------------
+
+        private static void BuildDecor(GameObject parent,
+            Scene _scene)
+        {
+            var decorContainer = EnsureChildObject(parent, "Decor");
+
+            const StaticEditorFlags decorFlags =
+                StaticEditorFlags.BatchingStatic | StaticEditorFlags.ContributeGI;
+
+            // Таблица декора: имя GO, путь к FBX, локальная позиция, поворот Y, масштаб
+            var decorTable = new (string name, string fbx, Vector3 pos, float rotY, Vector3 scale)[]
+            {
+                // Скалы средние
+                ("Decor_Rock_01",           "Assets/_Project/Art/Models/Props/rock.fbx",
+                    new Vector3(-20f, 0f, 5f),   15f, new Vector3(1.5f, 1.5f, 1.5f)),
+                ("Decor_Rock_02",           "Assets/_Project/Art/Models/Props/rock.fbx",
+                    new Vector3( 22f, 0f, -8f),  45f, new Vector3(1.2f, 1.2f, 1.2f)),
+                ("Decor_Rock_03",           "Assets/_Project/Art/Models/Props/rock.fbx",
+                    new Vector3( -5f, 0f, 20f),   0f, new Vector3(1.8f, 1.8f, 1.8f)),
+
+                // Кристаллы малые
+                ("Decor_Crystals_01",       "Assets/_Project/Art/Models/Props/rock_crystals.fbx",
+                    new Vector3(-15f, 0f, 10f),  30f, new Vector3(1f, 1f, 1f)),
+                ("Decor_Crystals_02",       "Assets/_Project/Art/Models/Props/rock_crystals.fbx",
+                    new Vector3( 18f, 0f, -15f), 60f, new Vector3(1.2f, 1.2f, 1.2f)),
+                ("Decor_Crystals_03",       "Assets/_Project/Art/Models/Props/rock_crystals.fbx",
+                    new Vector3(-25f, 0f, -10f), 90f, new Vector3(0.9f, 0.9f, 0.9f)),
+
+                // Кристаллы крупные
+                ("Decor_CrystalsLarge_01",  "Assets/_Project/Art/Models/Props/rock_crystalsLargeA.fbx",
+                    new Vector3( 25f, 0f,  12f),  20f, new Vector3(1.3f, 1.3f, 1.3f)),
+                ("Decor_CrystalsLarge_02",  "Assets/_Project/Art/Models/Props/rock_crystalsLargeA.fbx",
+                    new Vector3(-22f, 0f,  18f), 120f, new Vector3(1.1f, 1.1f, 1.1f)),
+
+                // Кратеры
+                ("Decor_Crater_01",         "Assets/_Project/Art/Models/Props/crater.fbx",
+                    new Vector3( 5f, 0f, -20f),  0f, new Vector3(2f, 2f, 2f)),
+                ("Decor_Crater_02",         "Assets/_Project/Art/Models/Props/crater.fbx",
+                    new Vector3(-8f, 0f,  15f), 45f, new Vector3(1.5f, 1.5f, 1.5f)),
+                ("Decor_Crater_03",         "Assets/_Project/Art/Models/Props/crater.fbx",
+                    new Vector3( 12f, 0f, 22f), 90f, new Vector3(1.8f, 1.8f, 1.8f)),
+
+                // Бочки
+                ("Decor_Barrel_01",         "Assets/_Project/Art/Models/Props/barrel.fbx",
+                    new Vector3(-18f, 0f, -5f),  0f, new Vector3(1f, 1f, 1f)),
+                ("Decor_Barrel_02",         "Assets/_Project/Art/Models/Props/barrel.fbx",
+                    new Vector3( 15f, 0f,  5f), 30f, new Vector3(1f, 1f, 1f)),
+
+                // Промышленные бочки
+                ("Decor_MachineBrrl_01",    "Assets/_Project/Art/Models/Props/machine_barrel.fbx",
+                    new Vector3(-12f, 0f, 22f),   0f, new Vector3(1f, 1f, 1f)),
+                ("Decor_MachineBrrl_02",    "Assets/_Project/Art/Models/Props/machine_barrel.fbx",
+                    new Vector3( 20f, 0f, -20f), 60f, new Vector3(1f, 1f, 1f)),
+            };
+
+            foreach (var entry in decorTable)
+            {
+                var t = decorContainer.transform.Find(entry.name);
+                if (t != null)
+                {
+                    // Обновляем позицию идемпотентно
+                    t.localPosition = entry.pos;
+                    t.localRotation = Quaternion.Euler(0f, entry.rotY, 0f);
+                    t.localScale    = entry.scale;
+                    continue;
+                }
+
+                var mesh = LoadMeshFromFbx(entry.fbx);
+                var go   = new GameObject(entry.name);
+                go.transform.SetParent(decorContainer.transform, false);
+                go.transform.localPosition = entry.pos;
+                go.transform.localRotation = Quaternion.Euler(0f, entry.rotY, 0f);
+                go.transform.localScale    = entry.scale;
+
+                if (mesh != null)
+                {
+                    go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                    go.AddComponent<MeshRenderer>();
+                }
+
+                // Явно удаляем все коллайдеры (если появились)
+                foreach (var col in go.GetComponentsInChildren<Collider>())
+                    Object.DestroyImmediate(col);
+
+                GameObjectUtility.SetStaticEditorFlags(go, decorFlags);
             }
         }
     }
