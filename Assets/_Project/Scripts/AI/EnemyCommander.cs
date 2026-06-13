@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Buildings;
+using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
 using DiplomaGame.Runtime.Tech;
@@ -27,6 +28,7 @@ namespace DiplomaGame.Runtime.AI
         /// Статическое — не требует ссылки на конкретный инстанс.
         /// </summary>
         public static event Action WaveLaunched;
+
         // ----------------------------------------------------------------
         // Сериализованные поля
         // ----------------------------------------------------------------
@@ -36,8 +38,27 @@ namespace DiplomaGame.Runtime.AI
         [SerializeField] private ProductionBuilding _enemyWarFactory;
         [SerializeField] private float              _decisionInterval = 2f;
 
-        // Лимит юнитов противника
-        private const int MaxUnits = 12;
+        /// <summary>Три профиля сложности: [0]=Easy, [1]=Normal, [2]=Hard.</summary>
+        [SerializeField] private DifficultyProfileSO[] _profiles;
+
+        // Лимит юнитов противника (может быть переопределён через профиль)
+        private int _maxUnits = 12;
+
+        // Параметры волны (могут быть переопределены через профиль)
+        private float _maxWaitTime  = 30f;
+        private float _waveSizeScale = 1f;
+
+        // Параметры исследования
+        private int _researchReserve = 50;
+
+        // Параметры производства
+        private int _infantryRatio = 3;
+
+        // Флаг: стартовый бонус уже выдан
+        private bool _startingBonusApplied;
+
+        // Стартовый бонус золота (из профиля)
+        private int _enemyStartingBonusGold;
 
         // ----------------------------------------------------------------
         // Публичные свойства (для тестов / HUD)
@@ -74,8 +95,51 @@ namespace DiplomaGame.Runtime.AI
 
         private void Start()
         {
+            ApplyProfile();
             CachePlayerHQ();
             CacheProductionBuildings();
+
+            // Стартовый бонус — один раз
+            if (!_startingBonusApplied && _bank != null && _enemyStartingBonusGold > 0)
+            {
+                _bank.Add(Faction.Enemy, _enemyStartingBonusGold);
+                _startingBonusApplied = true;
+            }
+        }
+
+        /// <summary>
+        /// Применяет профиль сложности из _profiles[SettingsService.LoadDifficulty()].
+        /// Если _profiles null/пуст — сохраняются хардкоды (Normal-значения).
+        /// </summary>
+        private void ApplyProfile()
+        {
+            if (_profiles == null || _profiles.Length == 0)
+                return;
+
+            int idx = SettingsService.LoadDifficulty();
+            // Фоллбэк на Normal (1), если индекс вне диапазона или ссылка null
+            if (idx < 0 || idx >= _profiles.Length || _profiles[idx] == null)
+                idx = 1;
+            // Второй фоллбэк: если Normal тоже null, ищем любой ненулевой
+            if (idx >= _profiles.Length || _profiles[idx] == null)
+            {
+                for (int i = 0; i < _profiles.Length; i++)
+                {
+                    if (_profiles[i] != null) { idx = i; break; }
+                }
+            }
+
+            if (idx >= _profiles.Length || _profiles[idx] == null)
+                return; // все null — оставляем хардкоды
+
+            var p = _profiles[idx];
+            _decisionInterval        = p.DecisionInterval;
+            _maxUnits                = p.MaxUnits;
+            _maxWaitTime             = p.MaxWaitTime;
+            _waveSizeScale           = p.WaveSizeScale;
+            _researchReserve         = p.ResearchReserve;
+            _infantryRatio           = p.InfantryRatio;
+            _enemyStartingBonusGold  = p.EnemyStartingBonusGold;
         }
 
         private void CacheProductionBuildings()
@@ -170,19 +234,19 @@ namespace DiplomaGame.Runtime.AI
             {
                 // Multi-production: выбираем entry по соотношению пехоты/танков
                 var entries  = buildingComp.Data.ProductionEntries;
-                int entryIdx = EnemyWaveLogic.PickProductionEntryIndex(infantryCount, tankCount);
+                int entryIdx = EnemyWaveLogic.PickProductionEntryIndex(infantryCount, tankCount, _infantryRatio);
                 // Клипуем индекс в допустимый диапазон
                 entryIdx = Mathf.Clamp(entryIdx, 0, entries.Length - 1);
                 var entry = entries[entryIdx];
 
-                if (EnemyWaveLogic.ShouldProduce(balance, entry.cost, currentUnits, MaxUnits))
+                if (EnemyWaveLogic.ShouldProduce(balance, entry.cost, currentUnits, _maxUnits))
                     building.TryEnqueue(entry);
             }
             else
             {
                 // Legacy
                 int unitCost = buildingComp.Data.ProductionCost;
-                if (EnemyWaveLogic.ShouldProduce(balance, unitCost, currentUnits, MaxUnits))
+                if (EnemyWaveLogic.ShouldProduce(balance, unitCost, currentUnits, _maxUnits))
                     building.TryEnqueue();
             }
         }
@@ -206,7 +270,9 @@ namespace DiplomaGame.Runtime.AI
 
                 // Проверяем что можно исследовать и хватает денег
                 if (!TechRegistry.Instance.CanResearch(Faction.Enemy, tech)) continue;
-                if (!EnemyWaveLogic.ShouldResearch(balance, tech.Cost)) continue;
+
+                // Используем новый метод с резервом из профиля
+                if (!EnemyWaveLogic.ShouldResearchWithReserve(balance, tech.Cost, _researchReserve)) continue;
 
                 // Проверяем, не полна ли очередь
                 if (_enemyBarracks.QueueCount >= 5) break;
@@ -248,9 +314,11 @@ namespace DiplomaGame.Runtime.AI
                     idleCount++;
             }
 
-            int waveSize = EnemyWaveLogic.GetWaveSizeForTime(_matchTime);
+            // Размер волны масштабируется по профилю сложности
+            int baseSize  = EnemyWaveLogic.GetWaveSizeForTime(_matchTime);
+            int waveSize  = Mathf.Max(1, Mathf.RoundToInt(baseSize * _waveSizeScale));
 
-            if (!EnemyWaveLogic.ShouldLaunchWave(idleCount, waveSize, TimeSinceLastWave, 30f))
+            if (!EnemyWaveLogic.ShouldLaunchWave(idleCount, waveSize, TimeSinceLastWave, _maxWaitTime))
                 return;
 
             // Обновляем кэш HQ — может быть уничтожен

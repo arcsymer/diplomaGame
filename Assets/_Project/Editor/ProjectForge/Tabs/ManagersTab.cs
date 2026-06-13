@@ -10,11 +10,13 @@ using DiplomaGame.Runtime.Hero;
 using DiplomaGame.Runtime.Selection;
 using DiplomaGame.Runtime.UI;
 using DiplomaGame.Runtime.Units;
+using TMPro;
 using Unity.Cinemachine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.UI;
 
 namespace DiplomaGame.Editor
 {
@@ -150,6 +152,23 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Tank (v3)", GUILayout.Height(32)))
                 SetupTank();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Setup Difficulty (v13):\n" +
+                "• Создаёт DifficultyEasy/Normal/Hard.asset в Data/Difficulty/\n" +
+                "• Прошивает EnemyCommander._profiles в Sandbox\n" +
+                "• Открывает MainMenu-сцену, строит DifficultyRow (Label + TMP_Dropdown) над кнопкой Играть\n" +
+                "• Прошивает MainMenuController.difficultyDropdown\n" +
+                "• Обновляет LocTable (4 ключа menu.difficulty_*)\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Difficulty (v13)", GUILayout.Height(32)))
+                SetupDifficulty();
         }
 
         // ----------------------------------------------------------------
@@ -1133,6 +1152,239 @@ namespace DiplomaGame.Editor
                     AssetDatabase.CreateFolder(current, parts[i]);
                 current = next;
             }
+        }
+
+        // ----------------------------------------------------------------
+        // v13: уровни сложности
+        // ----------------------------------------------------------------
+
+        private const string DifficultyDataFolder    = "Assets/_Project/Data/Difficulty";
+        private const string MainMenuScenePath       = "Assets/_Project/Scenes/MainMenu.unity";
+
+        /// <summary>
+        /// Создаёт ассеты DifficultyEasy/Normal/Hard; прошивает EnemyCommander._profiles в Sandbox;
+        /// открывает MainMenu-сцену и строит DifficultyRow над кнопкой BtnPlay.
+        /// Идемпотентно.
+        /// </summary>
+        internal static void SetupDifficulty()
+        {
+            // ---- 1. Создаём ассеты сложности ----
+            EnsureFolder(DifficultyDataFolder);
+
+            var easyAsset   = EnsureDifficultyAsset("DifficultyEasy",   "Легко",      4.0f, 0.6f, 50f,  8,  -1, 3, 0);
+            var normalAsset = EnsureDifficultyAsset("DifficultyNormal", "Нормально",  2.0f, 1.0f, 30f, 12,  50, 3, 0);
+            var hardAsset   = EnsureDifficultyAsset("DifficultyHard",   "Сложно",     1.0f, 1.4f, 20f, 16,  25, 2, 100);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Project Forge v13] DifficultyEasy/Normal/Hard.asset созданы/обновлены.");
+
+            // ---- 2. Прошиваем EnemyCommander._profiles в Sandbox ----
+            EditorSceneManager.OpenScene("Assets/_Project/Scenes/Sandbox.unity", OpenSceneMode.Single);
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo != null)
+            {
+                var commander = managersGo.GetComponent<EnemyCommander>();
+                if (commander != null)
+                {
+                    var so = new SerializedObject(commander);
+                    var profilesProp = so.FindProperty("_profiles");
+                    profilesProp.arraySize = 3;
+                    profilesProp.GetArrayElementAtIndex(0).objectReferenceValue = easyAsset;
+                    profilesProp.GetArrayElementAtIndex(1).objectReferenceValue = normalAsset;
+                    profilesProp.GetArrayElementAtIndex(2).objectReferenceValue = hardAsset;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                    Debug.Log("[Project Forge v13] EnemyCommander._profiles прошиты в Sandbox.");
+                }
+                else
+                {
+                    Debug.LogWarning("[Project Forge v13] EnemyCommander не найден на GameManagers в Sandbox. Запустите Setup Scenario (M9) сначала.");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[Project Forge v13] GameManagers не найден в Sandbox.");
+            }
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+
+            // ---- 3. Обновляем LocTable (добавляем ключи difficulty) ----
+            ConfigTab.CreateOrUpdateLocTableV10();
+
+            // ---- 4. MainMenu: строим DifficultyRow и прошиваем MainMenuController ----
+            if (!System.IO.File.Exists(System.IO.Path.GetFullPath(MainMenuScenePath)))
+            {
+                Debug.LogWarning("[Project Forge v13] MainMenu.unity не найдена — сначала запустите SetupM6Menus. DifficultyRow не построен.");
+                EditorSceneManager.OpenScene("Assets/_Project/Scenes/Sandbox.unity", OpenSceneMode.Single);
+                return;
+            }
+
+            EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+
+            var mainMenuCanvas = GameObject.Find("MainMenu");
+            if (mainMenuCanvas == null)
+            {
+                Debug.LogWarning("[Project Forge v13] Canvas 'MainMenu' не найден в MainMenu.unity.");
+                EditorSceneManager.OpenScene("Assets/_Project/Scenes/Sandbox.unity", OpenSceneMode.Single);
+                return;
+            }
+
+            var menuCtrl = mainMenuCanvas.GetComponent<DiplomaGame.Runtime.UI.MainMenuController>();
+
+            // Ищем контейнер кнопок главного меню
+            var buttonsGo = FindDescendantByNameStatic(mainMenuCanvas, "Buttons");
+            if (buttonsGo == null)
+            {
+                Debug.LogWarning("[Project Forge v13] 'Buttons' не найден в MainMenu-Canvas.");
+            }
+            else
+            {
+                // Строим DifficultyRow выше кнопки BtnPlay (sibling index 0)
+                AddDifficultyRowToMainMenu(mainMenuCanvas, buttonsGo, menuCtrl);
+            }
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+
+            // Возвращаемся в Sandbox
+            EditorSceneManager.OpenScene("Assets/_Project/Scenes/Sandbox.unity", OpenSceneMode.Single);
+            Debug.Log("[Project Forge v13] Setup Difficulty (v13) выполнен.");
+        }
+
+        /// <summary>
+        /// Идемпотентно создаёт или обновляет DifficultyProfileSO-ассет.
+        /// </summary>
+        private static DifficultyProfileSO EnsureDifficultyAsset(
+            string assetName,
+            string displayName,
+            float  decisionInterval,
+            float  waveSizeScale,
+            float  maxWaitTime,
+            int    maxUnits,
+            int    researchReserve,
+            int    infantryRatio,
+            int    enemyStartingBonusGold)
+        {
+            string path     = $"{DifficultyDataFolder}/{assetName}.asset";
+            var    existing = AssetDatabase.LoadAssetAtPath<DifficultyProfileSO>(path);
+
+            DifficultyProfileSO data;
+            if (existing != null)
+            {
+                data = existing;
+            }
+            else
+            {
+                data = ScriptableObject.CreateInstance<DifficultyProfileSO>();
+                AssetDatabase.CreateAsset(data, path);
+            }
+
+            var so = new SerializedObject(data);
+            so.FindProperty("_displayName").stringValue             = displayName;
+            so.FindProperty("_decisionInterval").floatValue         = decisionInterval;
+            so.FindProperty("_waveSizeScale").floatValue            = waveSizeScale;
+            so.FindProperty("_maxWaitTime").floatValue              = maxWaitTime;
+            so.FindProperty("_maxUnits").intValue                   = maxUnits;
+            so.FindProperty("_researchReserve").intValue            = researchReserve;
+            so.FindProperty("_infantryRatio").intValue              = infantryRatio;
+            so.FindProperty("_enemyStartingBonusGold").intValue     = enemyStartingBonusGold;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            return data;
+        }
+
+        /// <summary>
+        /// Строит DifficultyRow в MainMenu-сцене: Label «Сложность:» + TMP_Dropdown.
+        /// Помещает строку перед кнопками (sibling 0 или над BtnPlay).
+        /// Прошивает MainMenuController.difficultyDropdown.
+        /// </summary>
+        private static void AddDifficultyRowToMainMenu(
+            GameObject canvasGo,
+            GameObject buttonsGo,
+            DiplomaGame.Runtime.UI.MainMenuController menuCtrl)
+        {
+            // Ищем или создаём DifficultyRow внутри buttonsGo
+            var existingRow = buttonsGo.transform.Find("DifficultyRow");
+            GameObject rowGo;
+            if (existingRow != null)
+            {
+                rowGo = existingRow.gameObject;
+            }
+            else
+            {
+                rowGo = new GameObject("DifficultyRow");
+                rowGo.AddComponent<RectTransform>();
+                rowGo.transform.SetParent(buttonsGo.transform, false);
+                // Помещаем перед BtnPlay (sibling 0)
+                rowGo.transform.SetSiblingIndex(0);
+            }
+
+            // Размер строки
+            var rowRt = rowGo.GetComponent<RectTransform>();
+            rowRt.sizeDelta = new Vector2(0f, 50f);
+
+            // Label
+            var labelGo = EnsureChildObject(rowGo, "DifficultyLabel");
+            var labelTmp = EnsureComponentOn<TMPro.TextMeshProUGUI>(labelGo);
+            labelTmp.text      = "Сложность:";
+            labelTmp.fontSize  = 22f;
+            labelTmp.color     = Color.white;
+            {
+                var lrt = labelGo.GetComponent<RectTransform>();
+                lrt.anchorMin        = new Vector2(0f, 0f);
+                lrt.anchorMax        = new Vector2(0.4f, 1f);
+                lrt.offsetMin        = Vector2.zero;
+                lrt.offsetMax        = Vector2.zero;
+            }
+
+            // TMP_Dropdown
+            var dropdownGo = EnsureChildObject(rowGo, "DifficultyDropdown");
+            var dropdown   = EnsureComponentOn<TMPro.TMP_Dropdown>(dropdownGo);
+            {
+                var drt = dropdownGo.GetComponent<RectTransform>();
+                drt.anchorMin        = new Vector2(0.42f, 0.1f);
+                drt.anchorMax        = new Vector2(1f,    0.9f);
+                drt.offsetMin        = Vector2.zero;
+                drt.offsetMax        = Vector2.zero;
+            }
+
+            // Прошиваем ссылку в MainMenuController
+            if (menuCtrl != null)
+            {
+                var so = new SerializedObject(menuCtrl);
+                so.FindProperty("difficultyDropdown").objectReferenceValue = dropdown;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static GameObject EnsureChildObject(GameObject parent, string childName)
+        {
+            var existing = parent.transform.Find(childName);
+            if (existing != null) return existing.gameObject;
+
+            var go = new GameObject(childName);
+            go.transform.SetParent(parent.transform, false);
+            go.AddComponent<RectTransform>();
+            return go;
+        }
+
+        private static T EnsureComponentOn<T>(GameObject go) where T : Component
+        {
+            var c = go.GetComponent<T>();
+            return c != null ? c : go.AddComponent<T>();
+        }
+
+        private static GameObject FindDescendantByNameStatic(GameObject root, string name)
+        {
+            if (root == null) return null;
+            if (root.name == name) return root;
+            foreach (Transform child in root.transform)
+            {
+                var found = FindDescendantByNameStatic(child.gameObject, name);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         // ----------------------------------------------------------------

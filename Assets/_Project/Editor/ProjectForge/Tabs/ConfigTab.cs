@@ -972,10 +972,14 @@ namespace DiplomaGame.Editor
                 ("settings.btn_back",       "Назад",              "Back"),
 
                 // Главное меню
-                ("menu.btn_play",     "Играть",         "Play"),
-                ("menu.btn_settings", "Настройки",      "Settings"),
-                ("menu.btn_quit",     "Выйти",          "Quit"),
-                ("menu.title",        "Диплом: RTS+TPS", "Diploma: RTS+TPS"),
+                ("menu.btn_play",           "Играть",         "Play"),
+                ("menu.btn_settings",       "Настройки",      "Settings"),
+                ("menu.btn_quit",           "Выйти",          "Quit"),
+                ("menu.title",              "Диплом: RTS+TPS", "Diploma: RTS+TPS"),
+                ("menu.difficulty_label",   "Сложность:",     "Difficulty:"),
+                ("menu.difficulty_easy",    "Легко",          "Easy"),
+                ("menu.difficulty_normal",  "Нормально",      "Normal"),
+                ("menu.difficulty_hard",    "Сложно",         "Hard"),
 
                 // GameOver
                 ("gameover.victory",        "Победа!",          "Victory!"),
