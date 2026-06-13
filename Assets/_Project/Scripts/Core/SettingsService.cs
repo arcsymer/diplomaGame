@@ -114,6 +114,26 @@ namespace DiplomaGame.Runtime.Core
         }
 
         // ----------------------------------------------------------------
+        // Difficulty
+        // ----------------------------------------------------------------
+
+        private const string KeyDifficulty = "Settings.Difficulty";
+
+        /// <summary>Загружает индекс сложности (0=Easy, 1=Normal, 2=Hard). Дефолт 1 (Normal).</summary>
+        public static int LoadDifficulty()
+        {
+            return PlayerPrefs.GetInt(KeyDifficulty, 1);
+        }
+
+        /// <summary>Сохраняет индекс сложности (clamp 0..2).</summary>
+        public static void SaveDifficulty(int index)
+        {
+            int clamped = Mathf.Clamp(index, 0, 2);
+            PlayerPrefs.SetInt(KeyDifficulty, clamped);
+            PlayerPrefs.Save();
+        }
+
+        // ----------------------------------------------------------------
         // ApplyAll
         // ----------------------------------------------------------------
 

@@ -341,5 +341,19 @@ namespace DiplomaGame.Editor
             GameFeelTab.SetupAll();
         }
 
+        /// <summary>
+        /// v13 Difficulty Levels: создаёт DifficultyEasy/Normal/Hard.asset →
+        /// прошивает EnemyCommander._profiles в Sandbox →
+        /// открывает MainMenu-сцену, строит DifficultyRow над кнопкой Играть →
+        /// прошивает MainMenuController.difficultyDropdown →
+        /// обновляет LocTable (4 ключа menu.difficulty_*) →
+        /// возвращается в Sandbox.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupDifficulty
+        /// </summary>
+        public static void SetupDifficulty()
+        {
+            ManagersTab.SetupDifficulty();
+        }
+
     }
 }

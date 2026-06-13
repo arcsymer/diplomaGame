@@ -17,6 +17,18 @@ namespace DiplomaGame.Runtime.AI
         }
 
         /// <summary>
+        /// Версия ShouldResearch с настраиваемым резервом из DifficultyProfileSO.
+        /// reserve &lt; 0 → никогда не исследовать (возвращает false).
+        /// reserve == 0 → исследовать, если хватает ровно на стоимость.
+        /// </summary>
+        public static bool ShouldResearchWithReserve(int balance, int techCost, int reserve)
+        {
+            if (reserve < 0)   return false;
+            if (techCost <= 0) return false;
+            return balance >= techCost + reserve;
+        }
+
+        /// <summary>
         /// Возвращает true, если ИИ должен произвести очередного юнита.
         /// Условие: баланс покрывает стоимость И текущее количество юнитов меньше лимита.
         /// </summary>
