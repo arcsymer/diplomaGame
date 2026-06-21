@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace DiplomaGame.Runtime.AI
 {
     /// <summary>
@@ -70,6 +72,73 @@ namespace DiplomaGame.Runtime.AI
             if (matchTime < 180f) return 3;   // 0–3 мин
             if (matchTime < 420f) return 5;   // 3–7 мин
             return 7;                          // 7+ мин
+        }
+
+        // ----------------------------------------------------------------
+        // Circle-14: фланговые волны + экстренная волна
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Возвращает целевую точку атакующей волны.
+        /// Если flankWaypoints null/пуст ИЛИ хэш(seed) даёт процент >= flankProbability*100
+        /// — возвращает hqPos (прямая атака).
+        /// Иначе — один из flankWaypoints, выбранный детерминированно по хэшу seed.
+        /// Использует MurmurHash3 finalizer (тот же алгоритм, что в CombatLogic).
+        /// Без аллокаций, без UnityEngine.Random — детерминировано.
+        /// </summary>
+        /// <param name="hqPos">Позиция HQ игрока.</param>
+        /// <param name="flankWaypoints">Точки флангового обхода. null или пустой → всегда HQ.</param>
+        /// <param name="flankProbability">0..1 шанс флангового маршрута.</param>
+        /// <param name="seed">Детерминированный сид (например, номер волны * 1000 + matchTime*10).</param>
+        public static Vector3 GetWaveTarget(
+            Vector3   hqPos,
+            Vector3[] flankWaypoints,
+            float     flankProbability,
+            int       seed)
+        {
+            // Нет точек фланга — всегда HQ
+            if (flankWaypoints == null || flankWaypoints.Length == 0)
+                return hqPos;
+
+            // Probability == 0 → всегда HQ
+            if (flankProbability <= 0f)
+                return hqPos;
+
+            // MurmurHash3 finalizer — тот же avalanche, что в CombatLogic
+            uint h = (uint)seed;
+            h ^= h >> 16;
+            h *= 0x85ebca6bu;
+            h ^= h >> 13;
+            h *= 0xc2b2ae35u;
+            h ^= h >> 16;
+
+            // Нормализуем в [0, 100) для сравнения с вероятностью
+            int percentRoll = (int)(h % 100u);
+            int threshold   = Mathf.RoundToInt(flankProbability * 100f);
+
+            if (percentRoll >= threshold)
+                return hqPos; // хэш не попал во фланк-окно
+
+            // Выбираем точку фланга детерминировано по хэшу
+            // Используем второй проход хэша для выбора индекса
+            h ^= h >> 16;
+            h *= 0x85ebca6bu;
+            h ^= h >> 13;
+            int idx = (int)(h % (uint)flankWaypoints.Length);
+            return flankWaypoints[idx];
+        }
+
+        /// <summary>
+        /// Одноразовый триггер экстренной волны.
+        /// Возвращает true только тогда, когда timer истёк (≤ 0f), но ещё не помечен
+        /// sentinel-значением (-1f). Sentinel-окно: (-1f, 0f].
+        /// После срабатывания вызывающий обязан установить timer = -1f.
+        /// </summary>
+        /// <param name="timer">Значение таймера. Sentinel = -1f.</param>
+        public static bool ShouldEmergencyWave(float timer)
+        {
+            // Истёк (≤ 0) И не в sentinel-состоянии (> -1f)
+            return timer <= 0f && timer > -1f;
         }
 
         /// <summary>

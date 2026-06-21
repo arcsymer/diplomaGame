@@ -159,5 +159,65 @@ namespace DiplomaGame.Tests.Editor
             Assert.AreEqual(50, asset.ResearchReserve,
                 "Normal: ResearchReserve должен быть 50 (совпадает с историческим хардкодом ShouldResearch +50).");
         }
+
+        // ================================================================
+        // Circle-14: FlankProbability и EmergencyWaveDelay через CreateForTest
+        // ================================================================
+
+        [Test]
+        public void Easy_FlankProbability_IsZero()
+        {
+            // Easy-профиль не фланкует (новички не должны страдать от неожиданных атак)
+            var profile = DifficultyProfileSO.CreateForTest(
+                displayName:            "Легко",
+                decisionInterval:       4.0f,
+                waveSizeScale:          0.6f,
+                maxWaitTime:            50f,
+                maxUnits:               8,
+                researchReserve:        -1,
+                infantryRatio:          3,
+                enemyStartingBonusGold: 0,
+                emergencyWaveDelay:     20f,
+                productionPauseDuration: 5f,
+                flankProbability:       0f);
+
+            Assert.AreEqual(0f, profile.FlankProbability, 0.001f,
+                "Easy-профиль должен иметь FlankProbability = 0.");
+        }
+
+        [Test]
+        public void Hard_EmergencyWaveDelay_LessThan_Normal_EmergencyWaveDelay()
+        {
+            // Hard реагирует быстрее — задержка экстренной волны меньше
+            var normalProfile = DifficultyProfileSO.CreateForTest(
+                displayName:            "Нормально",
+                decisionInterval:       2.0f,
+                waveSizeScale:          1.0f,
+                maxWaitTime:            30f,
+                maxUnits:               12,
+                researchReserve:        50,
+                infantryRatio:          3,
+                enemyStartingBonusGold: 0,
+                emergencyWaveDelay:     15f,
+                productionPauseDuration: 10f,
+                flankProbability:       0.25f);
+
+            var hardProfile = DifficultyProfileSO.CreateForTest(
+                displayName:            "Сложно",
+                decisionInterval:       1.0f,
+                waveSizeScale:          1.4f,
+                maxWaitTime:            20f,
+                maxUnits:               16,
+                researchReserve:        25,
+                infantryRatio:          2,
+                enemyStartingBonusGold: 100,
+                emergencyWaveDelay:     8f,
+                productionPauseDuration: 0f,
+                flankProbability:       0.4f);
+
+            Assert.Less(hardProfile.EmergencyWaveDelay, normalProfile.EmergencyWaveDelay,
+                "Hard.EmergencyWaveDelay должен быть меньше Normal.EmergencyWaveDelay " +
+                "(Hard реагирует быстрее).");
+        }
     }
 }
