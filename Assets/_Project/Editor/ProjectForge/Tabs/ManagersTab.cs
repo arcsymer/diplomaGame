@@ -169,6 +169,20 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Difficulty (v13)", GUILayout.Height(32)))
                 SetupDifficulty();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Setup Flanking AI (circle-14):\n" +
+                "• Обновляет DifficultyEasy/Normal/Hard.asset: EmergencyWaveDelay, ProductionPauseDuration, FlankProbability\n" +
+                "• Прошивает EnemyCommander._flankWaypoints в Sandbox (2 точки ~±38,0,0 на NavMesh)\n" +
+                "Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Flanking AI (circle-14)", GUILayout.Height(32)))
+                SetupFlankingAI();
         }
 
         // ----------------------------------------------------------------
@@ -1462,6 +1476,111 @@ namespace DiplomaGame.Editor
                 so.FindProperty("_unitPrefab").objectReferenceValue = unitPrefab;
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
+        }
+
+        // ----------------------------------------------------------------
+        // circle-14: Setup Flanking AI
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно обновляет три DifficultyProfileSO-ассета (Easy/Normal/Hard) новыми
+        /// полями тактики ИИ (circle-14) и прошивает _flankWaypoints на EnemyCommander.
+        /// Requires: SetupDifficulty (v13) уже выполнен (ассеты существуют).
+        /// </summary>
+        internal static void SetupFlankingAI()
+        {
+            // ---- 1. Обновляем профили сложности ----
+            UpdateFlankingProfile("DifficultyEasy",   emergencyWaveDelay: 20f, productionPauseDuration: 5f,  flankProbability: 0f);
+            UpdateFlankingProfile("DifficultyNormal", emergencyWaveDelay: 15f, productionPauseDuration: 10f, flankProbability: 0.25f);
+            UpdateFlankingProfile("DifficultyHard",   emergencyWaveDelay:  8f, productionPauseDuration:  0f, flankProbability: 0.4f);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Project Forge c14] DifficultyProfileSO-ассеты обновлены (flanking fields).");
+
+            // ---- 2. Прошиваем _flankWaypoints на EnemyCommander в Sandbox ----
+            var scene      = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo == null)
+            {
+                Debug.LogWarning("[Project Forge c14] GameManagers не найден в сцене. Сначала запустите Setup Scenario (M9).");
+                return;
+            }
+
+            var commander = managersGo.GetComponent<DiplomaGame.Runtime.AI.EnemyCommander>();
+            if (commander == null)
+            {
+                Debug.LogWarning("[Project Forge c14] EnemyCommander не найден на GameManagers.");
+                return;
+            }
+
+            // Два фланговых вейпоинта — обходят центральный чокпоинт (ADR-028/030: ~x=±8)
+            // Располагаем на краях карты на y=0, снапим к NavMesh
+            var rawWaypoints = new[]
+            {
+                new Vector3(-38f, 0f, 0f),
+                new Vector3( 38f, 0f, 0f),
+            };
+
+            var snappedWaypoints = new Vector3[rawWaypoints.Length];
+            for (int i = 0; i < rawWaypoints.Length; i++)
+            {
+                Vector3 snapped = rawWaypoints[i];
+                if (NavMesh.SamplePosition(rawWaypoints[i], out var hit, 5f, NavMesh.AllAreas))
+                    snapped = hit.position;
+                else
+                    Debug.LogWarning($"[Project Forge c14] NavMesh.SamplePosition не нашёл точку для {rawWaypoints[i]}. " +
+                                     "Используем сырые координаты. Перезапеките NavMesh и повторите.");
+                snappedWaypoints[i] = snapped;
+            }
+
+            // Прошиваем через SerializedObject (convention: приватные поля только так)
+            var cmdSo        = new SerializedObject(commander);
+            var waypointsProp = cmdSo.FindProperty("_flankWaypoints");
+            if (waypointsProp == null)
+            {
+                Debug.LogError("[Project Forge c14] Свойство _flankWaypoints не найдено на EnemyCommander. " +
+                               "Проверьте, что поле добавлено с [SerializeField].");
+                return;
+            }
+
+            waypointsProp.arraySize = snappedWaypoints.Length;
+            for (int i = 0; i < snappedWaypoints.Length; i++)
+                waypointsProp.GetArrayElementAtIndex(i).vector3Value = snappedWaypoints[i];
+
+            cmdSo.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log($"[Project Forge c14] _flankWaypoints прошиты: {snappedWaypoints[0]}, {snappedWaypoints[1]}.");
+        }
+
+        /// <summary>
+        /// Обновляет поля тактики ИИ (circle-14) в конкретном DifficultyProfileSO-ассете.
+        /// Идемпотентно. Если ассет не найден — предупреждение.
+        /// </summary>
+        private static void UpdateFlankingProfile(
+            string assetName,
+            float  emergencyWaveDelay,
+            float  productionPauseDuration,
+            float  flankProbability)
+        {
+            string path  = $"{DifficultyDataFolder}/{assetName}.asset";
+            var    asset = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.AI.DifficultyProfileSO>(path);
+
+            if (asset == null)
+            {
+                Debug.LogWarning($"[Project Forge c14] {assetName}.asset не найден в {DifficultyDataFolder}. " +
+                                 "Сначала запустите Setup Difficulty (v13).");
+                return;
+            }
+
+            var so = new SerializedObject(asset);
+            so.FindProperty("_emergencyWaveDelay").floatValue       = emergencyWaveDelay;
+            so.FindProperty("_productionPauseDuration").floatValue  = productionPauseDuration;
+            so.FindProperty("_flankProbability").floatValue         = flankProbability;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
     }

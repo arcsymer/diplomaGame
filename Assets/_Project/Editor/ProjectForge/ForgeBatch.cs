@@ -355,5 +355,19 @@ namespace DiplomaGame.Editor
             ManagersTab.SetupDifficulty();
         }
 
+        /// <summary>
+        /// Circle-14 Flanking AI: обновляет три DifficultyProfileSO-ассета новыми полями
+        /// тактики (EmergencyWaveDelay, ProductionPauseDuration, FlankProbability) →
+        /// прошивает _flankWaypoints на EnemyCommander в Sandbox (две фланковые точки
+        /// ~(±38, 0, 0), снапнутые к NavMesh) → сохраняет сцену и ассеты.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupFlankingAI
+        /// </summary>
+        public static void SetupFlankingAI()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            ManagersTab.SetupFlankingAI();
+        }
+
     }
 }

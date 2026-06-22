@@ -20,3 +20,6 @@ MonoBehaviour:
   _researchReserve: 25
   _infantryRatio: 2
   _enemyStartingBonusGold: 100
+  _emergencyWaveDelay: 8
+  _productionPauseDuration: 0
+  _flankProbability: 0.4

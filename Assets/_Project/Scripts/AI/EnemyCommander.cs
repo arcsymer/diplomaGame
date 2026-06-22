@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DiplomaGame.Runtime.Buildings;
+using DiplomaGame.Runtime.Combat;
 using DiplomaGame.Runtime.Core;
 using DiplomaGame.Runtime.Data;
 using DiplomaGame.Runtime.Economy;
@@ -41,6 +42,13 @@ namespace DiplomaGame.Runtime.AI
         /// <summary>Три профиля сложности: [0]=Easy, [1]=Normal, [2]=Hard.</summary>
         [SerializeField] private DifficultyProfileSO[] _profiles;
 
+        // Circle-14: тактика — фланговые волны и экстренная волна
+        /// <summary>
+        /// Точки флангового обхода. Устанавливаются через SetupFlankingAI в ForgeBatch.
+        /// null или пустой массив → волны всегда идут прямо на HQ.
+        /// </summary>
+        [SerializeField] private Vector3[] _flankWaypoints;
+
         // Лимит юнитов противника (может быть переопределён через профиль)
         private int _maxUnits = 12;
 
@@ -59,6 +67,17 @@ namespace DiplomaGame.Runtime.AI
 
         // Стартовый бонус золота (из профиля)
         private int _enemyStartingBonusGold;
+
+        // Circle-14: кэш параметров тактики из активного профиля
+        private float _flankProbability       = 0f;
+        private float _emergencyWaveDelay     = 15f;
+        private float _productionPauseDuration = 10f;
+
+        // Circle-14: таймеры экстренной волны и паузы производства
+        // _emergencyWaveTimer = -1f (sentinel) → неактивен
+        // _emergencyWaveTimer > 0 → отсчитывает до нуля, затем ShouldEmergencyWave вернёт true
+        private float _emergencyWaveTimer  = -1f;
+        private float _productionPauseTimer = 0f;
 
         // ----------------------------------------------------------------
         // Публичные свойства (для тестов / HUD)
@@ -92,6 +111,16 @@ namespace DiplomaGame.Runtime.AI
         // ----------------------------------------------------------------
         // Unity lifecycle
         // ----------------------------------------------------------------
+
+        private void OnEnable()
+        {
+            Health.AnyDied += OnAnyDied;
+        }
+
+        private void OnDisable()
+        {
+            Health.AnyDied -= OnAnyDied;
+        }
 
         private void Start()
         {
@@ -140,6 +169,10 @@ namespace DiplomaGame.Runtime.AI
             _researchReserve         = p.ResearchReserve;
             _infantryRatio           = p.InfantryRatio;
             _enemyStartingBonusGold  = p.EnemyStartingBonusGold;
+            // Circle-14: кэшируем тактические параметры
+            _emergencyWaveDelay      = p.EmergencyWaveDelay;
+            _productionPauseDuration = p.ProductionPauseDuration;
+            _flankProbability        = p.FlankProbability;
         }
 
         private void CacheProductionBuildings()
@@ -154,10 +187,35 @@ namespace DiplomaGame.Runtime.AI
             TimeSinceLastWave  += Time.deltaTime;
             _decisionTimer     += Time.deltaTime;
 
+            // Circle-14: тикаем таймеры экстренного реагирования
+            TickEmergencyTimers(Time.deltaTime);
+
             if (_decisionTimer < _decisionInterval) return;
             _decisionTimer = 0f;
 
             MakeDecisions();
+        }
+
+        // Circle-14: обновление таймеров и отправка экстренной волны
+        private void TickEmergencyTimers(float dt)
+        {
+            // Тикаем паузу производства (сам факт паузы проверяется в DecideProduction)
+            if (_productionPauseTimer > 0f)
+                _productionPauseTimer -= dt;
+
+            // Тикаем таймер экстренной волны (sentinel = -1f → неактивен)
+            if (_emergencyWaveTimer > -1f)
+            {
+                if (_emergencyWaveTimer > 0f)
+                    _emergencyWaveTimer -= dt;
+
+                // Проверяем одноразовый триггер: timer <= 0 && timer > -1
+                if (EnemyWaveLogic.ShouldEmergencyWave(_emergencyWaveTimer))
+                {
+                    _emergencyWaveTimer = -1f; // ставим sentinel сразу
+                    LaunchEmergencyWave();
+                }
+            }
         }
 
         // ----------------------------------------------------------------
@@ -170,16 +228,87 @@ namespace DiplomaGame.Runtime.AI
         internal void InitForTest(
             ResourceBank       bank,
             ProductionBuilding barracks,
-            float              decisionInterval = 0.5f,
-            ProductionBuilding warFactory       = null)
+            float              decisionInterval   = 0.5f,
+            ProductionBuilding warFactory         = null,
+            float              emergencyWaveDelay = 15f,
+            float              productionPauseDuration = 10f,
+            float              flankProbability   = 0f,
+            Vector3[]          flankWaypoints     = null)
         {
-            _bank              = bank;
-            _enemyBarracks     = barracks;
-            _enemyWarFactory   = warFactory;
-            _decisionInterval  = decisionInterval;
+            _bank                    = bank;
+            _enemyBarracks           = barracks;
+            _enemyWarFactory         = warFactory;
+            _decisionInterval        = decisionInterval;
+            _emergencyWaveDelay      = emergencyWaveDelay;
+            _productionPauseDuration = productionPauseDuration;
+            _flankProbability        = flankProbability;
+            _flankWaypoints          = flankWaypoints;
 
             // Кэшируем Building-компоненты сразу — Start() в тестах может вызваться позже
             CacheProductionBuildings();
+        }
+
+        // ----------------------------------------------------------------
+        // Circle-14: обработка событий гибели
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Вызывается при гибели любого Health в сцене.
+        /// Если погибло ВРАЖЕСКОЕ производственное здание — запускаем таймеры
+        /// экстренного реагирования.
+        /// </summary>
+        private void OnAnyDied(Health health)
+        {
+            if (health == null) return;
+
+            // Определяем фракцию через Building-компонент
+            var building = health.GetComponent<Building>();
+            if (building == null) return;
+            if (building.Faction != Faction.Enemy) return;
+
+            // Только производственные здания (Barracks / WarFactory)
+            var data = building.Data;
+            if (data == null) return;
+            if (data.BuildingType != BuildingType.Barracks &&
+                data.BuildingType != BuildingType.WarFactory)
+                return;
+
+            // Запускаем таймеры (перезаписываем — последнее событие важнее)
+            _emergencyWaveTimer  = _emergencyWaveDelay;
+            _productionPauseTimer = _productionPauseDuration;
+        }
+
+        /// <summary>
+        /// Отправляет всех боеспособных юнитов на цель (HQ или фланк),
+        /// не сбрасывая основной таймер волны.
+        /// </summary>
+        private void LaunchEmergencyWave()
+        {
+            if (_playerHQ == null || !_playerHQ.gameObject.activeInHierarchy)
+                CachePlayerHQ();
+
+            if (_playerHQ == null) return;
+
+            Vector3 rawHQPos  = _playerHQ.transform.position;
+            Vector3 targetPos = rawHQPos;
+            if (NavMesh.SamplePosition(rawHQPos, out var navHit, 10f, NavMesh.AllAreas))
+                targetPos = navHit.position;
+
+            // Выбираем цель с учётом фланкования
+            int     waveNumber = Mathf.RoundToInt(TimeSinceLastWave * 10f) + 9999; // уникальный сид
+            Vector3 finalTarget = EnemyWaveLogic.GetWaveTarget(
+                targetPos, _flankWaypoints, _flankProbability, waveNumber);
+
+            UnitRegistry.GetUnits(Faction.Enemy, _enemyUnitBuffer);
+            for (int i = 0; i < _enemyUnitBuffer.Count; i++)
+            {
+                var u = _enemyUnitBuffer[i];
+                if (u == null) continue;
+                if (IsDraftable(u))
+                    u.IssueCommand(UnitCommand.AttackMove(finalTarget));
+            }
+
+            WaveLaunched?.Invoke();
         }
 
         // ----------------------------------------------------------------
@@ -195,6 +324,9 @@ namespace DiplomaGame.Runtime.AI
 
         private void DecideProduction()
         {
+            // Circle-14: во время паузы после потери здания — не производить
+            if (_productionPauseTimer > 0f) return;
+
             // Считаем живых юнитов противника один раз для обоих зданий
             UnitRegistry.GetUnits(Faction.Enemy, _enemyUnitBuffer);
             int currentUnits = _enemyUnitBuffer.Count;
@@ -332,11 +464,16 @@ namespace DiplomaGame.Runtime.AI
             // поэтому его центр вырезан из NavMesh и NavMeshAgent не может туда добраться напрямую.
             // SamplePosition с радиусом 10м с запасом находит точку у периметра здания.
             Vector3 rawHQPos  = _playerHQ.transform.position;
-            Vector3 targetPos = rawHQPos;
+            Vector3 navHQPos  = rawHQPos;
             if (NavMesh.SamplePosition(rawHQPos, out var navHit, 10f, NavMesh.AllAreas))
             {
-                targetPos = navHit.position;
+                navHQPos = navHit.position;
             }
+
+            // Circle-14: выбираем цель — HQ или фланк — детерминированно по seed (номер волны)
+            int     waveIndex = Mathf.RoundToInt(_matchTime * 10f);
+            Vector3 targetPos = EnemyWaveLogic.GetWaveTarget(
+                navHQPos, _flankWaypoints, _flankProbability, waveIndex);
 
             // Отправляем всех призываемых (вне боя) юнитов в атаку
             for (int i = 0; i < _enemyUnitBuffer.Count; i++)

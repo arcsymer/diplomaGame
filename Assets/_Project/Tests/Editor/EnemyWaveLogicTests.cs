@@ -1,5 +1,6 @@
 using DiplomaGame.Runtime.AI;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace DiplomaGame.Tests.Editor
 {
@@ -188,6 +189,115 @@ namespace DiplomaGame.Tests.Editor
             Assert.IsFalse(
                 EnemyWaveLogic.ShouldResearch(balance: 180, techCost: 150),
                 "При балансе < techCost + 50 исследование запрещено (резерв 50 не покрывается).");
+        }
+
+        // ================================================================
+        // Circle-14: GetWaveTarget
+        // ================================================================
+
+        [Test]
+        public void GetWaveTarget_NoFlankWaypoints_ReturnsHQ()
+        {
+            // null waypoints → всегда HQ
+            var hq = new Vector3(10f, 0f, 5f);
+            var result = EnemyWaveLogic.GetWaveTarget(hq, null, 0.5f, seed: 42);
+            Assert.AreEqual(hq, result,
+                "При null флан-вейпоинтах цель должна быть HQ.");
+        }
+
+        [Test]
+        public void GetWaveTarget_EmptyFlankWaypoints_ReturnsHQ()
+        {
+            var hq = new Vector3(10f, 0f, 5f);
+            var result = EnemyWaveLogic.GetWaveTarget(hq, new Vector3[0], 1f, seed: 1);
+            Assert.AreEqual(hq, result,
+                "При пустом массиве фланков цель должна быть HQ.");
+        }
+
+        [Test]
+        public void GetWaveTarget_ProbabilityZero_AlwaysReturnsHQ()
+        {
+            var hq     = new Vector3(0f, 0f, 0f);
+            var flanks = new[] { new Vector3(-38f, 0f, 0f), new Vector3(38f, 0f, 0f) };
+
+            // Probability = 0 → всегда HQ независимо от seed
+            for (int seed = 0; seed < 20; seed++)
+            {
+                var result = EnemyWaveLogic.GetWaveTarget(hq, flanks, flankProbability: 0f, seed);
+                Assert.AreEqual(hq, result,
+                    $"FlankProbability=0 должна давать HQ для seed={seed}.");
+            }
+        }
+
+        [Test]
+        public void GetWaveTarget_ProbabilityOne_AlwaysReturnsFlank()
+        {
+            var hq     = new Vector3(0f, 0f, 0f);
+            var flanks = new[] { new Vector3(-38f, 0f, 0f), new Vector3(38f, 0f, 0f) };
+
+            // Probability = 1 → всегда один из фланков, никогда не HQ
+            for (int seed = 0; seed < 20; seed++)
+            {
+                var result = EnemyWaveLogic.GetWaveTarget(hq, flanks, flankProbability: 1f, seed);
+                Assert.AreNotEqual(hq, result,
+                    $"FlankProbability=1 должна давать фланк для seed={seed}.");
+
+                bool isKnownFlank = result == flanks[0] || result == flanks[1];
+                Assert.IsTrue(isKnownFlank,
+                    $"Результат должен быть одной из известных фланковых точек для seed={seed}.");
+            }
+        }
+
+        [Test]
+        public void GetWaveTarget_SameSeed_ReturnsSameTarget()
+        {
+            var hq     = new Vector3(0f, 0f, 0f);
+            var flanks = new[] { new Vector3(-38f, 0f, 0f), new Vector3(38f, 0f, 0f) };
+
+            // Детерминированность: одинаковый seed → одинаковый результат
+            var first  = EnemyWaveLogic.GetWaveTarget(hq, flanks, 0.5f, seed: 777);
+            var second = EnemyWaveLogic.GetWaveTarget(hq, flanks, 0.5f, seed: 777);
+            Assert.AreEqual(first, second,
+                "GetWaveTarget должен быть детерминированным при одинаковом seed.");
+        }
+
+        // ================================================================
+        // Circle-14: ShouldEmergencyWave
+        // ================================================================
+
+        [Test]
+        public void ShouldEmergencyWave_ActiveTimer_ReturnsFalse()
+        {
+            // Таймер ещё не истёк
+            Assert.IsFalse(
+                EnemyWaveLogic.ShouldEmergencyWave(5f),
+                "Активный таймер (>0) не должен триггерить экстренную волну.");
+        }
+
+        [Test]
+        public void ShouldEmergencyWave_JustExpired_ReturnsTrue()
+        {
+            // Таймер истёк (≤ 0) но ещё не sentinel
+            Assert.IsTrue(
+                EnemyWaveLogic.ShouldEmergencyWave(0f),
+                "Истёкший таймер (=0) должен триггерить экстренную волну.");
+
+            Assert.IsTrue(
+                EnemyWaveLogic.ShouldEmergencyWave(-0.001f),
+                "Таймер чуть меньше 0 (но > -1) должен триггерить экстренную волну.");
+        }
+
+        [Test]
+        public void ShouldEmergencyWave_Sentinel_ReturnsFalse()
+        {
+            // Sentinel = -1f → уже обработан
+            Assert.IsFalse(
+                EnemyWaveLogic.ShouldEmergencyWave(-1f),
+                "Sentinel (-1f) не должен триггерить экстренную волну повторно.");
+
+            Assert.IsFalse(
+                EnemyWaveLogic.ShouldEmergencyWave(-999f),
+                "Любое значение <= -1f не должно триггерить экстренную волну.");
         }
     }
 }
