@@ -192,6 +192,24 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Idle Army Indicator (C17)", GUILayout.Height(32)))
                 SetupIdleArmyIndicator();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Unit Health Bars (C18):\n" +
+                "• Создаёт HealthBarsCanvas (Screen Space Overlay, order=20) в сцене\n" +
+                "• Добавляет UnitHealthBarSystem на GameManagers\n" +
+                "• Прошивает _modeController, _selectionSystem, _barCanvas\n" +
+                "• Пул 48 виджетов строится ПРОГРАММНО (фон + fill + border) — prefab не нужен\n" +
+                "• Бары видны только выделенным или повреждённым юнитам; в TPS скрываются\n" +
+                "Требует: BuildGameHUD (M6a) уже выполнен. Операция идемпотентна.\n" +
+                "Ручное назначение префаба в Inspector НЕ требуется.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Unit Health Bars (C18)", GUILayout.Height(32)))
+                SetupUnitHealthBars();
         }
 
         // ----------------------------------------------------------------
@@ -3380,6 +3398,89 @@ namespace DiplomaGame.Editor
                       "\n  • IdleArmyIndicator → IdleArmyBadge" +
                       "\n  • _selectionSystem → " + (selSystem != null ? selSystem.gameObject.name : "null (назначьте вручную)") +
                       "\n  • Бейдж скрыт по умолчанию (activeSelf=false)");
+        }
+
+        // ----------------------------------------------------------------
+        // C18: Unit Health Bars
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно настраивает пул HP-баров над юнитами (Circle-18).
+        ///
+        /// Что создаётся:
+        ///   • Canvas "HealthBarsCanvas" (Screen Space Overlay, sortingOrder=20)
+        ///     — отдельный Canvas, чтобы не смешиваться с HUD-слоями.
+        ///   • UnitHealthBarSystem на GameManagers
+        ///     — прошивается _modeController, _selectionSystem, _barCanvas.
+        ///
+        /// Виджеты (UnitHealthBarWidget) создаются кодом в рантайме через пул;
+        /// их префаб не нужен — система поднимает заглушки через CreateWidget().
+        /// </summary>
+        internal static void SetupUnitHealthBars()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            // ---- 1. Canvas "HealthBarsCanvas" ----
+            var canvasGo = EnsureGameObject("HealthBarsCanvas");
+            {
+                var canvas = EnsureComponent<Canvas>(canvasGo);
+                canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = 20;   // поверх HUD (10), под Tooltip (100) и меню (50+)
+
+                var scaler = EnsureComponent<CanvasScaler>(canvasGo);
+                scaler.uiScaleMode            = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution    = new Vector2(1920f, 1080f);
+                scaler.screenMatchMode        = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+                scaler.matchWidthOrHeight     = 0.5f;
+
+                // GraphicRaycaster не нужен (бары не интерактивны), но добавим для
+                // совместимости на случай если понадобятся клики по барам в будущем.
+                // Оставим без него — экономим raycast-проходы.
+            }
+
+            // ---- 2. UnitHealthBarSystem на GameManagers ----
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo == null)
+            {
+                Debug.LogError("[Forge C18] GameManagers не найден — UnitHealthBarSystem не добавлен.");
+                return;
+            }
+
+            var system = EnsureComponent<UnitHealthBarSystem>(managersGo);
+
+            // ---- 3. Прошиваем ссылки через SerializedObject ----
+            var modeController  = managersGo.GetComponent<DiplomaGame.Runtime.Core.GameModeController>();
+            var selectionSystem = managersGo.GetComponent<DiplomaGame.Runtime.Selection.SelectionSystem>();
+            var barCanvas       = canvasGo.GetComponent<Canvas>();
+
+            var so = new SerializedObject(system);
+            so.FindProperty("_modeController").objectReferenceValue   = modeController;
+            so.FindProperty("_selectionSystem").objectReferenceValue  = selectionSystem;
+            so.FindProperty("_barCanvas").objectReferenceValue        = barCanvas;
+            // _barWidgetPrefab = null → система строит виджеты ПРОГРАММНО (фон + fill + border).
+            // Ручное назначение prefab в Inspector не требуется — бары будут видны сразу.
+            // _initialPoolSize, _worldHeadOffset, _cullMargin, _pollInterval — дефолты из кода
+            // _playerBorderColor, _enemyBorderColor — дефолты (синий/красный) из кода
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            // ---- 4. Сохранение ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Forge C18] Unit Health Bars настроены успешно." +
+                      "\n  • HealthBarsCanvas → сцена (sortingOrder=20)" +
+                      "\n  • UnitHealthBarSystem → GameManagers" +
+                      "\n  • _modeController → " + (modeController  != null ? modeController.gameObject.name  : "null (назначьте вручную)") +
+                      "\n  • _selectionSystem → " + (selectionSystem != null ? selectionSystem.gameObject.name : "null (назначьте вручную)") +
+                      "\n  • _barCanvas      → HealthBarsCanvas" +
+                      "\n  • Пул: 48 виджетов, интервал обновления 0.1 с, cullMargin=0.02");
         }
     }
 }
