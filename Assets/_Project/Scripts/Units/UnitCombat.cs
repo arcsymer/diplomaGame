@@ -499,7 +499,7 @@ namespace DiplomaGame.Runtime.Units
             {
                 // Одиночная атака с модификатором урона
                 float effectiveDamage = GetEffectiveDamage();
-                _currentTargetHealth.TakeDamage(effectiveDamage);
+                _currentTargetHealth.TakeDamage(effectiveDamage, _unit.transform.position);
                 _lastAttackTime = Time.time;
                 AnyAttacked?.Invoke(transform.position);
                 AnyAttackedWithFaction?.Invoke(_unit.Faction, transform.position, (int)gameObject.GetEntityId());
@@ -571,7 +571,7 @@ namespace DiplomaGame.Runtime.Units
             {
                 var target = _candidateHealths[_aoeIndexBuffer[i]];
                 if (target != null && !target.IsDead)
-                    target.TakeDamage(effectiveDamage);
+                    target.TakeDamage(effectiveDamage, _unit.transform.position);
             }
 
             AnyAttacked?.Invoke(transform.position);

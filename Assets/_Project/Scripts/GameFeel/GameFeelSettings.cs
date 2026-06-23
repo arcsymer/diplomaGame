@@ -115,6 +115,15 @@ namespace DiplomaGame.Runtime.GameFeel
         public float damageIndicatorPeakAlpha = 0.6f;
 
         // ----------------------------------------------------------------
+        // Hero Damage Indicator — Directional Arrow (Circle-23)
+        // ----------------------------------------------------------------
+
+        [Header("Hero Damage Indicator — Directional Arrow (Circle-23)")]
+        [Tooltip("Пиковая альфа направленной стрелки в момент удара (0..1). " +
+                 "Совпадает с damageIndicatorPeakAlpha по умолчанию.")]
+        public float damageArrowPeakAlpha = 0.8f;
+
+        // ----------------------------------------------------------------
         // Dynamic FOV (Circle-22)
         // ----------------------------------------------------------------
 

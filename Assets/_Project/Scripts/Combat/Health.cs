@@ -18,6 +18,13 @@ namespace DiplomaGame.Runtime.Combat
 
         /// <summary>Вызывается при получении урона любым Health в сцене. Параметры: экземпляр, amount.</summary>
         public static event Action<Health, float> AnyDamaged;
+
+        /// <summary>
+        /// Вызывается при получении урона любым Health в сцене — только когда известна позиция источника.
+        /// Параметры: экземпляр, amount, мировая позиция источника урона.
+        /// Не вызывается, если урон нанесён через TakeDamage(float) без источника.
+        /// </summary>
+        public static event Action<Health, float, Vector3> AnyDamagedFrom;
         [SerializeField] private float _maxHp = 100f;
 
         // ----------------------------------------------------------------
@@ -95,6 +102,23 @@ namespace DiplomaGame.Runtime.Combat
         /// <summary>Наносит урон. Повторный урон после смерти игнорируется.</summary>
         public void TakeDamage(float amount)
         {
+            ApplyDamage(amount, hasSource: false, sourcePos: default);
+        }
+
+        /// <summary>
+        /// Наносит урон с указанием мировой позиции источника (атакующего).
+        /// Поднимает <see cref="AnyDamaged"/> (как и без источника) и дополнительно
+        /// <see cref="AnyDamagedFrom"/> с позицией источника.
+        /// </summary>
+        public void TakeDamage(float amount, Vector3 sourcePos)
+        {
+            ApplyDamage(amount, hasSource: true, sourcePos: sourcePos);
+        }
+
+        // Единственное место, где меняется состояние HP и поднимаются события.
+        // hasSource=false → AnyDamagedFrom не вызывается (нет позиции источника).
+        private void ApplyDamage(float amount, bool hasSource, Vector3 sourcePos)
+        {
             if (_isDead) return;
             if (amount <= 0f) return;
 
@@ -104,6 +128,9 @@ namespace DiplomaGame.Runtime.Combat
 
             Damaged?.Invoke(amount, _currentHp);
             AnyDamaged?.Invoke(this, amount);
+
+            if (hasSource)
+                AnyDamagedFrom?.Invoke(this, amount, sourcePos);
 
             if (_currentHp <= 0f)
             {
