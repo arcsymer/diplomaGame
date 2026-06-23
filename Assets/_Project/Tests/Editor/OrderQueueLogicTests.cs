@@ -170,6 +170,12 @@ namespace DiplomaGame.Tests.Editor
 
         private static Unit CreateTestUnit()
         {
+            // ignoreFailingMessages, выставленный в [SetUp], не действует: UTF 1.6 создаёт
+            // LogScope теста ПОСЛЕ SetUp и сбрасывает флаг. Ставим в теле теста (CreateTestUnit —
+            // первая строка каждого Unit-теста), чтобы NavMesh-ошибки SetDestination/ResetPath
+            // (агент не на NavMesh в EditMode) не валили тест. Логику ловят Assert'ы ниже.
+            LogAssert.ignoreFailingMessages = true;
+
             var go = new GameObject("TestUnit");
             // NavMeshAgent должен быть добавлен до Unit, чтобы GetComponent в Awake нашёл его.
             go.AddComponent<UnityEngine.AI.NavMeshAgent>();
