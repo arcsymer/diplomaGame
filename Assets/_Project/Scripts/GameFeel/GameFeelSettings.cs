@@ -113,5 +113,19 @@ namespace DiplomaGame.Runtime.GameFeel
 
         [Tooltip("Пиковая альфа red-edge flash в момент удара (0..1).")]
         public float damageIndicatorPeakAlpha = 0.6f;
+
+        // ----------------------------------------------------------------
+        // Dynamic FOV (Circle-22)
+        // ----------------------------------------------------------------
+
+        [Header("Dynamic FOV (Circle-22)")]
+        [Tooltip("Величина раскрытия FOV при kick-триггере (Dash/Overcharge), градусы. ~8..10°.")]
+        public float fovKickAmount = 9f;
+
+        [Tooltip("Длительность удержания расширенного FOV перед возвратом (с). ~0.05–0.1 с.")]
+        public float fovKickDuration = 0.08f;
+
+        [Tooltip("Скорость линейного возврата FOV к базовому значению (1/с). Выше = быстрее.")]
+        public float fovReturnSpeed = 12f;
     }
 }

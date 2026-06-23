@@ -397,6 +397,113 @@ namespace DiplomaGame.Editor
             Debug.Log("[GameFeel] SetupAll завершён.");
         }
 
+        /// <summary>
+        /// Circle-22 Dynamic FOV: идемпотентно добавляет DynamicFovController на GameManagers,
+        /// прошивает ссылки (_tpsCamera, _abilitySystem, _modeController, _settings) в Sandbox.unity,
+        /// записывает дефолты Circle-22 в GameFeelSettings.asset.
+        ///
+        /// КРИТИЧНО: новые SerializeField-поля GameFeelSettings получают type-default (0) на
+        /// существующем asset'е — явная запись через SerializedObject + ForceReserializeAssets
+        /// обязательна (паттерн Circle-20/21).
+        ///
+        /// Prerequisite: SetupGameFeel (C12) уже выполнен (GameFeelSettings.asset, GameManagers существуют).
+        /// </summary>
+        internal static void SetupDynamicFov()
+        {
+            const string SettingsAssetPath = "Assets/_Project/Data/GameFeel/GameFeelSettings.asset";
+
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                Debug.LogWarning("[Forge C22] Нет открытой сцены.");
+                return;
+            }
+
+            // ---- 1. GameManagers ----
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo == null)
+            {
+                Debug.LogWarning("[Forge C22] GameManagers не найден — сначала Setup Mode Rig.");
+                return;
+            }
+
+            // ---- 2. Идемпотентно добавляем DynamicFovController ----
+            var ctrl = managersGo.GetComponent<DiplomaGame.Runtime.GameFeel.DynamicFovController>();
+            if (ctrl == null)
+                ctrl = managersGo.AddComponent<DiplomaGame.Runtime.GameFeel.DynamicFovController>();
+
+            // ---- 3. Собираем ссылки ----
+            var tpsCamGo = GameObject.Find("TPS Camera");
+            var tpsCam   = tpsCamGo != null ? tpsCamGo.GetComponent<CinemachineCamera>() : null;
+
+            var heroGo       = GameObject.Find("Hero");
+            var abilitySystem = heroGo != null
+                ? heroGo.GetComponent<DiplomaGame.Runtime.Hero.AbilitySystem>()
+                : null;
+
+            var modeController = managersGo.GetComponent<DiplomaGame.Runtime.Core.GameModeController>();
+
+            var settings = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.GameFeel.GameFeelSettings>(SettingsAssetPath);
+
+            // ---- 4. Прошиваем через SerializedObject ----
+            var so = new SerializedObject(ctrl);
+            so.FindProperty("_tpsCamera").objectReferenceValue      = tpsCam;
+            so.FindProperty("_abilitySystem").objectReferenceValue  = abilitySystem;
+            so.FindProperty("_modeController").objectReferenceValue = modeController;
+            so.FindProperty("_settings").objectReferenceValue       = settings;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            if (tpsCam == null)
+                Debug.LogWarning("[Forge C22] 'TPS Camera' не найдена — _tpsCamera не прошита. Назначьте вручную.");
+            if (abilitySystem == null)
+                Debug.LogWarning("[Forge C22] Hero/AbilitySystem не найден — _abilitySystem не прошита. Назначьте вручную.");
+
+            // ---- 5. Записываем дефолты Circle-22 в GameFeelSettings.asset ----
+            // Новые поля получают type-default (0) на существующем ассете.
+            // SerializedObject + ForceReserializeAssets гарантирует правильные значения.
+            if (settings != null)
+            {
+                var settingsSo = new SerializedObject(settings);
+
+                var kickAmtProp = settingsSo.FindProperty("fovKickAmount");
+                if (kickAmtProp != null && Mathf.Approximately(kickAmtProp.floatValue, 0f))
+                    kickAmtProp.floatValue = 9f;
+
+                var kickDurProp = settingsSo.FindProperty("fovKickDuration");
+                if (kickDurProp != null && Mathf.Approximately(kickDurProp.floatValue, 0f))
+                    kickDurProp.floatValue = 0.08f;
+
+                var returnSpdProp = settingsSo.FindProperty("fovReturnSpeed");
+                if (returnSpdProp != null && Mathf.Approximately(returnSpdProp.floatValue, 0f))
+                    returnSpdProp.floatValue = 12f;
+
+                settingsSo.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(settings);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ForceReserializeAssets(
+                    new[] { SettingsAssetPath },
+                    ForceReserializeAssetsOptions.ReserializeAssets);
+            }
+            else
+            {
+                Debug.LogWarning("[Forge C22] GameFeelSettings.asset не найден — дефолты не записаны. " +
+                                 "Сначала запустите Setup GameFeel (C12).");
+            }
+
+            // ---- 6. Сохранение сцены ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Forge C22] SetupDynamicFov завершён." +
+                      "\n  • DynamicFovController → GameManagers" +
+                      "\n  • _tpsCamera      → " + (tpsCam        != null ? tpsCam.gameObject.name        : "null (назначьте вручную)") +
+                      "\n  • _abilitySystem  → " + (abilitySystem != null ? abilitySystem.gameObject.name : "null (назначьте вручную)") +
+                      "\n  • _modeController → " + (modeController != null ? modeController.gameObject.name : "null") +
+                      "\n  • _settings       → " + (settings       != null ? SettingsAssetPath              : "null") +
+                      "\n  • GameFeelSettings: fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12");
+        }
+
         // ================================================================
         // Вспомогательные методы
         // ================================================================
