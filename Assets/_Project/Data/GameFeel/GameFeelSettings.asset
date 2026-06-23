@@ -33,6 +33,7 @@ MonoBehaviour:
   hitmarkerDuration: 0.1
   damageIndicatorDuration: 1
   damageIndicatorPeakAlpha: 0.6
+  damageArrowPeakAlpha: 0.8
   fovKickAmount: 9
   fovKickDuration: 0.08
   fovReturnSpeed: 12

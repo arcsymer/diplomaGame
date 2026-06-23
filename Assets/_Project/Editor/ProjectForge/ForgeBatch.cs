@@ -437,14 +437,15 @@ namespace DiplomaGame.Editor
         }
 
         /// <summary>
-        /// Идемпотентно создаёт Hero Damage Indicator (Circle-21) в Sandbox.unity:
-        /// добавляет HeroDamageFlash Image (full-stretch, red alpha=0) в TPS_Block →
-        /// навешивает HeroDamageIndicator →
-        /// прошивает _heroHealth (Hero/Health), _edgeFlash, _settings →
-        /// записывает дефолты C21 (duration=1.0, peakAlpha=0.6) в GameFeelSettings.asset →
+        /// Идемпотентно создаёт Hero Damage Indicator (Circle-21 + Circle-23) в Sandbox.unity:
+        /// [C21] добавляет HeroDamageFlash Image (full-stretch, red alpha=0) в TPS_Block →
+        /// [C23] добавляет HeroDamageArrow Image (64×64, центр+220px, красный, скрыт) в TPS_Block →
+        /// навешивает HeroDamageIndicator на HeroDamageFlash →
+        /// прошивает _heroHealth, _tpsCameraTransform, _edgeFlash, _directionArrow, _settings →
+        /// записывает дефолты C21+C23 (duration=1.0, peakAlpha=0.6, arrowPeakAlpha=0.8) в GameFeelSettings.asset →
         /// сохраняет сцену и ассеты.
-        /// LIMITATION: Health.AnyDamaged не несёт позицию атакующего — реализован
-        /// full-edge red flash; направленный вариант потребует изменения API Health.
+        /// [C21] Health.AnyDamaged → full-edge red flash (fallback для урона без источника).
+        /// [C23] Health.AnyDamagedFrom → вращает _directionArrow к атакующему (camera-forward как oporna).
         /// Prerequisite: BuildGameHUD (M6a) и SetupGameFeel (C12) уже выполнены.
         /// Идемпотентно.
         /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupHeroDamageIndicator
