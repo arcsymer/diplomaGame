@@ -418,5 +418,23 @@ namespace DiplomaGame.Editor
             UITab.SetupUnitHealthBars();
         }
 
+        /// <summary>
+        /// Circle-20 Crosshair Hitmarker: открывает Sandbox →
+        /// создаёт 4 Image-полоски на Crosshair (если их нет) →
+        /// прошивает CrosshairUI._shooter + CrosshairUI._settings →
+        /// записывает дефолты hitmarker (warm orange, expand=1.15, miss=1.05, dur=0.10)
+        /// в GameFeelSettings.asset через SerializedObject →
+        /// добавляет UiPulse на AbilitySlot_1..4 →
+        /// сохраняет сцену и ассеты.
+        /// Prerequisite: SetupM6Hud и SetupGameFeel уже выполнены.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupCrosshairHitmarker
+        /// </summary>
+        public static void SetupCrosshairHitmarker()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.SetupCrosshairHitmarker();
+        }
+
     }
 }

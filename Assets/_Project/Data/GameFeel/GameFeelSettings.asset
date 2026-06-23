@@ -27,3 +27,7 @@ MonoBehaviour:
   hitstopTargetScale: 0.05
   hitstopEnabled: 1
   dashTrailDuration: 0.25
+  hitmarkerColorHit: {r: 1, g: 0.55, b: 0, a: 1}
+  hitmarkerExpandScale: 1.15
+  hitmarkerMissScale: 1.05
+  hitmarkerDuration: 0.1
