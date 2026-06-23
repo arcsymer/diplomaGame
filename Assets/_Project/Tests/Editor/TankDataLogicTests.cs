@@ -53,7 +53,7 @@ namespace DiplomaGame.Tests.Editor
         public void UnitData_TankStats_MatchSpecification()
         {
             // Проверяем, что CreateForTest с танковыми параметрами создаёт верный объект
-            // (зеркало балансовых данных из спеки: HP 280, Damage 25, AoeRadius 3.0).
+            // (зеркало балансовых данных из спеки: HP 280, Damage 25, AoeRadius 2.3 — баланс-фикс circle-19).
             var tank = UnitData.CreateForTest(
                 displayName:    "Tank",
                 maxHp:          280f,
@@ -64,12 +64,12 @@ namespace DiplomaGame.Tests.Editor
                 moveSpeed:      3.0f,
                 retreatDisabled: true,
                 supplyCost:     3,
-                aoeRadius:      3.0f,
+                aoeRadius:      2.3f,
                 targetPriority: TargetPriority.Buildings);
 
             Assert.AreEqual(280f, tank.MaxHp,          0.001f, "MaxHp танка должен быть 280.");
             Assert.AreEqual(25f,  tank.Damage,         0.001f, "Damage танка должен быть 25.");
-            Assert.AreEqual(3.0f, tank.AoeRadius,      0.001f, "AoeRadius танка должен быть 3.0.");
+            Assert.AreEqual(2.3f, tank.AoeRadius,      0.001f, "AoeRadius танка должен быть 2.3.");
             Assert.IsTrue(tank.RetreatDisabled,                 "RetreatDisabled танка должен быть true.");
             Assert.AreEqual(TargetPriority.Buildings,  tank.TargetPriority,
                 "TargetPriority танка должен быть Buildings.");

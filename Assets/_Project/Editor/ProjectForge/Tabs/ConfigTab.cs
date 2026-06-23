@@ -257,7 +257,7 @@ namespace DiplomaGame.Editor
                 moveSpeed:       3.0f,
                 retreatFraction: 0f,
                 retreatDisabled: true,
-                aoeRadius:       3.0f,
+                aoeRadius:       2.3f,
                 targetPriority:  DiplomaGame.Runtime.Data.TargetPriority.Buildings);
 
             // EnemyTank
@@ -274,7 +274,7 @@ namespace DiplomaGame.Editor
                 moveSpeed:       3.0f,
                 retreatFraction: 0f,
                 retreatDisabled: true,
-                aoeRadius:       3.0f,
+                aoeRadius:       2.3f,
                 targetPriority:  DiplomaGame.Runtime.Data.TargetPriority.Buildings);
 
             // WarFactory BuildingData

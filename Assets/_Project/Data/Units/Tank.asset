@@ -28,6 +28,6 @@ MonoBehaviour:
   _retreatHpFraction: 0
   _retreatDisabled: 1
   _retreatCooldown: 0
-  _aoeRadius: 3
+  _aoeRadius: 2.3
   _targetPriority: 1
   _fireWhileRetreating: 1

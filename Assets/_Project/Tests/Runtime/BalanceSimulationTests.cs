@@ -233,19 +233,19 @@ namespace DiplomaGame.Tests.Runtime
         private static UnitData MarineData() => UnitData.CreateForTest(
             displayName: "Marine", maxHp: 100f, damage: 10f, attackRange: 8f,
             attackCooldown: 1f, aggroRadius: 12f, moveSpeed: 5f,
-            retreatHpFraction: 0.25f, retreatDisabled: false);
+            retreatHpFraction: 0.25f, retreatDisabled: false, supplyCost: 1);
 
         private static UnitData GruntData() => UnitData.CreateForTest(
             displayName: "Enemy Grunt", maxHp: 80f, damage: 8f, attackRange: 7f,
             attackCooldown: 1.2f, aggroRadius: 12f, moveSpeed: 4.5f,
             retreatHpFraction: 0.25f, retreatDisabled: false);
 
-        /// <summary>v3 Tank — зеркало балансовых данных из спеки (HP 280, DMG 25, AoE 3.0).</summary>
+        /// <summary>v3 Tank — зеркало балансовых данных из спеки (HP 280, DMG 25, AoE 2.3).</summary>
         private static UnitData TankData() => UnitData.CreateForTest(
             displayName: "Tank", maxHp: 280f, damage: 25f, attackRange: 5f,
             attackCooldown: 2.0f, aggroRadius: 12f, moveSpeed: 3.0f,
             retreatDisabled: true, supplyCost: 3,
-            aoeRadius: 3.0f, targetPriority: TargetPriority.Buildings);
+            aoeRadius: 2.3f, targetPriority: TargetPriority.Buildings);
 
         // ----------------------------------------------------------------
         // Тест 1: зеркальный бой Marine vs Marine — проверка симметрии
