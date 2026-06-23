@@ -402,5 +402,21 @@ namespace DiplomaGame.Editor
             UITab.SetupIdleArmyIndicator();
         }
 
+        /// <summary>
+        /// Circle-18 Unit Health Bars: открывает Sandbox →
+        /// создаёт HealthBarsCanvas (Screen Space Overlay, sortingOrder=20) →
+        /// добавляет UnitHealthBarSystem на GameManagers →
+        /// прошивает _modeController, _selectionSystem, _barCanvas →
+        /// сохраняет сцену и ассеты.
+        /// Prerequisite: SetupM6Hud (BuildGameHud) уже выполнен.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupUnitHealthBars
+        /// </summary>
+        public static void SetupUnitHealthBars()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.SetupUnitHealthBars();
+        }
+
     }
 }
