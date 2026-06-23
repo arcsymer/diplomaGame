@@ -136,5 +136,14 @@ namespace DiplomaGame.Runtime.GameFeel
 
         [Tooltip("Скорость линейного возврата FOV к базовому значению (1/с). Выше = быстрее.")]
         public float fovReturnSpeed = 12f;
+
+        // ----------------------------------------------------------------
+        // Sprint FOV Widen (Circle-24)
+        // ----------------------------------------------------------------
+
+        [Header("Sprint FOV Widen (Circle-24)")]
+        [Tooltip("Sustained-расширение FOV пока герой спринтует (градусы). " +
+                 "Суммируется с kick. ~4° для ощущения скорости без дискомфорта.")]
+        public float fovSprintWiden = 4f;
     }
 }

@@ -284,5 +284,176 @@ namespace DiplomaGame.Tests.Editor
                 "С дефолтным returnSpeed возврат за 30 кадров должен быть почти полным (< 0.5°).");
             Object.DestroyImmediate(s);
         }
+
+        // ================================================================
+        // GameFeelSettings — дефолты Circle-24 (sprint-widen)
+        // ================================================================
+
+        [Test]
+        public void GameFeelSettings_FovSprintWiden_DefaultIsPositive()
+        {
+            var s = ScriptableObject.CreateInstance<GameFeelSettings>();
+            Assert.Greater(s.fovSprintWiden, 0f,
+                "fovSprintWiden по умолчанию должен быть положительным.");
+            Object.DestroyImmediate(s);
+        }
+
+        [Test]
+        public void GameFeelSettings_FovSprintWiden_DefaultInExpectedRange()
+        {
+            var s = ScriptableObject.CreateInstance<GameFeelSettings>();
+            Assert.GreaterOrEqual(s.fovSprintWiden, 2f,
+                "fovSprintWiden должен быть >= 2° (заметное расширение).");
+            Assert.LessOrEqual(s.fovSprintWiden, 8f,
+                "fovSprintWiden должен быть <= 8° (без укачивания).");
+            Object.DestroyImmediate(s);
+        }
+
+        // ================================================================
+        // GetTargetFov (sprint-widen overload) — Circle-24
+        // ================================================================
+
+        [Test]
+        public void GetTargetFov_SprintingNoKick_ReturnsBaseWithSprintWiden()
+        {
+            const float SprintWiden = 4f;
+            float target = DynamicFovLogic.GetTargetFov(
+                BaseFov, KickAmount, kickRemaining: 0f,
+                isSprinting: true, sprintWiden: SprintWiden);
+
+            Assert.AreEqual(BaseFov + SprintWiden, target, 0.0001f,
+                "При спринте (без kick) target = baseFov + sprintWiden.");
+        }
+
+        [Test]
+        public void GetTargetFov_NotSprintingNoKick_ReturnsBase()
+        {
+            const float SprintWiden = 4f;
+            float target = DynamicFovLogic.GetTargetFov(
+                BaseFov, KickAmount, kickRemaining: 0f,
+                isSprinting: false, sprintWiden: SprintWiden);
+
+            Assert.AreEqual(BaseFov, target, 0.0001f,
+                "Без спринта и без kick target = baseFov.");
+        }
+
+        [Test]
+        public void GetTargetFov_SprintingWithKick_ReturnsCombined()
+        {
+            const float SprintWiden = 4f;
+            float target = DynamicFovLogic.GetTargetFov(
+                BaseFov, KickAmount, kickRemaining: 0.05f,
+                isSprinting: true, sprintWiden: SprintWiden);
+
+            Assert.AreEqual(BaseFov + SprintWiden + KickAmount, target, 0.0001f,
+                "Спринт + активный kick: target = baseFov + sprintWiden + kickAmount.");
+        }
+
+        [Test]
+        public void GetTargetFov_KickOnly_ReturnsBaseWithKick()
+        {
+            const float SprintWiden = 4f;
+            float target = DynamicFovLogic.GetTargetFov(
+                BaseFov, KickAmount, kickRemaining: 0.05f,
+                isSprinting: false, sprintWiden: SprintWiden);
+
+            Assert.AreEqual(BaseFov + KickAmount, target, 0.0001f,
+                "Только kick (без спринта): target = baseFov + kickAmount.");
+        }
+
+        [Test]
+        public void GetTargetFov_SprintWidenZero_BehavesLikeNoWiden()
+        {
+            float target = DynamicFovLogic.GetTargetFov(
+                BaseFov, KickAmount, kickRemaining: 0f,
+                isSprinting: true, sprintWiden: 0f);
+
+            Assert.AreEqual(BaseFov, target, 0.0001f,
+                "При sprintWiden=0 sprint-флаг не влияет на target.");
+        }
+
+        // ================================================================
+        // Tick (sprint overload) — Circle-24
+        // ================================================================
+
+        [Test]
+        public void Tick_Sprint_FovWidens()
+        {
+            const float SprintWiden = 4f;
+            var (nextFov, _) = DynamicFovLogic.Tick(
+                currentFov:    BaseFov,
+                baseFov:       BaseFov,
+                kickAmount:    KickAmount,
+                kickRemaining: 0f,
+                returnSpeed:   ReturnSpeed,
+                dt:            Dt60,
+                isSprinting:   true,
+                sprintWiden:   SprintWiden);
+
+            Assert.Greater(nextFov, BaseFov,
+                "При спринте FOV должен быть выше базового.");
+        }
+
+        [Test]
+        public void Tick_SprintStops_FovReturnsToBase()
+        {
+            const float SprintWiden = 4f;
+
+            // Разгоняем FOV спринтом до насыщения
+            float fov  = BaseFov;
+            float kick = 0f;
+            for (int i = 0; i < 60; i++)
+                (fov, kick) = DynamicFovLogic.Tick(fov, BaseFov, KickAmount, kick, ReturnSpeed, Dt60, true, SprintWiden);
+
+            Assert.Greater(fov, BaseFov, "После 60 кадров спринта FOV должен быть выше базового.");
+
+            // Прекращаем спринт — FOV должен вернуться к baseFov
+            for (int i = 0; i < 120; i++)
+                (fov, kick) = DynamicFovLogic.Tick(fov, BaseFov, KickAmount, kick, ReturnSpeed, Dt60, false, SprintWiden);
+
+            Assert.AreEqual(BaseFov, fov, 0.05f,
+                "После остановки спринта FOV должен вернуться к baseFov.");
+        }
+
+        [Test]
+        public void Tick_SprintPlusKick_FovIsHigherThanEitherAlone()
+        {
+            const float SprintWiden = 4f;
+
+            var (fovBoth, _) = DynamicFovLogic.Tick(
+                BaseFov, BaseFov, KickAmount, kickRemaining: KickDuration,
+                ReturnSpeed, Dt60, isSprinting: true, sprintWiden: SprintWiden);
+
+            var (fovKickOnly, _) = DynamicFovLogic.Tick(
+                BaseFov, BaseFov, KickAmount, kickRemaining: KickDuration,
+                ReturnSpeed, Dt60, isSprinting: false, sprintWiden: SprintWiden);
+
+            var (fovSprintOnly, _) = DynamicFovLogic.Tick(
+                BaseFov, BaseFov, KickAmount, kickRemaining: 0f,
+                ReturnSpeed, Dt60, isSprinting: true, sprintWiden: SprintWiden);
+
+            Assert.Greater(fovBoth, fovKickOnly,
+                "Спринт + kick должен давать больший FOV, чем только kick.");
+            Assert.Greater(fovBoth, fovSprintOnly,
+                "Спринт + kick должен давать больший FOV, чем только спринт.");
+        }
+
+        [Test]
+        public void Tick_SprintOverload_BackwardsCompatible_NoSprintSameasOldTick()
+        {
+            // Старый Tick(6 арг) и новый Tick(8 арг, isSprinting=false, sprintWiden=0)
+            // должны давать одинаковый результат.
+            var (fovOld, kickOld) = DynamicFovLogic.Tick(
+                BaseFov, BaseFov, KickAmount, KickDuration, ReturnSpeed, Dt60);
+
+            var (fovNew, kickNew) = DynamicFovLogic.Tick(
+                BaseFov, BaseFov, KickAmount, KickDuration, ReturnSpeed, Dt60,
+                isSprinting: false, sprintWiden: 0f);
+
+            Assert.AreEqual(fovOld, fovNew, 0.0001f,
+                "Новый Tick с isSprinting=false/sprintWiden=0 должен совпадать со старым.");
+            Assert.AreEqual(kickOld, kickNew, 0.0001f,
+                "Kick-таймер не должен изменяться при совместимом вызове.");
+        }
     }
 }

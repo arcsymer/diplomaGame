@@ -16,8 +16,11 @@ namespace DiplomaGame.Runtime.GameFeel
     ///   • AbilitySystem.AbilityCast с AbilityType.Dash    → kick
     ///   • AbilitySystem.AbilityCast с AbilityType.Overcharge → kick
     ///
-    /// Sprint-widen: не реализован — HeroController не экспонирует отдельный флаг
-    /// спринта/быстрого движения (единственный moveSpeed без состояния IsSprinting).
+    /// Sprint-widen (Circle-24):
+    ///   Пока HeroController.IsSprinting == true, к baseFov добавляется
+    ///   GameFeelSettings.fovSprintWiden (устойчивое смещение ~+4°).
+    ///   Комбинируется с transient-kick: target = baseFov + sprintWiden + kickAmount.
+    ///   Lerp обрабатывает оба плавно.
     ///
     /// CM 3.x API: CinemachineCamera.Lens — struct LensSettings.
     /// Мутация: var lens = _tpsCamera.Lens; lens.FieldOfView = v; _tpsCamera.Lens = lens;
@@ -32,6 +35,12 @@ namespace DiplomaGame.Runtime.GameFeel
         [SerializeField] private AbilitySystem       _abilitySystem;
         [SerializeField] private GameModeController  _modeController;
         [SerializeField] private GameFeelSettings    _settings;
+
+        /// <summary>
+        /// Ссылка на HeroController — читается каждый кадр для IsSprinting (Circle-24).
+        /// Назначается через Forge (SetupDynamicFov).
+        /// </summary>
+        [SerializeField] private HeroController      _heroController;
 
         // ----------------------------------------------------------------
         // Runtime state (нет аллокаций — только float)
@@ -82,8 +91,10 @@ namespace DiplomaGame.Runtime.GameFeel
             if (!_isTpsMode) return;
             if (_tpsCamera == null || _settings == null) return;
 
-            float kickAmt   = _settings.fovKickAmount;
-            float returnSpd = _settings.fovReturnSpeed;
+            float kickAmt    = _settings.fovKickAmount;
+            float returnSpd  = _settings.fovReturnSpeed;
+            float sprintWdn  = _settings.fovSprintWiden;
+            bool  isSprinting = _heroController != null && _heroController.IsSprinting;
 
             var (nextFov, nextKick) = DynamicFovLogic.Tick(
                 _currentFov,
@@ -91,7 +102,9 @@ namespace DiplomaGame.Runtime.GameFeel
                 kickAmt,
                 _kickRemaining,
                 returnSpd,
-                Time.deltaTime);
+                Time.deltaTime,
+                isSprinting,
+                sprintWdn);
 
             _currentFov    = nextFov;
             _kickRemaining = nextKick;
@@ -117,12 +130,14 @@ namespace DiplomaGame.Runtime.GameFeel
             CinemachineCamera tpsCam,
             AbilitySystem abilitySystem,
             GameModeController modeController,
-            GameFeelSettings settings)
+            GameFeelSettings settings,
+            HeroController heroController = null)
         {
-            _tpsCamera     = tpsCam;
-            _abilitySystem = abilitySystem;
+            _tpsCamera      = tpsCam;
+            _abilitySystem  = abilitySystem;
             _modeController = modeController;
-            _settings      = settings;
+            _settings       = settings;
+            _heroController = heroController;
             CacheFov();
         }
 

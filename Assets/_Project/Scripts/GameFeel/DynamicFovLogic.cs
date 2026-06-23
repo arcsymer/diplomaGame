@@ -10,8 +10,9 @@ namespace DiplomaGame.Runtime.GameFeel
     ///   Состояние хранится снаружи (в DynamicFovController) и передаётся аргументами.
     ///   Kick: мгновенно поднимает _kickRemaining и targetFov = baseFov + kickAmount.
     ///          По мере истечения kickRemaining targetFov возвращается к baseFov.
-    ///   Sprint-widen: не реализован — HeroController не экспонирует состояние спринта
-    ///                 (единственная скорость moveSpeed без флага is_sprinting).
+    ///   Sprint-widen (Circle-24): пока герой спринтует, target FOV = baseFov + sprintWiden.
+    ///          Kick КОМБИНИРУЕТСЯ со sprint-widen: target = baseFov + sprintWiden + kickAmount.
+    ///          Lerp обрабатывает оба смещения плавно.
     /// </summary>
     public static class DynamicFovLogic
     {
@@ -38,13 +39,39 @@ namespace DiplomaGame.Runtime.GameFeel
         /// Вычисляет целевой FOV для текущего кадра.
         /// Когда kickRemaining > 0 — целевой FOV widened на kickAmount.
         /// Когда kickRemaining == 0 — возврат к baseFov.
+        /// (Устаревший вариант без sprint-widen; сохранён для обратной совместимости тестов.)
         /// </summary>
         /// <param name="baseFov">Базовый FOV (оригинальное значение ассета камеры).</param>
         /// <param name="kickAmount">Величина раскрытия FOV при kick (градусы, > 0).</param>
         /// <param name="kickRemaining">Оставшееся время kick-таймера (с). 0 = нет активного kick.</param>
         public static float GetTargetFov(float baseFov, float kickAmount, float kickRemaining)
         {
-            return kickRemaining > 0f ? baseFov + kickAmount : baseFov;
+            return GetTargetFov(baseFov, kickAmount, kickRemaining, isSprinting: false, sprintWiden: 0f);
+        }
+
+        /// <summary>
+        /// Вычисляет целевой FOV с учётом sprint-widen (Circle-24).
+        /// target = baseFov + (isSprinting ? sprintWiden : 0) + (kickRemaining > 0 ? kickAmount : 0).
+        /// Sprint-widen — устойчивое смещение; kick — транзиентное. Оба суммируются.
+        /// </summary>
+        /// <param name="baseFov">Базовый FOV (оригинальное значение ассета камеры).</param>
+        /// <param name="kickAmount">Величина раскрытия FOV при kick (градусы, > 0).</param>
+        /// <param name="kickRemaining">Оставшееся время kick-таймера (с). 0 = нет активного kick.</param>
+        /// <param name="isSprinting">HeroController.IsSprinting в текущем кадре.</param>
+        /// <param name="sprintWiden">Sustained-расширение FOV при спринте (градусы, > 0). GameFeelSettings.fovSprintWiden.</param>
+        public static float GetTargetFov(
+            float baseFov,
+            float kickAmount,
+            float kickRemaining,
+            bool  isSprinting,
+            float sprintWiden)
+        {
+            float target = baseFov;
+            if (isSprinting)
+                target += sprintWiden;
+            if (kickRemaining > 0f)
+                target += kickAmount;
+            return target;
         }
 
         // ----------------------------------------------------------------
@@ -87,7 +114,8 @@ namespace DiplomaGame.Runtime.GameFeel
         // ----------------------------------------------------------------
 
         /// <summary>
-        /// Объединённый тик: убывает kick-таймер, вычисляет targetFov, плавно движется к нему.
+        /// Объединённый тик без sprint-widen (обратная совместимость с Circle-22 тестами).
+        /// Убывает kick-таймер, вычисляет targetFov, плавно движется к нему.
         /// Возвращает (nextFov, nextKickRemaining).
         /// </summary>
         public static (float nextFov, float nextKickRemaining) Tick(
@@ -98,9 +126,29 @@ namespace DiplomaGame.Runtime.GameFeel
             float returnSpeed,
             float dt)
         {
-            float nextKick   = TickKick(kickRemaining, dt);
-            float targetFov  = GetTargetFov(baseFov, kickAmount, nextKick);
-            float nextFov    = StepFov(currentFov, targetFov, returnSpeed, dt);
+            return Tick(currentFov, baseFov, kickAmount, kickRemaining, returnSpeed, dt,
+                        isSprinting: false, sprintWiden: 0f);
+        }
+
+        /// <summary>
+        /// Объединённый тик с поддержкой sprint-widen (Circle-24).
+        /// target = baseFov + (isSprinting ? sprintWiden : 0) + (kickRemaining > 0 ? kickAmount : 0).
+        /// Убывает kick-таймер, вычисляет targetFov, плавно движется к нему.
+        /// Возвращает (nextFov, nextKickRemaining).
+        /// </summary>
+        public static (float nextFov, float nextKickRemaining) Tick(
+            float currentFov,
+            float baseFov,
+            float kickAmount,
+            float kickRemaining,
+            float returnSpeed,
+            float dt,
+            bool  isSprinting,
+            float sprintWiden)
+        {
+            float nextKick  = TickKick(kickRemaining, dt);
+            float targetFov = GetTargetFov(baseFov, kickAmount, nextKick, isSprinting, sprintWiden);
+            float nextFov   = StepFov(currentFov, targetFov, returnSpeed, dt);
             return (nextFov, nextKick);
         }
     }
