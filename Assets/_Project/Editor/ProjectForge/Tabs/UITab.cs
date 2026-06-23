@@ -176,6 +176,22 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Build Under Attack Alert (C16)", GUILayout.Height(32)))
                 BuildUnderAttackAlert();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Idle Army Indicator (C17):\n" +
+                "• Создаёт IdleArmyBadge (Button, 90×32) в левом нижнем углу RTS_Block\n" +
+                "• Добавляет IdleArmyIndicator на GameManagers\n" +
+                "• Прописывает _selectionSystem, _countLabel, _pulse\n" +
+                "• По умолчанию скрыт (activeSelf=false); появляется при count > 0\n" +
+                "Требует: BuildGameHUD (M6a) уже выполнен. Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Idle Army Indicator (C17)", GUILayout.Height(32)))
+                SetupIdleArmyIndicator();
         }
 
         // ----------------------------------------------------------------
@@ -3245,6 +3261,125 @@ namespace DiplomaGame.Editor
                       "\n  • ThreatMarker → MinimapDisplay" +
                       "\n  • UnderAttackAlert → " + managersGo.name +
                       (minimapCamera == null ? "\n  ПРЕДУПРЕЖДЕНИЕ: _minimapCamera = null, назначьте вручную." : ""));
+        }
+
+        // ----------------------------------------------------------------
+        // C17 — Idle Army Indicator
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт бейдж «бездействующая армия» (Circle-17):
+        /// <list type="number">
+        ///   <item>Создаёт "IdleArmyBadge" (Button, 90×32, жёлтый/золотой фон) в левом нижнем углу RTS_Block,
+        ///         чуть выше KeysHint (anchoredPosition.y = 100).</item>
+        ///   <item>Добавляет UiPulse на бейдж.</item>
+        ///   <item>Добавляет TMP_Text "CountLabel" внутри бейджа.</item>
+        ///   <item>Добавляет <see cref="IdleArmyIndicator"/> на "GameManagers".</item>
+        ///   <item>Прописывает _selectionSystem, _countLabel, _pulse через SerializedObject.</item>
+        ///   <item>Бейдж скрыт по умолчанию (SetActive false) — появится при count > 0.</item>
+        /// </list>
+        /// Требует: BuildGameHUD (M6a) уже выполнен.
+        /// </summary>
+        internal static void SetupIdleArmyIndicator()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            EnsureTmpEssentials();
+
+            // ---- 1. Найти GameHUD ----
+            var gameHudGo = GameObject.Find("GameHUD");
+            if (gameHudGo == null)
+            {
+                Debug.LogError("[Forge C17] GameHUD не найден — сначала запустите 'Build Game HUD (M6a)'.");
+                return;
+            }
+
+            // ---- 2. Найти RTS_Block ----
+            var rtsBlockGo = FindDescendantByName(gameHudGo, "RTS_Block");
+            if (rtsBlockGo == null)
+            {
+                Debug.LogError("[Forge C17] RTS_Block не найден в GameHUD.");
+                return;
+            }
+
+            // ---- 3. IdleArmyBadge в RTS_Block ----
+            // Позиция: левый нижний угол, anchorMin/Max=(0,0), anchoredPosition=(12, 100)
+            // — чуть выше KeysHint (который сидит на y=12, высота 80 → верх y=92 ≈ 12+80).
+            var badgeGo = EnsureChild(rtsBlockGo, "IdleArmyBadge");
+            {
+                var rt = badgeGo.GetComponent<RectTransform>() ?? badgeGo.AddComponent<RectTransform>();
+                rt.anchorMin        = new Vector2(0f, 0f);
+                rt.anchorMax        = new Vector2(0f, 0f);
+                rt.pivot            = new Vector2(0f, 0f);
+                rt.anchoredPosition = new Vector2(12f, 100f);
+                rt.sizeDelta        = new Vector2(90f, 32f);
+
+                // Фон кнопки — жёлтый/янтарный (спокойный, не тревожный)
+                var bg = EnsureComponent<Image>(badgeGo);
+                bg.color = new Color(0.85f, 0.65f, 0.05f, 0.88f);
+
+                EnsureComponent<Button>(badgeGo);
+
+                // UiPulse — вздрагивает при изменении счётчика
+                EnsureComponent<UiPulse>(badgeGo);
+            }
+
+            // ---- 4. CountLabel внутри бейджа ----
+            var labelGo  = EnsureChild(badgeGo, "CountLabel");
+            var labelTmp = EnsureComponent<TextMeshProUGUI>(labelGo);
+            labelTmp.text      = "0 idle";
+            labelTmp.fontSize  = 14f;
+            labelTmp.alignment = TextAlignmentOptions.Center;
+            labelTmp.color     = Color.white;
+            labelTmp.fontStyle = FontStyles.Bold;
+            {
+                var lrt = labelGo.GetComponent<RectTransform>() ?? labelGo.AddComponent<RectTransform>();
+                lrt.anchorMin = Vector2.zero;
+                lrt.anchorMax = Vector2.one;
+                lrt.offsetMin = new Vector2(4f, 2f);
+                lrt.offsetMax = new Vector2(-4f, -2f);
+            }
+
+            // Бейдж скрыт по умолчанию — IdleArmyIndicator включит его сам.
+            badgeGo.SetActive(false);
+
+            // ---- 5. IdleArmyIndicator на GameManagers ----
+            var managersGo2 = GameObject.Find("GameManagers");
+            if (managersGo2 == null)
+            {
+                Debug.LogWarning("[Forge C17] GameManagers не найден — IdleArmyIndicator будет добавлен на GameHUD.");
+                managersGo2 = gameHudGo;
+            }
+
+            // IdleArmyIndicator нужен Button — держим компонент на badgeGo, а MonoBehaviour
+            // также на badgeGo (он [RequireComponent(typeof(Button))]).
+            var indicator = EnsureComponent<IdleArmyIndicator>(badgeGo);
+
+            // ---- 6. Прописываем ссылки через SerializedObject ----
+            var selSystem = managersGo2.GetComponent<DiplomaGame.Runtime.Selection.SelectionSystem>();
+
+            var indSo = new SerializedObject(indicator);
+            indSo.FindProperty("_selectionSystem").objectReferenceValue = selSystem;
+            indSo.FindProperty("_countLabel").objectReferenceValue      = labelTmp;
+            indSo.FindProperty("_pulse").objectReferenceValue           = badgeGo.GetComponent<UiPulse>();
+            indSo.ApplyModifiedPropertiesWithoutUndo();
+
+            // ---- 7. Сохранение ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Forge C17] Idle Army Indicator настроен успешно." +
+                      "\n  • IdleArmyBadge → RTS_Block (левый нижний угол, y=100)" +
+                      "\n  • IdleArmyIndicator → IdleArmyBadge" +
+                      "\n  • _selectionSystem → " + (selSystem != null ? selSystem.gameObject.name : "null (назначьте вручную)") +
+                      "\n  • Бейдж скрыт по умолчанию (activeSelf=false)");
         }
     }
 }

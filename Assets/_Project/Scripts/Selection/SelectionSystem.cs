@@ -302,6 +302,35 @@ namespace DiplomaGame.Runtime.Selection
         }
 
         // ----------------------------------------------------------------
+        // Batch-выделение (используется IdleArmyIndicator и подобными системами)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Заменяет текущее выделение на переданный список юнитов.
+        /// Аналог LoadControlGroup, но принимает произвольный IReadOnlyList.
+        /// Сбрасывает SelectedBuilding. Если список пуст — снимает выделение.
+        /// Вызывает SelectionChanged.
+        /// </summary>
+        public void SelectUnits(IReadOnlyList<Unit> units)
+        {
+            SelectedBuilding = null;
+            ClearSelection();
+
+            if (units != null)
+            {
+                for (int i = 0; i < units.Count; i++)
+                {
+                    var unit = units[i];
+                    if (unit == null) continue;
+                    _selected.Add(unit);
+                    unit.SetSelected(true);
+                }
+            }
+
+            NotifyChanged();
+        }
+
+        // ----------------------------------------------------------------
         // Контрол-группы
         // ----------------------------------------------------------------
 
