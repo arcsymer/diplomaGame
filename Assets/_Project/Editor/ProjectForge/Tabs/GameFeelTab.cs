@@ -1,10 +1,12 @@
 using DiplomaGame.Runtime.GameFeel;
+using DiplomaGame.Runtime.UI;
 using DiplomaGame.Runtime.VFX;
 using Unity.Cinemachine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.UI;
 
 namespace DiplomaGame.Editor
 {
@@ -92,6 +94,36 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup All GameFeel", GUILayout.Height(32)))
                 SetupAll();
+
+            GUILayout.Space(8);
+            GUILayout.Label("Circle-24: Sprint / Stamina", EditorStyles.boldLabel);
+            GUILayout.Space(4);
+
+            EditorGUILayout.HelpBox(
+                "Dynamic FOV (C22/C24 update):\n" +
+                "• Добавляет/обновляет DynamicFovController на GameManagers\n" +
+                "• Прошивает _heroController (Hero/HeroController) для sprint-widen\n" +
+                "• Записывает fovSprintWiden=4 в GameFeelSettings.asset (ForceReserialize)\n" +
+                "• Сохраняет прежние дефолты C22 (kickAmount=9, kickDuration=0.08, returnSpeed=12)\n" +
+                "Требует: SetupGameFeel (C12) выполнен. Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Setup Dynamic FOV (C22/C24)", GUILayout.Height(28)))
+                SetupDynamicFov();
+
+            GUILayout.Space(6);
+
+            EditorGUILayout.HelpBox(
+                "Stamina Bar (C24):\n" +
+                "• Создаёт HeroStaminaBar в TPS_Block (над HP-баром, 280×12, y=42)\n" +
+                "• Фон серый 0.15a, fill жёлтый → красный при низкой стамине\n" +
+                "• По умолчанию скрыт — появляется при спринте или убыли стамины\n" +
+                "• Прошивает _fill и _heroController\n" +
+                "Требует: BuildGameHUD (M6a) выполнен. Идемпотентно.",
+                MessageType.Info);
+
+            if (GUILayout.Button("Setup Stamina Bar (C24)", GUILayout.Height(28)))
+                SetupStaminaBar();
         }
 
         // ================================================================
@@ -445,20 +477,28 @@ namespace DiplomaGame.Editor
 
             var settings = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.GameFeel.GameFeelSettings>(SettingsAssetPath);
 
-            // ---- 4. Прошиваем через SerializedObject ----
+            // ---- 4. Собираем HeroController ----
+            var heroController = heroGo != null
+                ? heroGo.GetComponent<DiplomaGame.Runtime.Hero.HeroController>()
+                : null;
+
+            // ---- 5. Прошиваем через SerializedObject ----
             var so = new SerializedObject(ctrl);
-            so.FindProperty("_tpsCamera").objectReferenceValue      = tpsCam;
-            so.FindProperty("_abilitySystem").objectReferenceValue  = abilitySystem;
-            so.FindProperty("_modeController").objectReferenceValue = modeController;
-            so.FindProperty("_settings").objectReferenceValue       = settings;
+            so.FindProperty("_tpsCamera").objectReferenceValue        = tpsCam;
+            so.FindProperty("_abilitySystem").objectReferenceValue    = abilitySystem;
+            so.FindProperty("_modeController").objectReferenceValue   = modeController;
+            so.FindProperty("_settings").objectReferenceValue         = settings;
+            so.FindProperty("_heroController").objectReferenceValue   = heroController;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             if (tpsCam == null)
-                Debug.LogWarning("[Forge C22] 'TPS Camera' не найдена — _tpsCamera не прошита. Назначьте вручную.");
+                Debug.LogWarning("[Forge C22/C24] 'TPS Camera' не найдена — _tpsCamera не прошита. Назначьте вручную.");
             if (abilitySystem == null)
-                Debug.LogWarning("[Forge C22] Hero/AbilitySystem не найден — _abilitySystem не прошита. Назначьте вручную.");
+                Debug.LogWarning("[Forge C22/C24] Hero/AbilitySystem не найден — _abilitySystem не прошита. Назначьте вручную.");
+            if (heroController == null)
+                Debug.LogWarning("[Forge C24] Hero/HeroController не найден — _heroController не прошит. Sprint-widen не будет работать.");
 
-            // ---- 5. Записываем дефолты Circle-22 в GameFeelSettings.asset ----
+            // ---- 6. Записываем дефолты Circle-22/24 в GameFeelSettings.asset ----
             // Новые поля получают type-default (0) на существующем ассете.
             // SerializedObject + ForceReserializeAssets гарантирует правильные значения.
             if (settings != null)
@@ -477,6 +517,11 @@ namespace DiplomaGame.Editor
                 if (returnSpdProp != null && Mathf.Approximately(returnSpdProp.floatValue, 0f))
                     returnSpdProp.floatValue = 12f;
 
+                // Circle-24: fovSprintWiden — записываем дефолт если 0 (новое поле на старом ассете)
+                var sprintWidenProp = settingsSo.FindProperty("fovSprintWiden");
+                if (sprintWidenProp != null && Mathf.Approximately(sprintWidenProp.floatValue, 0f))
+                    sprintWidenProp.floatValue = 4f;
+
                 settingsSo.ApplyModifiedPropertiesWithoutUndo();
                 EditorUtility.SetDirty(settings);
                 AssetDatabase.SaveAssets();
@@ -486,22 +531,144 @@ namespace DiplomaGame.Editor
             }
             else
             {
-                Debug.LogWarning("[Forge C22] GameFeelSettings.asset не найден — дефолты не записаны. " +
+                Debug.LogWarning("[Forge C22/C24] GameFeelSettings.asset не найден — дефолты не записаны. " +
                                  "Сначала запустите Setup GameFeel (C12).");
             }
 
-            // ---- 6. Сохранение сцены ----
+            // ---- 7. Сохранение сцены ----
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.Refresh();
 
-            Debug.Log("[Forge C22] SetupDynamicFov завершён." +
+            Debug.Log("[Forge C22/C24] SetupDynamicFov завершён." +
                       "\n  • DynamicFovController → GameManagers" +
-                      "\n  • _tpsCamera      → " + (tpsCam        != null ? tpsCam.gameObject.name        : "null (назначьте вручную)") +
-                      "\n  • _abilitySystem  → " + (abilitySystem != null ? abilitySystem.gameObject.name : "null (назначьте вручную)") +
-                      "\n  • _modeController → " + (modeController != null ? modeController.gameObject.name : "null") +
-                      "\n  • _settings       → " + (settings       != null ? SettingsAssetPath              : "null") +
-                      "\n  • GameFeelSettings: fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12");
+                      "\n  • _tpsCamera       → " + (tpsCam         != null ? tpsCam.gameObject.name         : "null (назначьте вручную)") +
+                      "\n  • _abilitySystem   → " + (abilitySystem  != null ? abilitySystem.gameObject.name  : "null (назначьте вручную)") +
+                      "\n  • _heroController  → " + (heroController != null ? heroController.gameObject.name : "null (sprint-widen неактивен)") +
+                      "\n  • _modeController  → " + (modeController != null ? modeController.gameObject.name : "null") +
+                      "\n  • _settings        → " + (settings       != null ? SettingsAssetPath               : "null") +
+                      "\n  • GameFeelSettings: fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12, fovSprintWiden=4");
+        }
+
+        /// <summary>
+        /// Circle-24 Stamina Bar: идемпотентно создаёт HeroStaminaBar UI-элемент в TPS_Block и
+        /// прошивает _fill (Image) и _heroController (HeroController с Hero).
+        ///
+        /// Layout: левый нижний угол, над HP-баром (y = 16 + 22 + 4 = 42), та же ширина 280×12.
+        /// Фон: тёмный (0.15, 0.15, 0.15, 0.8); fill: жёлтый (логика в StaminaBarLogic).
+        ///
+        /// КРИТИЧНО: новые поля fovSprintWiden на существующем ассете нужно записать явно —
+        /// используется SetDirty + SaveAssets + ForceReserializeAssets (тот же паттерн C20/21/22).
+        ///
+        /// Prerequisite: BuildGameHUD (M6a) уже выполнен (TPS_Block существует).
+        /// </summary>
+        internal static void SetupStaminaBar()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                Debug.LogWarning("[Forge C24] Нет открытой сцены.");
+                return;
+            }
+
+            // ---- 1. TPS_Block ----
+            var hudGo    = GameObject.Find("GameHUD");
+            if (hudGo == null)
+            {
+                Debug.LogWarning("[Forge C24] 'GameHUD' не найден — сначала BuildGameHUD (M6a).");
+                return;
+            }
+
+            var tpsBlockTf = hudGo.transform.Find("TPS_Block");
+            if (tpsBlockTf == null)
+            {
+                Debug.LogWarning("[Forge C24] 'TPS_Block' не найден внутри GameHUD.");
+                return;
+            }
+            var tpsBlock = tpsBlockTf.gameObject;
+
+            // ---- 2. Идемпотентно создаём HeroStaminaBar ----
+            // Размещаем над HP-баром: HP → y=16, h=22 → StaminaBar → y=16+22+4=42, h=12
+            const float StaminaBarY      = 42f;
+            const float StaminaBarH      = 12f;
+            const float StaminaBarW      = 280f;
+            const float StaminaBarX      = 16f;
+
+            var existingTf = tpsBlockTf.Find("HeroStaminaBar");
+            var staminaBarGo = existingTf != null ? existingTf.gameObject : null;
+
+            if (staminaBarGo == null)
+            {
+                staminaBarGo = new GameObject("HeroStaminaBar");
+                staminaBarGo.transform.SetParent(tpsBlock.transform, false);
+                staminaBarGo.AddComponent<RectTransform>();
+            }
+
+            // RectTransform — левый нижний угол
+            var barRt = staminaBarGo.GetComponent<RectTransform>();
+            barRt.anchorMin        = new Vector2(0f, 0f);
+            barRt.anchorMax        = new Vector2(0f, 0f);
+            barRt.pivot            = new Vector2(0f, 0f);
+            barRt.anchoredPosition = new Vector2(StaminaBarX, StaminaBarY);
+            barRt.sizeDelta        = new Vector2(StaminaBarW, StaminaBarH);
+
+            // Фоновый Image
+            var bgImg = staminaBarGo.GetComponent<Image>();
+            if (bgImg == null) bgImg = staminaBarGo.AddComponent<Image>();
+            bgImg.color = new Color(0.15f, 0.15f, 0.15f, 0.8f);
+
+            // Fill child
+            var fillTf = staminaBarGo.transform.Find("Fill");
+            var fillGo = fillTf != null ? fillTf.gameObject : null;
+            if (fillGo == null)
+            {
+                fillGo = new GameObject("Fill");
+                fillGo.transform.SetParent(staminaBarGo.transform, false);
+                fillGo.AddComponent<RectTransform>();
+            }
+
+            var fillRt = fillGo.GetComponent<RectTransform>();
+            fillRt.anchorMin = Vector2.zero;
+            fillRt.anchorMax = Vector2.one;
+            fillRt.offsetMin = Vector2.zero;
+            fillRt.offsetMax = Vector2.zero;
+
+            var fillImg = fillGo.GetComponent<Image>();
+            if (fillImg == null) fillImg = fillGo.AddComponent<Image>();
+            fillImg.color      = Color.yellow;
+            fillImg.type       = Image.Type.Filled;
+            fillImg.fillMethod = Image.FillMethod.Horizontal;
+            fillImg.fillAmount = 1f;
+
+            // HeroStaminaBar компонент
+            var staminaBar = staminaBarGo.GetComponent<HeroStaminaBar>();
+            if (staminaBar == null) staminaBar = staminaBarGo.AddComponent<HeroStaminaBar>();
+
+            var heroGo   = GameObject.Find("Hero");
+            var heroCtrl = heroGo != null
+                ? heroGo.GetComponent<DiplomaGame.Runtime.Hero.HeroController>()
+                : null;
+
+            var soBar = new SerializedObject(staminaBar);
+            soBar.FindProperty("_fill").objectReferenceValue           = fillImg;
+            soBar.FindProperty("_heroController").objectReferenceValue = heroCtrl;
+            soBar.ApplyModifiedPropertiesWithoutUndo();
+
+            if (heroCtrl == null)
+                Debug.LogWarning("[Forge C24] Hero/HeroController не найден — _heroController не прошит. Назначьте вручную.");
+
+            // ---- 3. По умолчанию скрываем (показывается только при спринте/убыли стамины) ----
+            staminaBarGo.SetActive(false);
+
+            // ---- 4. Сохранение сцены ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[Forge C24] SetupStaminaBar завершён." +
+                      "\n  • HeroStaminaBar → TPS_Block/HeroStaminaBar" +
+                      "\n  • Позиция: (" + StaminaBarX + ", " + StaminaBarY + "), размер: " + StaminaBarW + "×" + StaminaBarH +
+                      "\n  • _fill           → " + (fillImg  != null ? fillGo.name  : "null") +
+                      "\n  • _heroController → " + (heroCtrl != null ? heroCtrl.gameObject.name : "null (назначьте вручную)"));
         }
 
         // ================================================================

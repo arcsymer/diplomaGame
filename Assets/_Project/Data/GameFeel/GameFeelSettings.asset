@@ -37,3 +37,4 @@ MonoBehaviour:
   fovKickAmount: 9
   fovKickDuration: 0.08
   fovReturnSpeed: 12
+  fovSprintWiden: 4

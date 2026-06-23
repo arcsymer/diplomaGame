@@ -457,14 +457,14 @@ namespace DiplomaGame.Editor
         }
 
         /// <summary>
-        /// Dynamic FOV TPS-камеры (Circle-22): открывает Sandbox →
-        /// добавляет DynamicFovController на GameManagers →
-        /// прошивает _tpsCamera, _abilitySystem, _modeController, _settings →
-        /// записывает дефолты C22 (fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12)
+        /// Dynamic FOV TPS-камеры (Circle-22 / Circle-24 update): открывает Sandbox →
+        /// добавляет/обновляет DynamicFovController на GameManagers →
+        /// прошивает _tpsCamera, _abilitySystem, _modeController, _settings, _heroController →
+        /// записывает дефолты C22+C24 (fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12, fovSprintWiden=4)
         /// в GameFeelSettings.asset через SerializedObject + ForceReserializeAssets →
         /// сохраняет сцену и ассеты.
         /// Kick-триггеры: AbilityType.Dash и AbilityType.Overcharge.
-        /// Sprint-widen: не реализован (HeroController не экспонирует флаг спринта).
+        /// Sprint-widen (C24): +4° пока HeroController.IsSprinting == true.
         /// Prerequisite: SetupGameFeel (C12) уже выполнен.
         /// Идемпотентно.
         /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupDynamicFov
@@ -473,6 +473,34 @@ namespace DiplomaGame.Editor
         {
             EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
             GameFeelTab.SetupDynamicFov();
+        }
+
+        /// <summary>
+        /// Stamina Bar (Circle-24): открывает Sandbox →
+        /// создаёт HeroStaminaBar в GameHUD/TPS_Block →
+        /// прошивает _fill (Image) и _heroController (HeroController) →
+        /// по умолчанию скрыт (activeSelf=false; появляется при спринте/убыли стамины).
+        /// Prerequisite: BuildGameHUD (M6a) уже выполнен.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupStaminaBar
+        /// </summary>
+        public static void SetupStaminaBar()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            GameFeelTab.SetupStaminaBar();
+        }
+
+        /// <summary>
+        /// Circle-24 полный пакет: открывает Sandbox →
+        /// SetupDynamicFov (обновляет C22 + добавляет sprint-widen) →
+        /// SetupStaminaBar (создаёт/обновляет полосу стамины).
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupCircle24
+        /// </summary>
+        public static void SetupCircle24()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            GameFeelTab.SetupDynamicFov();
+            GameFeelTab.SetupStaminaBar();
         }
 
     }
