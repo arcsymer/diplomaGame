@@ -51,3 +51,8 @@ AssetStaging/
 
 # Результаты тестовых прогонов (XML/логи)
 TestResults/
+
+# Python virtualenv / caches (thesis PDF tooling under Docs-Vault/Diploma)
+.venv/
+__pycache__/
+*.pyc

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DiplomaGame.Runtime.Combat;
 using UnityEngine;
 using UnityEngine.AI;
@@ -70,6 +71,23 @@ namespace DiplomaGame.Runtime.Units
         private UnitCombat   _cachedCombat;
 
         // ----------------------------------------------------------------
+        // Очередь приказов (Shift+ПКМ waypoint queue, М15)
+        // ----------------------------------------------------------------
+
+        // Предаллоцирована в Awake: нет аллокаций в Update-пути.
+        // Queue<T>.Dequeue/Enqueue не аллоцирует пока Count < Capacity.
+        private Queue<UnitCommand> _orderQueue;
+
+        // Начальная ёмкость достаточна для разумного числа точек (SC2-уровень).
+        private const int OrderQueueInitialCapacity = 8;
+
+        /// <summary>
+        /// Количество приказов, ожидающих в очереди.
+        /// Читается тестами через InternalsVisibleTo.
+        /// </summary>
+        internal int OrderQueueCount => _orderQueue != null ? _orderQueue.Count : 0;
+
+        // ----------------------------------------------------------------
         // Состояние патруля
         // ----------------------------------------------------------------
 
@@ -90,6 +108,9 @@ namespace DiplomaGame.Runtime.Units
         {
             _agent        = GetComponent<NavMeshAgent>();
             _cachedHealth = GetComponent<Health>();
+
+            // Предаллоцируем очередь один раз — нет аллокаций при Enqueue/Dequeue в Update-пути.
+            _orderQueue = new Queue<UnitCommand>(OrderQueueInitialCapacity);
 
             // Ищем кольцо выделения — null-безопасно
             var ring = transform.Find("SelectionRing");
@@ -121,8 +142,8 @@ namespace DiplomaGame.Runtime.Units
             {
                 if (UnitCommandLogic.HasArrived(_agent.remainingDistance, _agent.stoppingDistance, _agent.pathPending))
                 {
-                    _state     = UnitState.Idle;
                     _stuckTime = 0f;
+                    AdvanceOrderQueue();
                 }
                 else if (!_agent.pathPending && _agent.velocity.sqrMagnitude < StuckVelocitySqr)
                 {
@@ -133,8 +154,8 @@ namespace DiplomaGame.Runtime.Units
                     if (_stuckTime >= StuckTimeout)
                     {
                         _agent.ResetPath();
-                        _state     = UnitState.Idle;
                         _stuckTime = 0f;
+                        AdvanceOrderQueue();
                     }
                 }
                 else
@@ -153,9 +174,55 @@ namespace DiplomaGame.Runtime.Units
         // ----------------------------------------------------------------
 
         /// <summary>
-        /// Выдаёт юниту приказ. Меняет состояние и перенаправляет NavMeshAgent.
+        /// Выдаёт юниту немедленный приказ. Очищает очередь и выполняет команду прямо сейчас.
+        /// Это исходное поведение; используется без Shift или для Hold/Patrol.
         /// </summary>
         public void IssueCommand(UnitCommand cmd)
+        {
+            // Немедленный приказ обнуляет всю накопленную очередь.
+            OrderQueueLogic.Clear(_orderQueue);
+
+            ExecuteCommand(cmd);
+        }
+
+        /// <summary>
+        /// Добавляет приказ в хвост очереди (Shift+ПКМ waypoint queue, М15).
+        /// Если тип не поддерживает очередь (Hold, Patrol) — выполняется немедленно
+        /// через IssueCommand (очередь очищается).
+        /// Если очередь пуста и у юнита нет активного движения — выполняется немедленно.
+        /// </summary>
+        public void EnqueueCommand(UnitCommand cmd)
+        {
+            if (!OrderQueueLogic.CanEnqueue(cmd.Type))
+            {
+                // Hold и Patrol не ставятся в очередь — выполнить немедленно,
+                // сбросив накопленные точки.
+                IssueCommand(cmd);
+                return;
+            }
+
+            // Если юнит прямо сейчас не движется по приказу — начинаем немедленно
+            // (первый waypoint запускает движение; последующие Shift-клики добавляются в очередь).
+            if (_state != UnitState.Moving)
+            {
+                OrderQueueLogic.Clear(_orderQueue);
+                ExecuteCommand(cmd);
+                return;
+            }
+
+            // Юнит в движении — добавляем в очередь на потом.
+            OrderQueueLogic.Enqueue(_orderQueue, cmd);
+        }
+
+        // ----------------------------------------------------------------
+        // Внутренняя логика приказов (без очистки очереди)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Применяет приказ к NavMeshAgent и обновляет состояние.
+        /// Не трогает очередь — это делают IssueCommand и EnqueueCommand.
+        /// </summary>
+        private void ExecuteCommand(UnitCommand cmd)
         {
             CurrentCommandType = cmd.Type;
 
@@ -181,6 +248,61 @@ namespace DiplomaGame.Runtime.Units
             }
 
             CommandIssued?.Invoke(cmd);
+        }
+
+        /// <summary>
+        /// Вызывается при завершении текущего приказа движения (прибытие или анти-застревание).
+        /// Берёт следующий из очереди или переходит в Idle.
+        /// </summary>
+        private void AdvanceOrderQueue()
+        {
+            if (OrderQueueLogic.TryDequeueNext(_orderQueue, out UnitCommand next))
+            {
+                // Выполняем следующий приказ напрямую через ExecuteCommand —
+                // очередь уже уменьшилась на один элемент (Dequeue внутри TryDequeueNext).
+                ExecuteCommand(next);
+            }
+            else
+            {
+                _state = UnitState.Idle;
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // Internal — InitForTest (паттерн проекта)
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Инициализирует очередь приказов в тестовой среде без NavMeshAgent/NavMesh.
+        /// Позволяет тестировать логику очереди в EditMode.
+        /// ТОЛЬКО для тестов; не вызывать из production-кода.
+        /// </summary>
+        internal void InitForTest()
+        {
+            if (_orderQueue == null)
+                _orderQueue = new Queue<UnitCommand>(OrderQueueInitialCapacity);
+        }
+
+        /// <summary>
+        /// Форсированно переводит юнита в состояние Moving (для тестов очереди).
+        /// Позволяет протестировать поведение EnqueueCommand при _state == Moving
+        /// без реального NavMeshAgent.
+        /// ТОЛЬКО для тестов.
+        /// </summary>
+        internal void SetMovingForTest()
+        {
+            _state = UnitState.Moving;
+        }
+
+        /// <summary>
+        /// Эмулирует прибытие юнита (вызывает AdvanceOrderQueue напрямую).
+        /// Позволяет тестировать продвижение очереди в EditMode без NavMesh/Time.deltaTime.
+        /// ТОЛЬКО для тестов.
+        /// </summary>
+        internal void SimulateArrivalForTest()
+        {
+            _stuckTime = 0f;
+            AdvanceOrderQueue();
         }
 
         // ----------------------------------------------------------------
