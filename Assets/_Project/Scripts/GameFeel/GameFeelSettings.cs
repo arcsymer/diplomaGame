@@ -85,5 +85,22 @@ namespace DiplomaGame.Runtime.GameFeel
         [Header("Dash Trail")]
         [Tooltip("Длительность видимости dash-трейла (с).")]
         public float dashTrailDuration = 0.25f;
+
+        // ----------------------------------------------------------------
+        // Hitmarker (Circle-20)
+        // ----------------------------------------------------------------
+
+        [Header("Hitmarker (Circle-20)")]
+        [Tooltip("Цвет вспышки хитмаркера при попадании (тёплый оранжевый).")]
+        public Color hitmarkerColorHit = new Color(1f, 0.55f, 0f, 1f);
+
+        [Tooltip("Масштаб раскрытия крестика при попадании (1.0 → hitmarkerExpandScale → 1.0).")]
+        public float hitmarkerExpandScale = 1.15f;
+
+        [Tooltip("Масштаб раскрытия крестика при промахе (1.0 → hitmarkerMissScale → 1.0).")]
+        public float hitmarkerMissScale = 1.05f;
+
+        [Tooltip("Длительность анимации хитмаркера (с).")]
+        public float hitmarkerDuration = 0.10f;
     }
 }

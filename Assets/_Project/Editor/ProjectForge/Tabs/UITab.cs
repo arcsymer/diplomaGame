@@ -210,6 +210,23 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Unit Health Bars (C18)", GUILayout.Height(32)))
                 SetupUnitHealthBars();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Crosshair Hitmarker (C20):\n" +
+                "• Создаёт 4 дочерних Image-полоски на Crosshair (если их нет)\n" +
+                "• Прошивает CrosshairUI._shooter (Hero/HeroShooter) + CrosshairUI._settings\n" +
+                "• Записывает дефолтные значения hitmarker в GameFeelSettings.asset через SerializedObject\n" +
+                "  (hitmarkerColorHit = warm orange, expandScale=1.15, missScale=1.05, duration=0.10)\n" +
+                "• Добавляет UiPulse на каждый AbilitySlot_1..4 (если его нет)\n" +
+                "Требует: BuildGameHUD (M6a) и SetupGameFeel (C12) уже выполнены. Идемпотентно.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Crosshair Hitmarker (C20)", GUILayout.Height(32)))
+                SetupCrosshairHitmarker();
         }
 
         // ----------------------------------------------------------------
@@ -3398,6 +3415,165 @@ namespace DiplomaGame.Editor
                       "\n  • IdleArmyIndicator → IdleArmyBadge" +
                       "\n  • _selectionSystem → " + (selSystem != null ? selSystem.gameObject.name : "null (назначьте вручную)") +
                       "\n  • Бейдж скрыт по умолчанию (activeSelf=false)");
+        }
+
+        // ----------------------------------------------------------------
+        // C20: Crosshair Hitmarker
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно настраивает хитмаркер прицела (Circle-20).
+        ///
+        /// Что делает:
+        ///   (a) Создаёт 4 дочерних Image-полоски (Left/Right/Up/Down) на Crosshair, если их нет.
+        ///   (b) Прошивает CrosshairUI._shooter = Hero/HeroShooter, CrosshairUI._settings.
+        ///   (c) Записывает дефолтные значения hitmarker на существующий GameFeelSettings.asset
+        ///       через SerializedObject (обходит Unity-поведение «C# initializers игнорируются
+        ///       для уже сериализованных ассетов»).
+        ///   (d) Добавляет UiPulse на каждый AbilitySlot_1..4, если его нет.
+        /// </summary>
+        internal static void SetupCrosshairHitmarker()
+        {
+            const string SettingsAssetPath = "Assets/_Project/Data/GameFeel/GameFeelSettings.asset";
+
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            // ---- 1. Найти Crosshair ----
+            var gameHudGo = GameObject.Find("GameHUD");
+            if (gameHudGo == null)
+            {
+                Debug.LogWarning("[Forge C20] GameHUD не найден — сначала запустите Build Game HUD (M6a).");
+                return;
+            }
+
+            var crosshairGo = FindDescendantByName(gameHudGo, "Crosshair");
+            if (crosshairGo == null)
+            {
+                Debug.LogWarning("[Forge C20] Crosshair не найден в GameHUD — сначала запустите Build Game HUD (M6a).");
+                return;
+            }
+
+            // ---- 2. Создать 4 Image-полоски, если их нет ----
+            EnsureCrosshairLines(crosshairGo);
+
+            // ---- 3. Прошить CrosshairUI._shooter + _settings ----
+            var crosshairUi = EnsureComponent<DiplomaGame.Runtime.UI.CrosshairUI>(crosshairGo);
+
+            var heroGo  = GameObject.Find("Hero");
+            var shooter = heroGo != null
+                ? heroGo.GetComponent<DiplomaGame.Runtime.Hero.HeroShooter>()
+                : null;
+
+            var settings = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.GameFeel.GameFeelSettings>(SettingsAssetPath);
+
+            {
+                var so = new SerializedObject(crosshairUi);
+                so.FindProperty("_shooter").objectReferenceValue  = shooter;
+                so.FindProperty("_settings").objectReferenceValue = settings;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            if (shooter == null)
+                Debug.LogWarning("[Forge C20] Hero/HeroShooter не найден — _shooter не прошит. Назначьте вручную.");
+
+            // ---- 4. Записать дефолты hitmarker в GameFeelSettings.asset ----
+            // КРИТИЧНО: C# field initializers не применяются к уже сериализованному asset'у,
+            // поэтому hitmarkerColorHit и другие новые поля получают type-default (black).
+            // SerializedObject записывает значения явно.
+            if (settings != null)
+            {
+                var settingsSo = new SerializedObject(settings);
+
+                // hitmarkerColorHit = warm orange (1, 0.55, 0, 1)
+                var colorProp = settingsSo.FindProperty("hitmarkerColorHit");
+                if (colorProp != null)
+                    colorProp.colorValue = new Color(1f, 0.55f, 0f, 1f);
+
+                var expandProp = settingsSo.FindProperty("hitmarkerExpandScale");
+                if (expandProp != null && Mathf.Approximately(expandProp.floatValue, 0f))
+                    expandProp.floatValue = 1.15f;
+
+                var missProp = settingsSo.FindProperty("hitmarkerMissScale");
+                if (missProp != null && Mathf.Approximately(missProp.floatValue, 0f))
+                    missProp.floatValue = 1.05f;
+
+                var durProp = settingsSo.FindProperty("hitmarkerDuration");
+                if (durProp != null && Mathf.Approximately(durProp.floatValue, 0f))
+                    durProp.floatValue = 0.10f;
+
+                settingsSo.ApplyModifiedPropertiesWithoutUndo();
+                // SetDirty marks the object so Unity's asset pipeline knows it needs saving.
+                // ForceReserializeAssets guarantees the YAML is rewritten (critical in -batchmode).
+                EditorUtility.SetDirty(settings);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ForceReserializeAssets(
+                    new[] { SettingsAssetPath },
+                    ForceReserializeAssetsOptions.ReserializeAssets);
+            }
+            else
+            {
+                Debug.LogWarning("[Forge C20] GameFeelSettings.asset не найден — дефолты не записаны. " +
+                                 "Сначала запустите Setup GameFeel (C12) → Create GameFeelSettings.asset.");
+            }
+
+            // ---- 5. UiPulse на AbilitySlot_1..4 ----
+            var tpsBlock = FindDescendantByName(gameHudGo, "TPS_Block");
+            if (tpsBlock != null)
+            {
+                for (int i = 1; i <= 4; i++)
+                {
+                    var slotGo = FindDescendantByName(tpsBlock, "AbilitySlot_" + i.ToString());
+                    if (slotGo != null)
+                        EnsureComponent<UiPulse>(slotGo);
+                }
+            }
+
+            // ---- 6. Сохранение сцены ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Forge C20] Setup Crosshair Hitmarker завершён." +
+                      "\n  • Crosshair Image-полоски: 4 штуки (Left/Right/Up/Down)" +
+                      "\n  • CrosshairUI._shooter → " + (shooter != null ? shooter.gameObject.name : "null (не найден)") +
+                      "\n  • CrosshairUI._settings → " + (settings != null ? SettingsAssetPath : "null (не найден)") +
+                      "\n  • GameFeelSettings: hitmarkerColorHit=(1,0.55,0), expand=1.15, miss=1.05, dur=0.10" +
+                      "\n  • UiPulse добавлен на AbilitySlot_1..4");
+        }
+
+        /// <summary>
+        /// Идемпотентно создаёт 4 Image-полоски прицела (Left/Right/Up/Down),
+        /// если они ещё не существуют.
+        /// </summary>
+        private static void EnsureCrosshairLines(GameObject crosshairGo)
+        {
+            // Те же параметры, что в BuildCrosshairLines — дублируем идемпотентно
+            var dirs = new (string name, Vector2 pos, Vector2 size)[]
+            {
+                ("Left",  new Vector2(-14f,  0f),  new Vector2(10f, 2f)),
+                ("Right", new Vector2( 14f,  0f),  new Vector2(10f, 2f)),
+                ("Up",    new Vector2(  0f,  14f), new Vector2(2f, 10f)),
+                ("Down",  new Vector2(  0f, -14f), new Vector2(2f, 10f)),
+            };
+
+            foreach (var (name, pos, size) in dirs)
+            {
+                var lineGo  = EnsureChild(crosshairGo, name);
+                var lineI   = EnsureComponent<Image>(lineGo);
+                lineI.color = Color.white;
+
+                var lineRt = lineGo.GetComponent<RectTransform>() ?? lineGo.AddComponent<RectTransform>();
+                lineRt.anchorMin        = new Vector2(0.5f, 0.5f);
+                lineRt.anchorMax        = new Vector2(0.5f, 0.5f);
+                lineRt.pivot            = new Vector2(0.5f, 0.5f);
+                lineRt.anchoredPosition = pos;
+                lineRt.sizeDelta        = size;
+            }
         }
 
         // ----------------------------------------------------------------
