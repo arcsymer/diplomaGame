@@ -369,5 +369,22 @@ namespace DiplomaGame.Editor
             ManagersTab.SetupFlankingAI();
         }
 
+        /// <summary>
+        /// Circle-16 Under Attack Alert: открывает Sandbox →
+        /// создаёт UnderAttackVignette (full-stretch Image) в GameHUD →
+        /// создаёт ThreatMarker (16×16 Image) в MinimapDisplay →
+        /// добавляет UnderAttackAlert на GameManagers →
+        /// прошивает _minimapMarker, _edgeVignette, _minimapCamera, _minimapDisplay →
+        /// сохраняет сцену и ассеты.
+        /// Prerequisite: SetupM6Hud (BuildGameHud) уже выполнен.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupUnderAttackAlert
+        /// </summary>
+        public static void SetupUnderAttackAlert()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.BuildUnderAttackAlert();
+        }
+
     }
 }

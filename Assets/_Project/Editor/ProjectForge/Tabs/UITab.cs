@@ -160,6 +160,22 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Apply Localization to Scene UI (v10)", GUILayout.Height(32)))
                 ApplyLocalizationToSceneUI_V10();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Under Attack Alert (C16):\n" +
+                "• Создаёт UnderAttackVignette (Image, full-stretch, красный, alpha=0) в GameHUD\n" +
+                "• Создаёт ThreatMarker (Image, 16×16, красный, скрытый) в MinimapDisplay\n" +
+                "• Добавляет UnderAttackAlert на GameManagers\n" +
+                "• Прописывает _minimapMarker, _edgeVignette, _minimapCamera, _minimapDisplay\n" +
+                "Требует: BuildGameHUD (M6a) уже выполнен. Операция идемпотентна.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Build Under Attack Alert (C16)", GUILayout.Height(32)))
+                BuildUnderAttackAlert();
         }
 
         // ----------------------------------------------------------------
@@ -3107,6 +3123,128 @@ namespace DiplomaGame.Editor
             var so = new SerializedObject(locText);
             so.FindProperty("locKey").stringValue = locKey;
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // ----------------------------------------------------------------
+        // C16: Under Attack Alert
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт и проводит систему оповещения «под атакой» (Circle-16):
+        /// <list type="number">
+        ///   <item>Создаёт "UnderAttackVignette" (Image, full-stretch, красный, alpha=0, raycastTarget=false) в GameHUD.</item>
+        ///   <item>Создаёт "ThreatMarker" (Image, 16×16, красный, скрытый) в MinimapDisplay.</item>
+        ///   <item>Добавляет <see cref="UnderAttackAlert"/> на "GameManagers".</item>
+        ///   <item>Прописывает все поля через SerializedObject.</item>
+        /// </list>
+        /// Требует: BuildGameHUD (M6a) уже выполнен.
+        /// </summary>
+        internal static void BuildUnderAttackAlert()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            // ---- 1. GameHUD Canvas ----
+            var gameHudGo = GameObject.Find("GameHUD");
+            if (gameHudGo == null)
+            {
+                Debug.LogError("[Forge C16] GameHUD не найден — сначала запустите 'Build Game HUD (M6a)'.");
+                return;
+            }
+
+            // ---- 2. UnderAttackVignette в GameHUD ----
+            var vignetteGo = EnsureChild(gameHudGo, "UnderAttackVignette");
+            SetFullStretch(vignetteGo);
+
+            var vignetteImg = EnsureComponent<Image>(vignetteGo);
+            // Красный цвет, полностью прозрачный по умолчанию
+            vignetteImg.color          = new Color(0.85f, 0.05f, 0.05f, 0f);
+            vignetteImg.raycastTarget  = false;
+            // Image Type Simple — не нужно заполнять; alpha управляет видимостью
+            vignetteImg.type           = Image.Type.Simple;
+
+            // Убедимся, что виньетка находится поверх остальных дочерних элементов канваса
+            vignetteGo.transform.SetAsLastSibling();
+
+            // ---- 3. ThreatMarker в MinimapDisplay ----
+            var rtsBlockGo = FindDescendantByName(gameHudGo, "RTS_Block");
+            if (rtsBlockGo == null)
+            {
+                Debug.LogError("[Forge C16] RTS_Block не найден в GameHUD — сначала запустите 'Build Game HUD (M6a)'.");
+                return;
+            }
+
+            var minimapDisplayGo = FindDescendantByName(rtsBlockGo, "MinimapDisplay");
+            if (minimapDisplayGo == null)
+            {
+                Debug.LogError("[Forge C16] MinimapDisplay не найден в RTS_Block — сначала запустите 'Build Game HUD (M6a)'.");
+                return;
+            }
+
+            var markerGo = EnsureChild(minimapDisplayGo, "ThreatMarker");
+            var markerRt = markerGo.GetComponent<RectTransform>() ?? markerGo.AddComponent<RectTransform>();
+            markerRt.anchorMin        = new Vector2(0.5f, 0.5f);
+            markerRt.anchorMax        = new Vector2(0.5f, 0.5f);
+            markerRt.pivot            = new Vector2(0.5f, 0.5f);
+            markerRt.anchoredPosition = Vector2.zero;
+            markerRt.sizeDelta        = new Vector2(16f, 16f);
+
+            var markerImg = EnsureComponent<Image>(markerGo);
+            markerImg.color         = new Color(1f, 0.1f, 0.1f, 1f);
+            markerImg.raycastTarget = false;
+            markerGo.SetActive(false); // скрыт до первого алерта
+
+            // ---- 4. Получаем MinimapCamera из MinimapController ----
+            var minimapCtrl = UnityEngine.Object.FindFirstObjectByType<MinimapController>();
+            Camera minimapCamera = null;
+            RawImage minimapDisplay = null;
+            if (minimapCtrl != null)
+            {
+                minimapCamera  = minimapCtrl.MinimapCamera;
+                minimapDisplay = minimapDisplayGo.GetComponent<RawImage>();
+            }
+            else
+            {
+                // Fallback: ищем камеру по имени
+                var camGo  = GameObject.Find("MinimapCamera");
+                minimapCamera  = camGo != null ? camGo.GetComponent<Camera>() : null;
+                minimapDisplay = minimapDisplayGo.GetComponent<RawImage>();
+                Debug.LogWarning("[Forge C16] MinimapController не найден — _minimapCamera проставлена по имени объекта 'MinimapCamera'.");
+            }
+
+            // ---- 5. UnderAttackAlert на GameManagers ----
+            var managersGo = GameObject.Find("GameManagers");
+            if (managersGo == null)
+            {
+                Debug.LogWarning("[Forge C16] GameManagers не найден — UnderAttackAlert будет добавлен на GameHUD.");
+                managersGo = gameHudGo;
+            }
+
+            var alert = EnsureComponent<UnderAttackAlert>(managersGo);
+
+            // ---- 6. Прописываем ссылки через SerializedObject ----
+            var alertSo = new SerializedObject(alert);
+            alertSo.FindProperty("_minimapMarker").objectReferenceValue  = markerRt;
+            alertSo.FindProperty("_edgeVignette").objectReferenceValue   = vignetteImg;
+            alertSo.FindProperty("_minimapCamera").objectReferenceValue  = minimapCamera;
+            alertSo.FindProperty("_minimapDisplay").objectReferenceValue = minimapDisplay;
+            alertSo.ApplyModifiedPropertiesWithoutUndo();
+
+            // ---- 7. Сохранение ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Forge C16] Under Attack Alert настроен успешно." +
+                      "\n  • UnderAttackVignette → GameHUD" +
+                      "\n  • ThreatMarker → MinimapDisplay" +
+                      "\n  • UnderAttackAlert → " + managersGo.name +
+                      (minimapCamera == null ? "\n  ПРЕДУПРЕЖДЕНИЕ: _minimapCamera = null, назначьте вручную." : ""));
         }
     }
 }
