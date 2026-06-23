@@ -56,3 +56,10 @@ TestResults/
 .venv/
 __pycache__/
 *.pyc
+
+# Тезисный тулинг/исходники (praca inżynierska) — ~99МБ, отдельная сфера, не в этом репо
+Docs-Vault/Diploma/
+
+# Артефакты Unity Test Framework — временные сцены PlayMode (остаются после краша прогона)
+/Assets/InitTestScene*.unity
+/Assets/InitTestScene*.unity.meta
