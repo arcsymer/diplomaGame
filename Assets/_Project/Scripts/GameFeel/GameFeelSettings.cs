@@ -102,5 +102,16 @@ namespace DiplomaGame.Runtime.GameFeel
 
         [Tooltip("Длительность анимации хитмаркера (с).")]
         public float hitmarkerDuration = 0.10f;
+
+        // ----------------------------------------------------------------
+        // Hero Damage Indicator (Circle-21)
+        // ----------------------------------------------------------------
+
+        [Header("Hero Damage Indicator (Circle-21)")]
+        [Tooltip("Длительность затухания red-edge flash при уроне героя (с). ~1 с по ТЗ.")]
+        public float damageIndicatorDuration = 1.0f;
+
+        [Tooltip("Пиковая альфа red-edge flash в момент удара (0..1).")]
+        public float damageIndicatorPeakAlpha = 0.6f;
     }
 }

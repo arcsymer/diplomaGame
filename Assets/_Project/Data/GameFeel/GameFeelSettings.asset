@@ -31,3 +31,5 @@ MonoBehaviour:
   hitmarkerExpandScale: 1.15
   hitmarkerMissScale: 1.05
   hitmarkerDuration: 0.1
+  damageIndicatorDuration: 1
+  damageIndicatorPeakAlpha: 0.6

@@ -436,5 +436,24 @@ namespace DiplomaGame.Editor
             UITab.SetupCrosshairHitmarker();
         }
 
+        /// <summary>
+        /// Идемпотентно создаёт Hero Damage Indicator (Circle-21) в Sandbox.unity:
+        /// добавляет HeroDamageFlash Image (full-stretch, red alpha=0) в TPS_Block →
+        /// навешивает HeroDamageIndicator →
+        /// прошивает _heroHealth (Hero/Health), _edgeFlash, _settings →
+        /// записывает дефолты C21 (duration=1.0, peakAlpha=0.6) в GameFeelSettings.asset →
+        /// сохраняет сцену и ассеты.
+        /// LIMITATION: Health.AnyDamaged не несёт позицию атакующего — реализован
+        /// full-edge red flash; направленный вариант потребует изменения API Health.
+        /// Prerequisite: BuildGameHUD (M6a) и SetupGameFeel (C12) уже выполнены.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupHeroDamageIndicator
+        /// </summary>
+        public static void SetupHeroDamageIndicator()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.SetupHeroDamageIndicator();
+        }
+
     }
 }

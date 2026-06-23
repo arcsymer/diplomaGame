@@ -227,6 +227,25 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Crosshair Hitmarker (C20)", GUILayout.Height(32)))
                 SetupCrosshairHitmarker();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Hero Damage Indicator (C21):\n" +
+                "• Создаёт HeroDamageFlash (Image, full-stretch, red alpha=0, raycastTarget=false) в TPS_Block\n" +
+                "• Добавляет HeroDamageIndicator на тот же объект\n" +
+                "• Прошивает _heroHealth (Hero/Health), _edgeFlash, _settings\n" +
+                "• Записывает дефолты C21 в GameFeelSettings.asset через SerializedObject\n" +
+                "  (damageIndicatorDuration=1.0, damageIndicatorPeakAlpha=0.6)\n" +
+                "LIMITATION: Health.AnyDamaged не несёт позицию источника — реализован\n" +
+                "full-edge red flash (не направленный). Направление потребует API-изменения Health.\n" +
+                "Требует: BuildGameHUD (M6a) и SetupGameFeel (C12) уже выполнены. Идемпотентно.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Hero Damage Indicator (C21)", GUILayout.Height(32)))
+                SetupHeroDamageIndicator();
         }
 
         // ----------------------------------------------------------------
@@ -3657,6 +3676,123 @@ namespace DiplomaGame.Editor
                       "\n  • _selectionSystem → " + (selectionSystem != null ? selectionSystem.gameObject.name : "null (назначьте вручную)") +
                       "\n  • _barCanvas      → HealthBarsCanvas" +
                       "\n  • Пул: 48 виджетов, интервал обновления 0.1 с, cullMargin=0.02");
+        }
+
+        // ----------------------------------------------------------------
+        // C21: Hero Damage Indicator
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Идемпотентно создаёт HeroDamageFlash (Image, full-stretch, красный, alpha=0)
+        /// в TPS_Block, добавляет HeroDamageIndicator и прошивает ссылки.
+        /// Также записывает дефолты Circle-21 в GameFeelSettings.asset.
+        ///
+        /// LIMITATION: Health.AnyDamaged (Action&lt;Health, float&gt;) не несёт позицию
+        /// источника урона — направленный указатель невозможен без изменения API.
+        /// Реализован full-edge red flash.
+        /// </summary>
+        internal static void SetupHeroDamageIndicator()
+        {
+            const string SettingsAssetPath = "Assets/_Project/Data/GameFeel/GameFeelSettings.asset";
+
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (!scene.IsValid())
+            {
+                EditorUtility.DisplayDialog("Project Forge", "Нет открытой сцены.", "OK");
+                return;
+            }
+
+            // ---- 1. Найти TPS_Block ----
+            var gameHudGo = GameObject.Find("GameHUD");
+            if (gameHudGo == null)
+            {
+                Debug.LogWarning("[Forge C21] GameHUD не найден — сначала запустите Build Game HUD (M6a).");
+                return;
+            }
+
+            var tpsBlock = FindDescendantByName(gameHudGo, "TPS_Block");
+            if (tpsBlock == null)
+            {
+                Debug.LogWarning("[Forge C21] TPS_Block не найден в GameHUD — сначала запустите Build Game HUD (M6a).");
+                return;
+            }
+
+            // ---- 2. Создать HeroDamageFlash (Image, full-stretch, красный, alpha=0) ----
+            var flashGo = EnsureChild(tpsBlock, "HeroDamageFlash");
+            {
+                var img = EnsureComponent<Image>(flashGo);
+                // Красный с alpha=0 — невидим в покое, alpha управляется корутиной
+                img.color          = new Color(0.85f, 0.05f, 0.05f, 0f);
+                img.raycastTarget  = false;  // не блокирует ввод
+
+                SetFullStretch(flashGo);
+            }
+
+            // ---- 3. Добавить HeroDamageIndicator ----
+            var indicator = EnsureComponent<DiplomaGame.Runtime.UI.HeroDamageIndicator>(flashGo);
+
+            // ---- 4. Прошить ссылки через SerializedObject ----
+            var heroGo     = GameObject.Find("Hero");
+            var heroHealth = heroGo != null
+                ? heroGo.GetComponent<DiplomaGame.Runtime.Combat.Health>()
+                : null;
+
+            var settings = AssetDatabase.LoadAssetAtPath<DiplomaGame.Runtime.GameFeel.GameFeelSettings>(SettingsAssetPath);
+
+            var edgeFlash = flashGo.GetComponent<Image>();
+
+            {
+                var so = new SerializedObject(indicator);
+                so.FindProperty("_heroHealth").objectReferenceValue = heroHealth;
+                so.FindProperty("_edgeFlash").objectReferenceValue  = edgeFlash;
+                so.FindProperty("_settings").objectReferenceValue   = settings;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            if (heroHealth == null)
+                Debug.LogWarning("[Forge C21] Hero/Health не найден — _heroHealth не прошит. Назначьте вручную.");
+
+            // ---- 5. Записать дефолты C21 в GameFeelSettings.asset ----
+            // КРИТИЧНО: C# field initializers не применяются к уже сериализованному asset'у;
+            // новые поля получают type-default (0). SerializedObject записывает явно.
+            if (settings != null)
+            {
+                var settingsSo = new SerializedObject(settings);
+
+                var durProp = settingsSo.FindProperty("damageIndicatorDuration");
+                if (durProp != null && Mathf.Approximately(durProp.floatValue, 0f))
+                    durProp.floatValue = 1.0f;
+
+                var peakProp = settingsSo.FindProperty("damageIndicatorPeakAlpha");
+                if (peakProp != null && Mathf.Approximately(peakProp.floatValue, 0f))
+                    peakProp.floatValue = 0.6f;
+
+                settingsSo.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(settings);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ForceReserializeAssets(
+                    new[] { SettingsAssetPath },
+                    ForceReserializeAssetsOptions.ReserializeAssets);
+            }
+            else
+            {
+                Debug.LogWarning("[Forge C21] GameFeelSettings.asset не найден — дефолты C21 не записаны. " +
+                                 "Сначала запустите Setup GameFeel (C12) → Create GameFeelSettings.asset.");
+            }
+
+            // ---- 6. Сохранение сцены ----
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.Refresh();
+
+            Debug.Log("[Forge C21] Setup Hero Damage Indicator завершён." +
+                      "\n  • HeroDamageFlash → TPS_Block (full-stretch, red alpha=0, raycastTarget=false)" +
+                      "\n  • HeroDamageIndicator → HeroDamageFlash" +
+                      "\n  • _heroHealth → " + (heroHealth != null ? heroHealth.gameObject.name : "null (не найден, назначьте вручную)") +
+                      "\n  • _edgeFlash  → HeroDamageFlash.Image" +
+                      "\n  • _settings   → " + (settings  != null ? SettingsAssetPath : "null (не найден)") +
+                      "\n  • GameFeelSettings: damageIndicatorDuration=1.0, damageIndicatorPeakAlpha=0.6" +
+                      "\n  LIMITATION: Health.AnyDamaged не несёт позицию источника — full-edge flash, не направленный.");
         }
     }
 }
