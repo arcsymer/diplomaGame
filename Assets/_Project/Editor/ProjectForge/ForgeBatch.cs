@@ -386,5 +386,21 @@ namespace DiplomaGame.Editor
             UITab.BuildUnderAttackAlert();
         }
 
+        /// <summary>
+        /// Circle-17 Idle Army Indicator: открывает Sandbox →
+        /// создаёт IdleArmyBadge (Button, 90×32, жёлтый фон) в левом нижнем углу RTS_Block →
+        /// добавляет IdleArmyIndicator на IdleArmyBadge →
+        /// прошивает _selectionSystem, _countLabel, _pulse →
+        /// сохраняет сцену и ассеты.
+        /// Prerequisite: SetupM6Hud (BuildGameHud) уже выполнен.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupIdleArmyIndicator
+        /// </summary>
+        public static void SetupIdleArmyIndicator()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            UITab.SetupIdleArmyIndicator();
+        }
+
     }
 }
