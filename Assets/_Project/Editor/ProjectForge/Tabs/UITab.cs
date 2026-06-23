@@ -246,6 +246,24 @@ namespace DiplomaGame.Editor
 
             if (GUILayout.Button("Setup Hero Damage Indicator (C21)", GUILayout.Height(32)))
                 SetupHeroDamageIndicator();
+
+            GUILayout.Space(8);
+
+            EditorGUILayout.HelpBox(
+                "Dynamic FOV (C22):\n" +
+                "• Добавляет DynamicFovController на GameManagers\n" +
+                "• Прошивает _tpsCamera, _abilitySystem, _modeController, _settings\n" +
+                "• Записывает дефолты C22 в GameFeelSettings.asset через SerializedObject\n" +
+                "  (fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12)\n" +
+                "Kick-триггеры: AbilityType.Dash и AbilityType.Overcharge.\n" +
+                "Sprint-widen: НЕ реализован — HeroController не экспонирует флаг спринта.\n" +
+                "Требует: SetupGameFeel (C12) уже выполнен. Только TPS-камера. Идемпотентно.",
+                MessageType.Info);
+
+            GUILayout.Space(4);
+
+            if (GUILayout.Button("Setup Dynamic FOV (C22)", GUILayout.Height(32)))
+                GameFeelTab.SetupDynamicFov();
         }
 
         // ----------------------------------------------------------------

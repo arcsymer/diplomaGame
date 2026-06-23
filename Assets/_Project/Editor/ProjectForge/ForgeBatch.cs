@@ -455,5 +455,24 @@ namespace DiplomaGame.Editor
             UITab.SetupHeroDamageIndicator();
         }
 
+        /// <summary>
+        /// Dynamic FOV TPS-камеры (Circle-22): открывает Sandbox →
+        /// добавляет DynamicFovController на GameManagers →
+        /// прошивает _tpsCamera, _abilitySystem, _modeController, _settings →
+        /// записывает дефолты C22 (fovKickAmount=9, fovKickDuration=0.08, fovReturnSpeed=12)
+        /// в GameFeelSettings.asset через SerializedObject + ForceReserializeAssets →
+        /// сохраняет сцену и ассеты.
+        /// Kick-триггеры: AbilityType.Dash и AbilityType.Overcharge.
+        /// Sprint-widen: не реализован (HeroController не экспонирует флаг спринта).
+        /// Prerequisite: SetupGameFeel (C12) уже выполнен.
+        /// Идемпотентно.
+        /// Batch entry-point: -executeMethod DiplomaGame.Editor.ForgeBatch.SetupDynamicFov
+        /// </summary>
+        public static void SetupDynamicFov()
+        {
+            EditorSceneManager.OpenScene(SandboxScenePath, OpenSceneMode.Single);
+            GameFeelTab.SetupDynamicFov();
+        }
+
     }
 }
