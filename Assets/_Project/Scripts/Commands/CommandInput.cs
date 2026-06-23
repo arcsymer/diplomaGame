@@ -176,6 +176,14 @@ namespace DiplomaGame.Runtime.Commands
             bool pressA = Keyboard.current != null && Keyboard.current.aKey.isPressed;
             bool pressP = Keyboard.current != null && Keyboard.current.pKey.isPressed;
 
+            // M15: Shift+ПКМ — добавить в очередь (waypoint queue).
+            // Shift+ЛКМ (аддитивное выделение) обрабатывается SelectionSystem независимо —
+            // Shift здесь читается только в обработчике ПКМ-события (OnCommand), конфликта нет.
+            // Patrol не поддерживает очередь (OrderQueueLogic.CanEnqueue вернёт false →
+            // EnqueueCommand вызовет IssueCommand внутри), поэтому Shift+P ведёт себя
+            // как немедленный Patrol, сбрасывая очередь — это корректное поведение.
+            bool shiftHeld = Keyboard.current != null && Keyboard.current.shiftKey.isPressed;
+
             var selected = selectionSystem.Selected;
 
             UnitCommandType issuedType = pressA ? UnitCommandType.AttackMove
@@ -202,7 +210,10 @@ namespace DiplomaGame.Runtime.Commands
                 else
                     cmd = UnitCommand.Move(point);
 
-                unit.IssueCommand(cmd);
+                if (shiftHeld)
+                    unit.EnqueueCommand(cmd);
+                else
+                    unit.IssueCommand(cmd);
             }
 
             // Уведомляем подписчиков (OrderMarkerFeedback и другие) о выданном приказе
