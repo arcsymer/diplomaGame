@@ -115,11 +115,17 @@ namespace DiplomaGame.Tests.Runtime
             const float PollStep = 0.25f;
             // Stall-breaker (модель приказа командира) — как в BalanceSimulationTests:
             // оборонительный пост-ретритный скан (×2) не сводит отступившие армии сам.
-            const float StallSimSeconds = 30f;
+            // Цель приказа — БАЗА врага (не центр масс живых): центр масс вызывает
+            // «зеркальную встречу» армий посередине и бесконечный цикл ретрит-атака.
+            const float StallSimSeconds = 15f;
 
             float simElapsed    = 0f;
             float lastChangeSim = 0f;
             float lastTotalHp   = -1f;
+
+            // Кэшируем позиции баз один раз (rally-маркеры из SetUp).
+            Vector3 playerBasePos = GetBasePosition("PlayerBaseSpawn");
+            Vector3 enemyBasePos  = GetBasePosition("EnemyBaseSpawn");
 
             while (simElapsed < simLimitSeconds)
             {
@@ -137,11 +143,19 @@ namespace DiplomaGame.Tests.Runtime
                 }
                 else if (simElapsed - lastChangeSim >= StallSimSeconds)
                 {
-                    IssueAttackMoveToAll(Faction.Player, CenterOfAlive(Faction.Enemy, buffer),  buffer);
-                    IssueAttackMoveToAll(Faction.Enemy,  CenterOfAlive(Faction.Player, buffer), buffer);
+                    // Player → база врага, Enemy → база игрока: армии идут в одном
+                    // направлении до полной сходимости (а не сходятся посередине).
+                    IssueAttackMoveToAll(Faction.Player, enemyBasePos,  buffer);
+                    IssueAttackMoveToAll(Faction.Enemy,  playerBasePos, buffer);
                     lastChangeSim = simElapsed;
                 }
             }
+        }
+
+        private static Vector3 GetBasePosition(string markerName)
+        {
+            var go = GameObject.Find(markerName);
+            return go != null ? go.transform.position : Vector3.zero;
         }
 
         private static float SumAliveHp(Faction faction, List<Unit> buffer)
@@ -180,7 +194,10 @@ namespace DiplomaGame.Tests.Runtime
                 if (u == null) continue;
                 var h = u.GetComponent<Health>();
                 if (h == null || h.IsDead) continue;
+                // Команда сбрасывает _retreatSuppressedForBreaker → подавляем ПОСЛЕ неё,
+                // иначе юнит с HP ≤ retreatHpFraction немедленно уйдёт обратно к базе.
                 u.IssueCommand(UnitCommand.AttackMove(target));
+                u.GetComponent<UnitCombat>()?.SuppressRetreatForStallBreaker();
             }
         }
 
